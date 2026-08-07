@@ -245,8 +245,7 @@ class MentorGeneralChatArgs {
 
   String buildGreeting() {
     final pred = mlRating['predicted_rating'];
-    final label =
-        mlRating['percentile_label'] ?? mlRating['performance_label'];
+    final label = mlRating['percentile_label'] ?? mlRating['performance_label'];
     final mlLine = pred != null
         ? (usesMlModel
             ? 'ML rating (**$mlModelPath**): **$pred/5**${label != null ? ' ($label)' : ''}.'

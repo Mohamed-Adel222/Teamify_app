@@ -87,8 +87,7 @@ class ProjectRepository {
 
   // GET /api/projects/<id>/members
   Future<List<ApiUser>> listProjectMembers(String id) async {
-    final response =
-        await _client.get<dynamic>('/api/projects/$id/members');
+    final response = await _client.get<dynamic>('/api/projects/$id/members');
     return responseList(response.data, ['members', 'data'])
         .map(ApiUser.fromJson)
         .toList();
@@ -106,8 +105,7 @@ class ProjectRepository {
   // DELETE /api/projects/<id>/members/<uid>
   Future<void> removeProjectMember(
       {required String projectId, required String userId}) async {
-    await _client
-        .delete<dynamic>('/api/projects/$projectId/members/$userId');
+    await _client.delete<dynamic>('/api/projects/$projectId/members/$userId');
   }
 
   // GET /api/projects/<id>/invitations

@@ -10,15 +10,18 @@ import '../../core/session/session_controller.dart';
 import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_config.dart';
+import '../../data/models/models.dart';
+import '../../data/models/university_option_model.dart';
+import '../../widgets/university_selector_widgets.dart';
+import '../../data/registration_options.dart';
+import '../../core/localization/app_localizations.dart';
 
 // ── Routing Logic ─────────────────────────────────────────────────────────────
 Future<void> _navigateToCorrectHome(BuildContext context, String role,
     {String? email, String? name, bool isNew = false}) async {
   if (role == 'Admin') {
-    final session = context.read<SessionController>();
-    final route =
-        session.needsAdmin2faStep ? R.adminTwoFaSetup : R.adminHome;
-    Navigator.pushNamedAndRemoveUntil(context, route, (_) => false);
+    Navigator.pushNamedAndRemoveUntil(context, R.adminHome, (_) => false);
     return;
   }
 
@@ -68,7 +71,7 @@ String _homeRouteForSession(SessionController session) {
   final user = session.currentUser;
   if (user == null) return R.roleSelection;
   if (user.isAdmin) {
-    return session.needsAdmin2faStep ? R.adminTwoFaSetup : R.adminHome;
+    return R.adminHome;
   }
   if (user.isStudent) return R.studentHome;
   return R.freelancerHome;
@@ -104,7 +107,8 @@ void _showAuthError(BuildContext context, Object error) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
 
-void _navigateFromSessionAfterLogin(BuildContext context, {bool isNew = false}) {
+void _navigateFromSessionAfterLogin(BuildContext context,
+    {bool isNew = false}) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     if (!context.mounted) return;
     try {
@@ -235,8 +239,8 @@ class _SplashScreenState extends State<SplashScreen> {
           legacyRole?['selected_role']?.toString() ??
           'Freelancer';
 
-      final res =
-          await services.auth.loginWithGoogle(idToken, userType: role.toLowerCase());
+      final res = await services.auth
+          .loginWithGoogle(idToken, userType: role.toLowerCase());
       if (!mounted) return;
       res.when(
         success: (user) {
@@ -275,8 +279,8 @@ class _SplashScreenState extends State<SplashScreen> {
       final role = saved?['selected_role']?.toString() ??
           legacyRole?['selected_role']?.toString() ??
           'Freelancer';
-      final redirectUri = saved?['redirect_uri']?.toString() ??
-          OAuthConfig.redirectUri();
+      final redirectUri =
+          saved?['redirect_uri']?.toString() ?? OAuthConfig.redirectUri();
 
       final res = await services.auth.loginWithGithub(
         code,
@@ -344,8 +348,8 @@ class _SplashScreenState extends State<SplashScreen> {
             const SizedBox(height: 24),
             Text(
               _statusMessage!,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 14),
+              style:
+                  const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 12),
             const CircularProgressIndicator(strokeWidth: 2),
@@ -532,25 +536,35 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       'id': 'Freelancer',
       'icon': Icons.laptop_outlined,
       'title': 'Freelancer',
-      'sub': '"Tell us more about your professional background."'
+      'sub': 'Tell us more about your professional background.'
     },
     {
       'id': 'Student',
       'icon': Icons.school_outlined,
       'title': 'Student',
-      'sub': '"Help us connect you with the right team."'
+      'sub': 'Help us connect you with the right team.'
     },
     {
       'id': 'Admin',
       'icon': Icons.admin_panel_settings_outlined,
       'title': 'Admin',
-      'sub':
-          '"Configure your admin settings to get full control of your workspace"'
+      'sub': 'Manage Teamify with full platform access.'
     },
   ];
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    String roleTitle(String id) {
+      if (id == 'Freelancer') {
+        return loc?.translate('role_freelancer') ?? 'Freelancer';
+      }
+      if (id == 'Student') {
+        return loc?.translate('role_student') ?? 'Student';
+      }
+      return loc?.translate('role_admin') ?? 'Admin';
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -560,8 +574,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
             const SizedBox(height: 20),
             const _TeamifyLogo(size: 120),
             const SizedBox(height: 28),
-            const Text('Choose Your Role:',
-                style: TextStyle(
+            Text(loc?.translate('choose_role') ?? 'Choose Your Role:',
+                style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: AppColors.primaryDark)),
@@ -571,6 +585,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
             const SizedBox(height: 32),
             ...(_roles.map((r) {
               final sel = _selected == r['id'];
+              final title = roleTitle(r['id'] as String);
               return GestureDetector(
                 onTap: () => setState(() => _selected = r['id'] as String),
                 child: Container(
@@ -598,7 +613,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                          Text(r['title'] as String,
+                          Text(title,
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary,
@@ -614,8 +629,18 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
             })),
             const Spacer(),
             TButton(
-              label: 'Continue',
+              label: loc?.translate('continue') ?? 'Continue',
               onTap: () {
+                if (AppConfig.isDemoMode) {
+                  if (_selected == 'Admin') {
+                    Navigator.pushNamed(context, R.signupAdmin);
+                  } else if (_selected == 'Student') {
+                    Navigator.pushNamed(context, R.signupStudent);
+                  } else {
+                    Navigator.pushNamed(context, R.signupFreelancer);
+                  }
+                  return;
+                }
                 if (_selected == 'Admin') {
                   Navigator.pushNamed(context, R.login, arguments: 'Admin');
                 } else if (_selected == 'Student') {
@@ -686,6 +711,31 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_loading) return;
     setState(() => _loading = true);
     final session = context.read<SessionController>();
+
+    if (AppConfig.isDemoMode) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      final role =
+          ModalRoute.of(context)?.settings.arguments as String? ?? 'Freelancer';
+      final email = _emailCtrl.text.trim();
+      final username = email.isNotEmpty && email.contains('@')
+          ? email.split('@').first
+          : (email.isNotEmpty ? email : 'demo_user');
+      final mockUser = ApiUser(
+        id: 'demo_user_${DateTime.now().millisecondsSinceEpoch}',
+        displayName: username,
+        fullName: username,
+        email: email.isNotEmpty ? email : 'demo@example.com',
+        role: role.toLowerCase() == 'admin' ? 'admin' : 'member',
+        systemRole: role.toLowerCase() == 'admin' ? 'admin' : '',
+        userType: role.toLowerCase(),
+      );
+      session.setCurrentUser(mockUser);
+      _navigateFromSessionAfterLogin(context);
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+
     final auth = context.read<AppServices>().auth;
     final result = await auth.login(
       email: _emailCtrl.text.trim(),
@@ -714,7 +764,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final err = result.error?.trim();
     _showAuthError(
       context,
-      (err != null && err.isNotEmpty) ? err : 'Login failed. Please check your credentials.',
+      (err != null && err.isNotEmpty)
+          ? err
+          : 'Login failed. Please check your credentials.',
     );
   }
 
@@ -735,6 +787,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await launchUrl(url, webOnlyWindowName: '_self');
     }
   }
+
   Future<void> _handleGithubLogin(String role) async {
     try {
       final cache = context.read<CacheManager>();
@@ -753,6 +806,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final role =
         ModalRoute.of(context)?.settings.arguments as String? ?? 'Freelancer';
     return Scaffold(
@@ -765,8 +819,8 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
             const Center(child: _TeamifyLogo(size: 120)),
             const SizedBox(height: 32),
-            const Text('Email',
-                style: TextStyle(
+            Text(loc?.translate('email') ?? 'Email Address',
+                style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                     fontSize: 15)),
@@ -776,8 +830,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 prefix: Icons.email_outlined,
                 controller: _emailCtrl),
             const SizedBox(height: 16),
-            const Text('Password',
-                style: TextStyle(
+            Text(loc?.translate('password') ?? 'Password',
+                style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                     fontSize: 15)),
@@ -830,8 +884,9 @@ class _LoginScreenState extends State<LoginScreen> {
               const Spacer(),
               GestureDetector(
                 onTap: () => Navigator.pushNamed(context, R.forgotPassword),
-                child: const Text('Forget Password?',
-                    style: TextStyle(
+                child: Text(
+                    loc?.translate('forgot_password') ?? 'Forgot Password?',
+                    style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600)),
@@ -839,7 +894,9 @@ class _LoginScreenState extends State<LoginScreen> {
             ]),
             const SizedBox(height: 24),
             TButton(
-              label: _loading ? 'Signing in...' : 'Sign in',
+              label: _loading
+                  ? (loc?.translate('saving') ?? 'Signing in...')
+                  : (loc?.translate('sign_in') ?? 'Sign In'),
               onTap: _loading ? null : _submitLogin,
             ),
             const SizedBox(height: 24),
@@ -854,9 +911,11 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
             const SizedBox(height: 16),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _socialImageBtn('assets/images/google_logo.png', onTap: () => _handleGoogleLogin(role)),
+              _socialImageBtn('assets/images/google_logo.png',
+                  onTap: () => _handleGoogleLogin(role)),
               const SizedBox(width: 16),
-              _socialImageBtn('assets/images/github_logo.png', onTap: () => _handleGithubLogin(role)),
+              _socialImageBtn('assets/images/github_logo.png',
+                  onTap: () => _handleGithubLogin(role)),
             ]),
             const SizedBox(height: 20),
             Center(
@@ -896,7 +955,8 @@ class _LoginScreenState extends State<LoginScreen> {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-            shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.border)),
         child: Center(
             child: Padding(
           padding: const EdgeInsets.all(10.0),
@@ -945,29 +1005,66 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
   bool _alerts = false;
   bool _twoFA = false;
   bool _loading = false;
+  String? _usernameError;
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _usernameCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (_loading) return;
-    setState(() => _loading = true);
+    // Validate username first
+    final username = _usernameCtrl.text.trim();
+    final usernameErr = RegistrationOptions.validateUsername(username);
+    if (usernameErr != null) {
+      setState(() => _usernameError = usernameErr);
+      return;
+    }
+    if (AppConfig.isDemoMode &&
+        RegistrationOptions.isDemoUsernameTaken(username)) {
+      setState(() => _usernameError = 'Username is already taken.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _usernameError = null;
+    });
     try {
+      if (AppConfig.isDemoMode) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        final mockUser = ApiUser(
+          id: 'demo_admin_${DateTime.now().millisecondsSinceEpoch}',
+          displayName: username,
+          fullName: _nameCtrl.text.trim().isNotEmpty
+              ? _nameCtrl.text.trim()
+              : username,
+          email: _emailCtrl.text.trim(),
+          role: 'admin',
+          systemRole: 'admin',
+          userType: 'admin',
+        );
+        context.read<SessionController>().setCurrentUser(mockUser);
+        Navigator.pushNamedAndRemoveUntil(context, R.adminHome, (_) => false);
+        return;
+      }
       await context.read<SessionController>().register(
-            fullName: _nameCtrl.text.trim(),
-            email: _emailCtrl.text.trim(),
-            password: _passwordCtrl.text,
-            role: 'member',
-            userType: 'admin',
-          );
+        fullName: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        password: _passwordCtrl.text,
+        role: 'member',
+        userType: 'admin',
+        extra: {'username': username},
+      );
       if (!mounted) return;
       _navigateFromSession(context, isNew: true);
     } catch (error) {
@@ -1007,6 +1104,22 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
                     fontSize: 15)),
             const SizedBox(height: 8),
             _field(hint: 'example', controller: _nameCtrl),
+            const SizedBox(height: 16),
+            const Text('Username',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    fontSize: 15)),
+            const SizedBox(height: 8),
+            _field(
+                hint: 'e.g. admin_john',
+                prefix: Icons.alternate_email,
+                controller: _usernameCtrl),
+            if (_usernameError != null) ...[
+              const SizedBox(height: 4),
+              Text(_usernameError!,
+                  style: const TextStyle(color: AppColors.error, fontSize: 12)),
+            ],
             const SizedBox(height: 16),
             const Text('Email',
                 style: TextStyle(
@@ -1081,14 +1194,18 @@ class FreelancerSignupScreen extends StatefulWidget {
 }
 
 class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
-  String _field2 = '';
+  String _field2 = 'Frontend Development';
+  String _customField = '';
   String _level = 'Beginner';
   String _avail = '';
-  final List<String> _selectedSkills = ['UI Design', 'UX Design'];
+  final List<String> _selectedSkills = [];
   bool _loading = false;
+  String? _usernameError;
+  String? _fieldError;
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
 
   final List<String> _levelOptions = [
     'Beginner',
@@ -1097,31 +1214,64 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
     'Senior',
     'Expert'
   ];
-  final List<String> _skillsOptions = [
-    'UI/UX Design',
-    'Product Design',
-    'Flutter',
-    'Frontend Development',
-    'Backend Development',
-    'Figma',
-    'Graphic Design',
-    'Mobile App Development',
-    'Project Management',
-    'AI Tools'
-  ];
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _usernameCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (_loading) return;
-    setState(() => _loading = true);
+    final username = _usernameCtrl.text.trim();
+    final usernameErr = RegistrationOptions.validateUsername(username);
+    if (usernameErr != null) {
+      setState(() => _usernameError = usernameErr);
+      return;
+    }
+    if (AppConfig.isDemoMode &&
+        RegistrationOptions.isDemoUsernameTaken(username)) {
+      setState(() => _usernameError = 'Username is already taken.');
+      return;
+    }
+    final fieldToSend = _field2 == 'Other'
+        ? (_customField.trim().isNotEmpty ? _customField.trim() : 'Other')
+        : _field2;
+    if (_field2.isEmpty || fieldToSend.isEmpty) {
+      setState(() => _fieldError = 'Professional Field is required.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _usernameError = null;
+      _fieldError = null;
+    });
     try {
+      if (AppConfig.isDemoMode) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        final mockUser = ApiUser(
+          id: 'demo_freelancer_${DateTime.now().millisecondsSinceEpoch}',
+          displayName: username,
+          fullName: _nameCtrl.text.trim().isNotEmpty
+              ? _nameCtrl.text.trim()
+              : username,
+          email: _emailCtrl.text.trim(),
+          role: 'member',
+          userType: 'freelancer',
+          professionalField: fieldToSend,
+          experienceLevel: _level,
+          availability: _avail,
+          skills: List.from(_selectedSkills),
+        );
+        context.read<SessionController>().setCurrentUser(mockUser);
+        Navigator.pushNamedAndRemoveUntil(
+            context, R.freelancerHome, (_) => false);
+        return;
+      }
       await context.read<SessionController>().register(
         fullName: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
@@ -1129,7 +1279,8 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
         role: 'member',
         userType: 'freelancer',
         extra: {
-          'professional_field': _field2,
+          'username': username,
+          'professional_field': fieldToSend,
           'experience_level': _level,
           'availability': _avail,
           'skills': _selectedSkills.join(','),
@@ -1193,69 +1344,253 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
   }
 
   void _showMultiSelect() {
+    final searchCtrl = TextEditingController();
+    final customCtrl = TextEditingController();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Primary Skills',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _skillsOptions.map((skill) {
-                  final isSelected = _selectedSkills.contains(skill);
-                  return FilterChip(
-                    label: Text(skill),
-                    selected: isSelected,
-                    onSelected: (val) {
-                      setModalState(() {
-                        if (val) {
-                          _selectedSkills.add(skill);
-                        } else {
-                          _selectedSkills.remove(skill);
-                        }
-                      });
-                      setState(() {});
-                    },
-                    selectedColor: AppColors.primary.withValues(alpha: 0.1),
-                    checkmarkColor: AppColors.primary,
-                    labelStyle: TextStyle(
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.textPrimary,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    shape: RoundedRectangleBorder(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final query = searchCtrl.text.toLowerCase();
+          final allSkills = [
+            ...RegistrationOptions.skills
+                .where((s) => s.toLowerCase() != 'other'),
+            ..._selectedSkills
+                .where((s) => !RegistrationOptions.skills.contains(s)),
+          ];
+          final filtered = allSkills
+              .where((s) => query.isEmpty || s.toLowerCase().contains(query))
+              .toList();
+          return Container(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Primary Skills',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search skills…',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
+                        borderSide: const BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                  onChanged: (_) => setModalState(() {}),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: filtered.map((skill) {
+                        final isSelected = _selectedSkills.contains(skill);
+                        return FilterChip(
+                          label: Text(skill),
+                          selected: isSelected,
+                          onSelected: (val) {
+                            setModalState(() {
+                              if (val) {
+                                if (!_selectedSkills.contains(skill)) {
+                                  _selectedSkills.add(skill);
+                                }
+                              } else {
+                                _selectedSkills.remove(skill);
+                              }
+                            });
+                            setState(() {});
+                          },
+                          selectedColor:
+                              AppColors.primary.withValues(alpha: 0.1),
+                          checkmarkColor: AppColors.primary,
+                          labelStyle: TextStyle(
                             color: isSelected
                                 ? AppColors.primary
-                                : AppColors.border)),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 24),
-              TButton(label: 'Done', onTap: () => Navigator.pop(context)),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
+                                : AppColors.textPrimary,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: BorderSide(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.border)),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: customCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'Add custom skill…',
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide:
+                                const BorderSide(color: AppColors.border)),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide:
+                                const BorderSide(color: AppColors.border)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      final custom = customCtrl.text.trim();
+                      if (custom.isNotEmpty) {
+                        final exists = _selectedSkills.any(
+                            (s) => s.toLowerCase() == custom.toLowerCase());
+                        if (!exists) {
+                          setModalState(() => _selectedSkills.add(custom));
+                          setState(() {});
+                        }
+                        customCtrl.clear();
+                      }
+                    },
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12)),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                TButton(label: 'Done', onTap: () => Navigator.pop(ctx)),
+                const SizedBox(height: 20),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showProfessionalFieldSelect() {
+    final searchCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final query = searchCtrl.text.toLowerCase();
+          final filtered = RegistrationOptions.professionalFields
+              .where((f) => query.isEmpty || f.toLowerCase().contains(query))
+              .toList();
+          return Container(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Select Professional Field',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search professional fields…',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                  onChanged: (_) => setModalState(() {}),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: filtered.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Text(
+                              'No professional field found',
+                              style: TextStyle(
+                                  color: AppColors.textSecondary, fontSize: 14),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) {
+                            final opt = filtered[i];
+                            final isSelected = opt == _field2;
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(opt,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? AppColors.primary
+                                        : AppColors.textPrimary,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  )),
+                              trailing: isSelected
+                                  ? const Icon(Icons.check_circle,
+                                      color: AppColors.primary)
+                                  : null,
+                              onTap: () {
+                                setState(() {
+                                  _field2 = opt;
+                                  _fieldError = null;
+                                });
+                                Navigator.pop(ctx);
+                              },
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -1276,6 +1611,22 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
                     fontSize: 15)),
             const SizedBox(height: 8),
             _field(hint: 'example', controller: _nameCtrl),
+            const SizedBox(height: 16),
+            const Text('Username',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    fontSize: 15)),
+            const SizedBox(height: 8),
+            _field(
+                hint: 'e.g. john_dev',
+                prefix: Icons.alternate_email,
+                controller: _usernameCtrl),
+            if (_usernameError != null) ...[
+              const SizedBox(height: 4),
+              Text(_usernameError!,
+                  style: const TextStyle(color: AppColors.error, fontSize: 12)),
+            ],
             const SizedBox(height: 16),
             const Text('Email',
                 style: TextStyle(
@@ -1306,15 +1657,40 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
                     color: AppColors.textPrimary,
                     fontSize: 15)),
             const SizedBox(height: 8),
-            ...[
-              'Designer',
-              'Developer',
-              'Marketer',
-              'Project Manager',
-              'Content Creator',
-              'Other'
-            ].map((f) =>
-                _radioRow(f, _field2, (v) => setState(() => _field2 = v))),
+            GestureDetector(
+              onTap: _showProfessionalFieldSelect,
+              child: _selectionField(
+                  _field2.isEmpty ? 'Select professional field' : _field2),
+            ),
+            if (_field2 == 'Other') ...[
+              const SizedBox(height: 8),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Enter your professional field',
+                  hintStyle:
+                      const TextStyle(color: AppColors.textHint, fontSize: 14),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary)),
+                ),
+                onChanged: (v) => _customField = v,
+              ),
+            ],
+            if (_fieldError != null) ...[
+              const SizedBox(height: 4),
+              Text(_fieldError!,
+                  style: const TextStyle(color: AppColors.error, fontSize: 12)),
+            ],
             const SizedBox(height: 16),
             const Text('Experience Level',
                 style: TextStyle(
@@ -1480,11 +1856,18 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
   String _team = '';
   String _selectedLevel = 'Beginner';
   String _selectedMajor = 'Computer Science';
-  final List<String> _selectedSkills = ['Flutter', 'UI/UX Design'];
+  String _customMajor = '';
+  UniversityOption? _selectedUniversity;
+  final _customUniCtrl = TextEditingController();
+  String? _universityError;
+  final List<String> _selectedSkills = [];
   bool _loading = false;
+  String? _usernameError;
+  String? _emailError;
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
 
   final List<String> _levelOptions = [
     'Beginner',
@@ -1493,43 +1876,99 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
     'Senior',
     'Expert'
   ];
-  final List<String> _majorOptions = [
-    'Computer Science',
-    'Information Systems',
-    'Software Engineering',
-    'Artificial Intelligence',
-    'Data Science',
-    'Business Administration',
-    'Graphic Design',
-    'Multimedia',
-    'Marketing',
-    'Other'
-  ];
-  final List<String> _skillsOptions = [
-    'UI/UX Design',
-    'Product Design',
-    'Flutter',
-    'Frontend Development',
-    'Backend Development',
-    'Figma',
-    'Graphic Design',
-    'Mobile App Development',
-    'Project Management',
-    'AI Tools'
-  ];
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _usernameCtrl.dispose();
+    _customUniCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (_loading) return;
-    setState(() => _loading = true);
+    final username = _usernameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+
+    String? emailErr;
+    if (email.isEmpty) {
+      emailErr = 'Email address is required.';
+    } else {
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegex.hasMatch(email)) {
+        emailErr = 'Please enter a valid email address.';
+      }
+    }
+    if (emailErr != null) {
+      setState(() => _emailError = emailErr);
+      return;
+    }
+
+    final usernameErr = RegistrationOptions.validateUsername(username);
+    if (usernameErr != null) {
+      setState(() => _usernameError = usernameErr);
+      return;
+    }
+    if (AppConfig.isDemoMode &&
+        RegistrationOptions.isDemoUsernameTaken(username)) {
+      setState(() => _usernameError = 'Username is already taken.');
+      return;
+    }
+
+    if (_selectedUniversity == null) {
+      setState(() => _universityError = 'University selection is required.');
+      return;
+    }
+
+    UniversityOption uniToSend = _selectedUniversity!;
+    if (_selectedUniversity?.id == 'uni_other') {
+      final customErr =
+          UniversityOption.validateCustomUniversityName(_customUniCtrl.text);
+      if (customErr != null) {
+        setState(() => _universityError = customErr);
+        return;
+      }
+      uniToSend = UniversityOption.custom(_customUniCtrl.text);
+    }
+
+    final majorToSend =
+        _selectedMajor == 'Other' ? _customMajor.trim() : _selectedMajor;
+    setState(() {
+      _loading = true;
+      _emailError = null;
+      _usernameError = null;
+      _universityError = null;
+    });
     try {
+      if (AppConfig.isDemoMode) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        final majorToSend = _selectedMajor == 'Other'
+            ? (_customMajor.trim().isNotEmpty ? _customMajor.trim() : 'Other')
+            : _selectedMajor;
+        final mockUser = ApiUser(
+          id: 'demo_student_${DateTime.now().millisecondsSinceEpoch}',
+          displayName: username,
+          fullName: _nameCtrl.text.trim().isNotEmpty
+              ? _nameCtrl.text.trim()
+              : username,
+          email: email,
+          role: 'member',
+          userType: 'student',
+          currentLevel: _selectedLevel,
+          major: majorToSend,
+          skills: List.from(_selectedSkills),
+          lookingForTeam: _team.toLowerCase() == 'yes',
+          universityId: uniToSend.id,
+          universityName: uniToSend.name,
+          isCustomUniversity: uniToSend.isCustom,
+        );
+        context.read<SessionController>().setCurrentUser(mockUser);
+        Navigator.pushNamedAndRemoveUntil(context, R.studentHome, (_) => false);
+        return;
+      }
       await context.read<SessionController>().register(
         fullName: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
@@ -1537,10 +1976,14 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
         role: 'member',
         userType: 'student',
         extra: {
+          'username': username,
           'current_level': _selectedLevel,
-          'major': _selectedMajor,
+          'major': majorToSend,
           'skills': _selectedSkills.join(','),
           'looking_for_team': _team.toLowerCase() == 'yes',
+          'university_id': uniToSend.id,
+          'university_name': uniToSend.name,
+          'is_custom_university': uniToSend.isCustom,
         },
       );
       if (!mounted) return;
@@ -1550,6 +1993,244 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showMajorSelect() {
+    final searchCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final query = searchCtrl.text.toLowerCase();
+          final filtered = RegistrationOptions.majors
+              .where((m) => query.isEmpty || m.toLowerCase().contains(query))
+              .toList();
+          return Container(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Select Major',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search majors…',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                  onChanged: (_) => setModalState(() {}),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final opt = filtered[i];
+                      final isSelected = opt == _selectedMajor;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(opt,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.textPrimary,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            )),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle,
+                                color: AppColors.primary)
+                            : null,
+                        onTap: () {
+                          setState(() => _selectedMajor = opt);
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showSkillsSelect() {
+    final searchCtrl = TextEditingController();
+    final customCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final query = searchCtrl.text.toLowerCase();
+          final allSkills = [
+            ...RegistrationOptions.skills
+                .where((s) => s.toLowerCase() != 'other'),
+            ..._selectedSkills
+                .where((s) => !RegistrationOptions.skills.contains(s)),
+          ];
+          final filtered = allSkills
+              .where((s) => query.isEmpty || s.toLowerCase().contains(query))
+              .toList();
+          return Container(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Primary Skills',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search skills…',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                  onChanged: (_) => setModalState(() {}),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: filtered.map((skill) {
+                        final isSelected = _selectedSkills.contains(skill);
+                        return FilterChip(
+                          label: Text(skill),
+                          selected: isSelected,
+                          onSelected: (val) {
+                            setModalState(() {
+                              if (val) {
+                                if (!_selectedSkills.contains(skill)) {
+                                  _selectedSkills.add(skill);
+                                }
+                              } else {
+                                _selectedSkills.remove(skill);
+                              }
+                            });
+                            setState(() {});
+                          },
+                          selectedColor:
+                              AppColors.primary.withValues(alpha: 0.1),
+                          checkmarkColor: AppColors.primary,
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.textPrimary,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: BorderSide(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.border)),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: customCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'Add custom skill…',
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide:
+                                const BorderSide(color: AppColors.border)),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide:
+                                const BorderSide(color: AppColors.border)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      final custom = customCtrl.text.trim();
+                      if (custom.isNotEmpty) {
+                        final exists = _selectedSkills.any(
+                            (s) => s.toLowerCase() == custom.toLowerCase());
+                        if (!exists) {
+                          setModalState(() => _selectedSkills.add(custom));
+                          setState(() {});
+                        }
+                        customCtrl.clear();
+                      }
+                    },
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12)),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                TButton(label: 'Done', onTap: () => Navigator.pop(ctx)),
+                const SizedBox(height: 20),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _showSingleSelect(String title, List<String> options, String current,
@@ -1600,74 +2281,6 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
     );
   }
 
-  void _showMultiSelect() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Primary Skills',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _skillsOptions.map((skill) {
-                  final isSelected = _selectedSkills.contains(skill);
-                  return FilterChip(
-                    label: Text(skill),
-                    selected: isSelected,
-                    onSelected: (val) {
-                      setModalState(() {
-                        if (val) {
-                          _selectedSkills.add(skill);
-                        } else {
-                          _selectedSkills.remove(skill);
-                        }
-                      });
-                      setState(() {});
-                    },
-                    selectedColor: AppColors.primary.withValues(alpha: 0.1),
-                    checkmarkColor: AppColors.primary,
-                    labelStyle: TextStyle(
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.textPrimary,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                            color: isSelected
-                                ? AppColors.primary
-                                : AppColors.border)),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 24),
-              TButton(label: 'Done', onTap: () => Navigator.pop(context)),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1685,6 +2298,22 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
             const SizedBox(height: 8),
             _field(hint: 'example', controller: _nameCtrl),
             const SizedBox(height: 16),
+            const Text('Username',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    fontSize: 15)),
+            const SizedBox(height: 8),
+            _field(
+                hint: 'e.g. jane_doe',
+                prefix: Icons.alternate_email,
+                controller: _usernameCtrl),
+            if (_usernameError != null) ...[
+              const SizedBox(height: 4),
+              Text(_usernameError!,
+                  style: const TextStyle(color: AppColors.error, fontSize: 12)),
+            ],
+            const SizedBox(height: 16),
             const Text('Email',
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
@@ -1695,6 +2324,11 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
                 hint: 'example562@gmail.com',
                 prefix: Icons.email_outlined,
                 controller: _emailCtrl),
+            if (_emailError != null) ...[
+              const SizedBox(height: 4),
+              Text(_emailError!,
+                  style: const TextStyle(color: AppColors.error, fontSize: 12)),
+            ],
             const SizedBox(height: 16),
             const Text('Password',
                 style: TextStyle(
@@ -1707,6 +2341,29 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
                 prefix: Icons.lock_outline,
                 obscure: true,
                 controller: _passwordCtrl),
+            const SizedBox(height: 16),
+            UniversitySelectorField(
+              selectedOption: _selectedUniversity,
+              onSelected: (opt) {
+                setState(() {
+                  _selectedUniversity = opt;
+                  _universityError = null;
+                });
+              },
+            ),
+            if (_universityError != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _universityError!,
+                style: const TextStyle(color: AppColors.error, fontSize: 12),
+              ),
+            ],
+            if (_selectedUniversity?.id == 'uni_other') ...[
+              const SizedBox(height: 12),
+              CustomUniversityField(
+                controller: _customUniCtrl,
+              ),
+            ],
             const SizedBox(height: 16),
             const Text('Current Level',
                 style: TextStyle(
@@ -1727,10 +2384,33 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
                     fontSize: 15)),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: () => _showSingleSelect('Major', _majorOptions,
-                  _selectedMajor, (v) => setState(() => _selectedMajor = v)),
+              onTap: _showMajorSelect,
               child: _selectionField(_selectedMajor),
             ),
+            if (_selectedMajor == 'Other') ...[
+              const SizedBox(height: 8),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Enter your major',
+                  hintStyle:
+                      const TextStyle(color: AppColors.textHint, fontSize: 14),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary)),
+                ),
+                onChanged: (v) => _customMajor = v,
+              ),
+            ],
             const SizedBox(height: 16),
             const Text('Primary Skills',
                 style: TextStyle(
@@ -1739,7 +2419,7 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
                     fontSize: 15)),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: _showMultiSelect,
+              onTap: _showSkillsSelect,
               child: _selectionFieldMulti(_selectedSkills),
             ),
             const SizedBox(height: 16),
@@ -1958,11 +2638,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (email.isEmpty) return;
     if (_loading) return;
     setState(() => _loading = true);
-    
+
     final res = await context.read<AppServices>().auth.forgotPassword(email);
     if (!mounted) return;
     setState(() => _loading = false);
-    
+
     res.when(
       success: (_) {
         Navigator.pushNamed(context, R.otpVerification,
@@ -2026,7 +2706,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   color: AppColors.textPrimary,
                   fontSize: 15)),
           const SizedBox(height: 8),
-          _field(hint: 'example562@gmail.com', prefix: Icons.email_outlined, controller: _emailCtrl),
+          _field(
+              hint: 'example562@gmail.com',
+              prefix: Icons.email_outlined,
+              controller: _emailCtrl),
           const Spacer(),
           TButton(
               label: _loading ? 'Sending...' : 'Got OTP',
@@ -2047,7 +2730,8 @@ class OTPVerificationScreen extends StatefulWidget {
 class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   int _countdown = 0;
   bool _loading = false;
-  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _controllers =
+      List.generate(6, (_) => TextEditingController());
 
   @override
   void dispose() {
@@ -2060,9 +2744,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   void _resendCode(String email) async {
     if (_countdown > 0) return;
     setState(() => _countdown = 60);
-    
+
     await context.read<AppServices>().auth.forgotPassword(email);
-    
+
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
       content: Text('OTP resent successfully!'),
@@ -2079,15 +2763,15 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   Future<void> _verify(String email, String flow, String role) async {
     final otp = _controllers.map((c) => c.text).join();
     if (otp.length < 6) return;
-    
+
     if (flow == 'forgotPassword') {
       if (_loading) return;
       setState(() => _loading = true);
-      
+
       final res = await context.read<AppServices>().auth.verifyOtp(email, otp);
       if (!mounted) return;
       setState(() => _loading = false);
-      
+
       res.when(
         success: (token) {
           Navigator.pushNamed(context, R.createNewPassword,
@@ -2108,7 +2792,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final flow = args?['flow'] ?? 'signup';
     final role = args?['role'] ?? 'Freelancer';
     final email = args?['email'] ?? 'example@gmail.com';
@@ -2190,10 +2875,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
               )),
           const SizedBox(height: 16),
-          Text(
-              'Please enter the 6-digit code sent to:\n$email',
+          Text('Please enter the 6-digit code sent to:\n$email',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13)),
           const SizedBox(height: 12),
           GestureDetector(
             onTap: _countdown == 0 ? () => _resendCode(email) : null,
@@ -2250,7 +2935,8 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
     final pass = _newCtrl.text;
     final confirm = _confirmCtrl.text;
     if (pass.isEmpty || pass != confirm) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match or are empty.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Passwords do not match or are empty.')));
       return;
     }
     if (token.isEmpty) {
@@ -2261,11 +2947,12 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
 
     if (_loading) return;
     setState(() => _loading = true);
-    
-    final res = await context.read<AppServices>().auth.resetPassword(token, pass);
+
+    final res =
+        await context.read<AppServices>().auth.resetPassword(token, pass);
     if (!mounted) return;
     setState(() => _loading = false);
-    
+
     res.when(
       success: (_) {
         Navigator.pushNamedAndRemoveUntil(context, R.login, (_) => false);
@@ -2280,7 +2967,8 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final token = args?['token'] as String? ?? '';
 
     return Scaffold(

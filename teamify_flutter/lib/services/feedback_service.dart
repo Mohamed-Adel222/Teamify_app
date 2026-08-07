@@ -42,16 +42,20 @@ class FeedbackService with ServiceErrorHandler {
       return guard(() => _repo.getUserFeedback(userId));
     }
     return _dedup.deduplicate(
-        'feedback_user_$userId',
-        () => _swr.withSwrList<Map<String, dynamic>>(
-          boxName: _box,
-          key: 'user_$userId',
-          fetcher: () => _repo.getUserFeedback(userId),
-          fromJson: (json) => json,
-          toJson: (data) => data,
-          staleAge: _ttl,
-        ).then((res) => res.isSuccess ? res : ApiResult.failure(res.error ?? 'Unknown error')),
-      );
+      'feedback_user_$userId',
+      () => _swr
+          .withSwrList<Map<String, dynamic>>(
+            boxName: _box,
+            key: 'user_$userId',
+            fetcher: () => _repo.getUserFeedback(userId),
+            fromJson: (json) => json,
+            toJson: (data) => data,
+            staleAge: _ttl,
+          )
+          .then((res) => res.isSuccess
+              ? res
+              : ApiResult.failure(res.error ?? 'Unknown error')),
+    );
   }
 
   /// POST /api/feedback — submit peer feedback.

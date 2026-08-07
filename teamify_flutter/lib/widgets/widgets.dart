@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../core/routes.dart';
+import '../config/app_config.dart';
 import '../core/session/session_controller.dart';
 import '../services/app_services.dart';
 import '../core/network/api_result.dart';
+import '../core/localization/app_localizations.dart';
 
 // ── TCard ─────────────────────────────────────────────────────────────────────
 class TCard extends StatelessWidget {
@@ -25,22 +27,28 @@ class TCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     final card = Container(
-        margin: margin,
-        padding: padding ?? const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color ?? Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Theme.of(context).dividerColor),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
-        ),
+      margin: margin,
+      padding: padding ?? const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color ?? Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: onSurface),
         child: child,
-      );
+      ),
+    );
 
     if (onTap == null) return card;
 
@@ -70,6 +78,8 @@ class TButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -77,13 +87,16 @@ class TButton extends StatelessWidget {
           ? OutlinedButton(
               onPressed: onTap,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.primary),
+                side: BorderSide(
+                    color: isDark ? AppColors.darkBorder : AppColors.primary),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(label,
-                  style: const TextStyle(
-                      color: AppColors.primary,
+                  style: TextStyle(
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.primary,
                       fontWeight: FontWeight.w600,
                       fontSize: 16)),
             )
@@ -160,16 +173,23 @@ class TChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final defaultBg = isDark
+        ? AppColors.primary.withValues(alpha: 0.2)
+        : AppColors.primary.withValues(alpha: 0.1);
+    final defaultTextColor =
+        isDark ? AppColors.darkTextPrimary : AppColors.primary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: bg ?? AppColors.primary.withValues(alpha: 0.1),
+        color: bg ?? defaultBg,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(label,
           style: TextStyle(
               fontSize: fontSize,
-              color: textColor ?? AppColors.primary,
+              color: textColor ?? defaultTextColor,
               fontWeight: FontWeight.w600)),
     );
   }
@@ -184,11 +204,14 @@ class TBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final trackBg = isDark ? AppColors.darkBorder : AppColors.border;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(height),
       child: LinearProgressIndicator(
         value: value.clamp(0.0, 1.0),
-        backgroundColor: AppColors.border,
+        backgroundColor: trackBg,
         valueColor: AlwaysStoppedAnimation(color ?? AppColors.primary),
         minHeight: height,
       ),
@@ -206,14 +229,14 @@ class TSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title,
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary)),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold, color: onSurface)),
         if (action != null)
           GestureDetector(
             onTap: onAction,
@@ -233,10 +256,11 @@ class TBackButton extends StatelessWidget {
   const TBackButton({super.key});
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return GestureDetector(
       onTap: () => Navigator.pop(context),
-      child: const Icon(Icons.arrow_back_ios,
-          size: 20, color: AppColors.textPrimary),
+      child: Icon(Icons.arrow_back_ios, size: 20, color: onSurface),
     );
   }
 }
@@ -249,12 +273,17 @@ class TBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      {'icon': Icons.home_outlined, 'activeIcon': Icons.home, 'label': 'Home'},
+    final loc = AppLocalizations.of(context);
+    final items = [
+      {
+        'icon': Icons.home_outlined,
+        'activeIcon': Icons.home,
+        'label': loc?.translate('nav_home') ?? 'Home'
+      },
       {
         'icon': Icons.search_outlined,
         'activeIcon': Icons.search,
-        'label': 'Search'
+        'label': loc?.translate('nav_search') ?? 'Search'
       },
       {
         'icon': Icons.auto_awesome_outlined,
@@ -264,20 +293,27 @@ class TBottomNav extends StatelessWidget {
       {
         'icon': Icons.chat_bubble_outline,
         'activeIcon': Icons.chat_bubble,
-        'label': 'Chat'
+        'label': loc?.translate('nav_chat') ?? 'Chat'
       },
       {
         'icon': Icons.person_outline,
         'activeIcon': Icons.person,
-        'label': 'Profile'
+        'label': loc?.translate('nav_profile') ?? 'Profile'
       },
     ];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final border = Theme.of(context).dividerColor;
+    final unselectedColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: surface,
+        border: Border(top: BorderSide(color: border)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
               blurRadius: 16,
               offset: const Offset(0, -4))
         ],
@@ -299,16 +335,13 @@ class TBottomNav extends StatelessWidget {
                           sel
                               ? items[i]['activeIcon'] as IconData
                               : items[i]['icon'] as IconData,
-                          color:
-                              sel ? AppColors.primary : AppColors.textSecondary,
+                          color: sel ? AppColors.primary : unselectedColor,
                           size: 24),
                       const SizedBox(height: 2),
                       Text(items[i]['label'] as String,
                           style: TextStyle(
                               fontSize: 11,
-                              color: sel
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
+                              color: sel ? AppColors.primary : unselectedColor,
                               fontWeight:
                                   sel ? FontWeight.w600 : FontWeight.normal)),
                     ],
@@ -337,6 +370,11 @@ class StatBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return Expanded(
       child: TCard(
         child: Column(
@@ -351,13 +389,11 @@ class StatBox extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(value,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary)),
+                    color: onSurface)),
+            Text(label, style: TextStyle(fontSize: 12, color: secondary)),
           ],
         ),
       ),
@@ -378,12 +414,17 @@ class AIBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
+        color: AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
@@ -401,14 +442,13 @@ class AIBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: onSurface,
                         fontSize: 14)),
                 const SizedBox(height: 2),
                 Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary)),
+                    style: TextStyle(fontSize: 12, color: secondary)),
                 if (badge.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(badge,
@@ -437,13 +477,17 @@ class AIBanner extends StatelessWidget {
 
 // ── NavHelper ─────────────────────────────────────────────────────────────────
 void handleFreelancerNav(BuildContext ctx, int i, {bool? isStudent}) {
-  final student = isStudent ??
-      (Provider.of<SessionController>(ctx, listen: false).currentUser?.isStudent ??
-          false);
+  final user = Provider.of<SessionController>(ctx, listen: false).currentUser;
+  final isStudentUser = isStudent ?? (user?.isStudent ?? false);
+  final isAdminUser = user?.isAdmin ?? false;
+
   switch (i) {
     case 0:
       Navigator.pushReplacementNamed(
-          ctx, student ? R.studentHome : R.freelancerHome);
+          ctx,
+          isAdminUser
+              ? R.adminHome
+              : (isStudentUser ? R.studentHome : R.freelancerHome));
       break;
     case 1:
       Navigator.pushNamed(ctx, R.search);
@@ -456,7 +500,10 @@ void handleFreelancerNav(BuildContext ctx, int i, {bool? isStudent}) {
       break;
     case 4:
       Navigator.pushReplacementNamed(
-          ctx, student ? R.studentProfile : R.freelancerProfile);
+          ctx,
+          isAdminUser
+              ? R.adminProfile
+              : (isStudentUser ? R.studentProfile : R.freelancerProfile));
       break;
   }
 }
@@ -511,18 +558,27 @@ class _RepositoryLoaderState<T> extends State<RepositoryLoader<T>> {
         }
 
         if (snapshot.hasError || !snapshot.hasData) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final secColor =
+              isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+          final rawErr = snapshot.error?.toString() ?? '';
+          final msg = AppConfig.isDemoMode || rawErr.contains('Request failed')
+              ? widget.emptyMessage
+              : rawErr.replaceAll('Exception: ', '');
+
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(Icons.inbox_outlined, size: 44, color: secColor),
+                  const SizedBox(height: 12),
                   Text(
-                    snapshot.error?.toString() ??
-                        'Something went wrong. Try again.',
+                    msg.isEmpty ? widget.emptyMessage : msg,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: secColor,
                       fontSize: 14,
                     ),
                   ),
@@ -539,14 +595,24 @@ class _RepositoryLoaderState<T> extends State<RepositoryLoader<T>> {
 
         final data = snapshot.data as T;
         if (widget.isEmpty != null && widget.isEmpty!(data)) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final secColor =
+              isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
           return Center(
-            child: Text(
-              widget.emptyMessage,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.inbox_outlined, size: 44, color: secColor),
+                const SizedBox(height: 12),
+                Text(
+                  widget.emptyMessage,
+                  style: TextStyle(
+                    color: secColor,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           );
         }
@@ -666,12 +732,10 @@ class _SyncErrorBannerState extends State<SyncErrorBanner> {
 
     String message;
     if (hasPermanent) {
-      message =
-          '${widget.permanentFailures} action(s) failed permanently. '
+      message = '${widget.permanentFailures} action(s) failed permanently. '
           '${widget.queueDepth} pending.';
     } else {
-      message =
-          '${widget.queueDepth} action(s) queued — syncing when online…';
+      message = '${widget.queueDepth} action(s) queued — syncing when online…';
     }
 
     return AnimatedSlide(
@@ -679,8 +743,7 @@ class _SyncErrorBannerState extends State<SyncErrorBanner> {
       duration: const Duration(milliseconds: 300),
       child: Container(
         color: bannerColor,
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: [
             Icon(icon, color: Colors.white, size: 18),
@@ -773,12 +836,11 @@ class _NotificationBadgeWidgetState extends State<NotificationBadgeWidget> {
         right: 8,
         child: Container(
             padding: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(
-                color: Colors.red, shape: BoxShape.circle),
+            decoration:
+                const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
             constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
             child: Center(
-                child: Text(
-                    _count > 99 ? '99+' : '$_count',
+                child: Text(_count > 99 ? '99+' : '$_count',
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 9,

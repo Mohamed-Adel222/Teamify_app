@@ -34,8 +34,7 @@ class ApiNotification {
     );
   }
 
-  bool get hasLinkedEntity =>
-      entityType.isNotEmpty && entityId.isNotEmpty;
+  bool get hasLinkedEntity => entityType.isNotEmpty && entityId.isNotEmpty;
 
   ApiNotification copyWith({
     String? id,
@@ -97,7 +96,8 @@ class ApiFile {
     final size = asString(json['size'] ?? json['file_size']);
     return ApiFile(
       id: asString(json['id'] ?? json['file_id']),
-      name: asString(json['filename'] ?? json['original_filename'] ?? json['name']),
+      name: asString(
+          json['filename'] ?? json['original_filename'] ?? json['name']),
       size: size.isNotEmpty ? size : _formatBytes(bytes),
       type: asString(json['mime_type'] ?? json['type']),
       uploadedBy: asString(

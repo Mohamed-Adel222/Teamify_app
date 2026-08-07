@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../core/routes.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/theme.dart';
-import '../../services/app_services.dart';
-import '../auth/admin_two_fa_setup_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_projects_screen.dart';
@@ -76,9 +72,12 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Log out'),
-        content: const Text('Are you sure you want to sign out of the admin panel?'),
+        content:
+            const Text('Are you sure you want to sign out of the admin panel?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
@@ -89,24 +88,18 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    await context.read<AppServices>().auth.logout();
-    if (!mounted) return;
-    Navigator.pushNamedAndRemoveUntil(context, R.roleSelection, (_) => false);
+    await SessionController.performAppLogout(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<SessionController>();
-    if (session.needsAdmin2faStep) {
-      return const AdminTwoFASetupScreen();
-    }
-
     final wide = MediaQuery.sizeOf(context).width >= 900;
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(_destinations[_index].label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_destinations[_index].label,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         leading: wide
             ? null
             : IconButton(
@@ -166,15 +159,23 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
               children: [
                 Icon(Icons.admin_panel_settings, color: Colors.white, size: 36),
                 SizedBox(height: 8),
-                Text('Teamify Admin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                Text('Teamify Admin',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18)),
               ],
             ),
           ),
           ...List.generate(_destinations.length, (i) {
             final d = _destinations[i];
             return ListTile(
-              leading: Icon(d.icon, color: _index == i ? AppColors.primary : null),
-              title: Text(d.label, style: TextStyle(fontWeight: _index == i ? FontWeight.bold : FontWeight.normal)),
+              leading:
+                  Icon(d.icon, color: _index == i ? AppColors.primary : null),
+              title: Text(d.label,
+                  style: TextStyle(
+                      fontWeight:
+                          _index == i ? FontWeight.bold : FontWeight.normal)),
               selected: _index == i,
               onTap: () {
                 setState(() => _index = i);
@@ -185,7 +186,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: AppColors.error),
-            title: const Text('Log out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+            title: const Text('Log out',
+                style: TextStyle(
+                    color: AppColors.error, fontWeight: FontWeight.w600)),
             onTap: () {
               Navigator.pop(context);
               _logout();

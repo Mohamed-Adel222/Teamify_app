@@ -127,8 +127,9 @@ mixin ServiceErrorHandler {
       final result = await guard(action);
       if (result.isSuccess) return result;
 
-      final retryDecision =
-          shouldRetry != null ? shouldRetry(result.error) : result.isNetworkError;
+      final retryDecision = shouldRetry != null
+          ? shouldRetry(result.error)
+          : result.isNetworkError;
       if (!retryDecision) return result;
 
       if (attempt < maxRetries) {

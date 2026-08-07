@@ -15,6 +15,8 @@ import '../../core/session/session_controller.dart';
 import '../../core/theme.dart';
 import '../../services/app_services.dart';
 import '../project/project_screens.dart' show AddTaskRouteArgs;
+import '../../config/app_config.dart';
+import '../../widgets/widgets.dart';
 import 'meeting_summary_export.dart';
 import 'meeting_transcript_utils.dart';
 import 'meeting_ui.dart';
@@ -73,6 +75,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   bool _participantsExpanded = true;
   bool _finalizingMeeting = false;
   bool _endingMeeting = false;
+  bool _isSharingScreen = false;
   Timer? _speechWatchdog;
 
   DateTime? _startedAt;
@@ -117,12 +120,72 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
   }
 
+  void _startElapsedTimer() {
+    _startedAt ??= DateTime.now();
+    _elapsedTimer?.cancel();
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final start = _startedAt;
+      if (start == null || !mounted || _disposed || !_isLive) return;
+      final elapsed = DateTime.now().difference(start);
+      setState(() {
+        _elapsedLabel = _formatDuration(elapsed);
+      });
+    });
+  }
+
   Future<void> _bootstrap() async {
     final args =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final argRoomId = args?['roomId']?.toString();
     final argRoomName = args?['roomName']?.toString();
     final argProjectId = args?['projectId']?.toString();
+
+    if (AppConfig.isDemoMode) {
+      final session = context.read<SessionController>();
+      final me = session.currentUser;
+      final myId = me?.id ?? 'demo_me';
+      final myName = me?.fullName ?? me?.displayName ?? 'Alex Chen';
+      setState(() {
+        _roomId = argRoomId ?? 'demo_room_1';
+        _roomName = argRoomName ?? 'Sprint Planning & Sync';
+        _projectId = argProjectId ?? 'demo_project_1';
+        _participants = [
+          _MeetingParticipant(
+            userId: myId,
+            name: '$myName (Host)',
+            email: me?.email ?? '',
+            initials: _initials(myName),
+            isActive: true,
+          ),
+          _MeetingParticipant(
+            userId: 'demo_u2',
+            name: 'Sarah Miller',
+            email: 'sarah.m@example.com',
+            initials: 'SM',
+            isActive: true,
+          ),
+          _MeetingParticipant(
+            userId: 'demo_u3',
+            name: 'David Ross',
+            email: 'david.r@example.com',
+            initials: 'DR',
+            isActive: true,
+          ),
+          _MeetingParticipant(
+            userId: 'demo_u4',
+            name: 'Emily Watson',
+            email: 'emily.w@example.com',
+            initials: 'EW',
+            isActive: true,
+          ),
+        ];
+        _isLive = true;
+        _loading = false;
+        _loadError = null;
+      });
+      _startElapsedTimer();
+      return;
+    }
 
     try {
       final chat = context.read<AppServices>().chat;
@@ -135,9 +198,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
           selectedId.isEmpty ||
           selectedId == 'general' ||
           int.tryParse(selectedId) == null) {
-        final projectRooms = rooms
-            .where((r) => r['project_id'] != null)
-            .toList();
+        final projectRooms =
+            rooms.where((r) => r['project_id'] != null).toList();
         if (projectRooms.isNotEmpty) {
           selectedId = projectRooms.first['id']?.toString();
         } else if (rooms.isNotEmpty) {
@@ -212,10 +274,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   void _applyMeetingPresence(Map<String, dynamic> data) {
     if (data['room_id']?.toString() != _roomId) return;
-    final ids = (data['active_user_ids'] as List?)
-            ?.map((e) => e.toString())
-            .toSet() ??
-        {};
+    final ids =
+        (data['active_user_ids'] as List?)?.map((e) => e.toString()).toSet() ??
+            {};
 
     if (!mounted || _disposed) return;
     setState(() {
@@ -331,9 +392,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   List<Map<String, dynamic>> _transcriptSnapshot() {
-    return _sessionTranscript
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    return _sessionTranscript.map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   Future<void> _refreshLiveNotes() async {
@@ -451,15 +510,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
       return;
     }
 
-    _elapsedTimer?.cancel();
-    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      final start = _startedAt;
-      if (start == null || !mounted || _disposed || !_isLive) return;
-      final elapsed = DateTime.now().difference(start);
-      setState(() {
-        _elapsedLabel = _formatDuration(elapsed);
-      });
-    });
+    _startElapsedTimer();
 
     _wsSub?.cancel();
     _pollTimer?.cancel();
@@ -588,8 +639,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
           setState(() => _backgroundInsightJobs = count);
         }
       },
-      shouldRun: () =>
-          (_isLive || _finalizingSpeech) && !_muted && !_disposed,
+      shouldRun: () => (_isLive || _finalizingSpeech) && !_muted && !_disposed,
     );
 
     if (!mounted || _disposed) return;
@@ -636,7 +686,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
       return;
     }
     if (_isLive && !_muted && !_disposed) {
-      Future.delayed(const Duration(milliseconds: 400), _ensureSpeechCaptureRunning);
+      Future.delayed(
+          const Duration(milliseconds: 400), _ensureSpeechCaptureRunning);
     }
   }
 
@@ -754,7 +805,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
         ? user!.fullName
         : (user?.displayName ?? 'You');
     final committed = _liveSpeech.committed.trim();
-    if (committed.isEmpty) return; // in-progress text → partialSpeech bubble below
+    if (committed.isEmpty)
+      return; // in-progress text → partialSpeech bubble below
 
     final speechPrefix = '[Speech] $name: ';
     final notes = [..._liveNoteLines];
@@ -830,12 +882,14 @@ class _MeetingScreenState extends State<MeetingScreen> {
     }
 
     try {
-      await chat.saveMeetingCheckpoint(
-        rid,
-        sid,
-        transcript: _transcriptSnapshot(),
-        participantIds: _participantIdsForSession(),
-      ).unwrap();
+      await chat
+          .saveMeetingCheckpoint(
+            rid,
+            sid,
+            transcript: _transcriptSnapshot(),
+            participantIds: _participantIdsForSession(),
+          )
+          .unwrap();
       if (mounted) {
         messenger.showSnackBar(
           const SnackBar(
@@ -1076,9 +1130,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              _finalizingMeeting
-                  ? '⚡ Finalizing meeting…'
-                  : 'Processing…',
+              _finalizingMeeting ? '⚡ Finalizing meeting…' : 'Processing…',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
@@ -1102,153 +1154,162 @@ class _MeetingScreenState extends State<MeetingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final me = context.read<SessionController>().currentUser;
+    final canShareScreen = me?.isStudent == true || me?.isFreelancer == true;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: surface,
         elevation: 0,
         leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios,
-                size: 18, color: AppColors.textPrimary),
+            icon: Icon(Icons.arrow_back_ios, size: 18, color: onSurface),
             onPressed: (_isLive || _finalizingMeeting)
                 ? null
                 : () => Navigator.pop(context)),
-        title: const Text('Meeting',
+        title: Text('Meeting',
             style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 18)),
+                color: onSurface, fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
       ),
       body: Stack(
         children: [
           _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _loadError != null
-              ? _errorBody()
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_chatRooms.isNotEmpty) ...[
-                        MeetingRoomPicker(
-                          roomId: _roomId,
-                          rooms: _chatRooms,
-                          enabled: !_isLive,
-                          onChanged: (id) {
-                            if (id != null) _loadRoom(id);
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      MeetingInfoHeader(
-                        title: _roomName,
-                        subtitle: _meetingInfoSubtitle(),
-                        isLive: _isLive,
-                      ),
-                      const SizedBox(height: 12),
-                      if (_isLive) ...[
-                        MeetingTranscriptStatusCard(
-                          phase: _transcriptPhase(),
-                          detail: _transcriptDetail(),
-                          durationLabel: _elapsedLabel,
-                          diagnosticLabel: _speechDiagnosticLabel(),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      MeetingParticipantsPanel(
-                        expanded: _participantsExpanded,
-                        onToggle: () => setState(
-                          () => _participantsExpanded = !_participantsExpanded,
-                        ),
-                        participantCount: _participants.length,
-                        activeCount: _activeCount,
-                        isLive: _isLive,
-                        children: _participants.isEmpty
-                            ? [
-                                const Padding(
-                                  padding: EdgeInsets.all(8),
-                                  child: Text(
-                                    'No members in this room yet.',
-                                    style: TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ]
-                            : _participantTiles(),
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: _isLive
-                            ? _liveMeetingBody()
-                            : _idleMeetingScrollBody(),
-                      ),
-                      if (_isLive)
-                        SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: MeetingLiveControls(
-                              muted: _muted,
-                              isRecording: _isRecordingUi,
-                              speechUnavailable: _speechUnavailable,
-                              saving: _stoppingSession,
-                              onMute: _toggleMute,
-                              onRecord: _stoppingSession ? null : _toggleRecord,
-                              onSave: _stoppingSession
-                                  ? null
-                                  : _saveTranscriptCheckpoint,
-                              onEndMeeting:
-                                  _finalizingMeeting ? () {} : _endMeeting,
+              ? const Center(child: CircularProgressIndicator())
+              : _loadError != null
+                  ? _errorBody()
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_chatRooms.isNotEmpty) ...[
+                            MeetingRoomPicker(
+                              roomId: _roomId,
+                              rooms: _chatRooms,
+                              enabled: !_isLive,
+                              onChanged: (id) {
+                                if (id != null) _loadRoom(id);
+                              },
                             ),
+                            const SizedBox(height: 12),
+                          ],
+                          MeetingInfoHeader(
+                            title: _roomName,
+                            subtitle: _meetingInfoSubtitle(),
+                            isLive: _isLive,
                           ),
-                        )
-                      else
-                        SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: FilledButton(
-                                onPressed: _roomId == null || _startingMeeting
-                                    ? null
-                                    : _startMeeting,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      MeetingUi.radiusMd,
-                                    ),
-                                  ),
-                                ),
-                                child: _startingMeeting
-                                    ? const SizedBox(
-                                        height: 22,
-                                        width: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Start Meeting',
+                          const SizedBox(height: 8),
+                          if (_isLive) ...[
+                            MeetingTranscriptStatusCard(
+                              phase: _transcriptPhase(),
+                              detail: _transcriptDetail(),
+                              durationLabel: _elapsedLabel,
+                              diagnosticLabel: _speechDiagnosticLabel(),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          MeetingParticipantsPanel(
+                            expanded: _participantsExpanded,
+                            onToggle: () => setState(
+                              () => _participantsExpanded =
+                                  !_participantsExpanded,
+                            ),
+                            participantCount: _participants.length,
+                            activeCount: _activeCount,
+                            isLive: _isLive,
+                            children: _participants.isEmpty
+                                ? [
+                                    const Padding(
+                                      padding: EdgeInsets.all(8),
+                                      child: Text(
+                                        'No members in this room yet.',
                                         style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15,
+                                          color: AppColors.textSecondary,
+                                          fontSize: 13,
                                         ),
                                       ),
+                                    ),
+                                  ]
+                                : _participantTiles(),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: _isLive
+                                ? _liveMeetingBody()
+                                : _idleMeetingScrollBody(),
+                          ),
+                          if (_isLive)
+                            SafeArea(
+                              top: false,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: MeetingLiveControls(
+                                  muted: _muted,
+                                  isRecording: _isRecordingUi,
+                                  speechUnavailable: _speechUnavailable,
+                                  saving: _stoppingSession,
+                                  isSharing: _isSharingScreen,
+                                  onMute: _toggleMute,
+                                  onRecord:
+                                      _stoppingSession ? null : _toggleRecord,
+                                  onSave: _stoppingSession
+                                      ? null
+                                      : _saveTranscriptCheckpoint,
+                                  onShare: canShareScreen
+                                      ? () => setState(() => _isSharingScreen = !_isSharingScreen)
+                                      : null,
+                                  onEndMeeting:
+                                      _finalizingMeeting ? () {} : _endMeeting,
+                                ),
+                              ),
+                            )
+                          else
+                            SafeArea(
+                              top: false,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: FilledButton(
+                                    onPressed:
+                                        _roomId == null || _startingMeeting
+                                            ? null
+                                            : _startMeeting,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          MeetingUi.radiusMd,
+                                        ),
+                                      ),
+                                    ),
+                                    child: _startingMeeting
+                                        ? const SizedBox(
+                                            height: 22,
+                                            width: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Start Meeting',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                        ],
+                      ),
+                    ),
           if (_finalizingMeeting) _finalizingOverlay(),
         ],
       ),
@@ -1299,56 +1360,87 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   Widget _liveMeetingBody() {
-    return MeetingLiveNotesCard(
-      lines: _liveNoteLines,
-      partialSpeech: _liveSpeech.utterancePartial.isEmpty
-          ? null
-          : _liveSpeech.utterancePartial,
-      emptyHint: _isRecordingUi
-          ? 'Live transcription active — speak naturally. Words appear here as you talk.'
-              : _speechUnavailable
-                  ? 'Allow microphone access to capture speech.'
-                  : 'Waiting for microphone…',
-      micBanner: _speechUnavailable
-          ? Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFDBA74)),
+    if (_isSharingScreen) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary, width: 2),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.screen_share, color: Colors.white, size: 36),
+              SizedBox(height: 8),
+              Text(
+                'You are sharing your screen',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.mic_off_rounded,
-                          size: 18, color: Color(0xFFEA580C)),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Microphone access needed',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+            ],
+          ),
+        ),
+      );
+    }
+
+    return MeetingLiveNotesCard(
+            lines: _liveNoteLines,
+            partialSpeech: _liveSpeech.utterancePartial.isEmpty
+                ? null
+                : _liveSpeech.utterancePartial,
+            emptyHint: _isRecordingUi
+                ? 'Live transcription active — speak naturally. Words appear here as you talk.'
+                : _speechUnavailable
+                    ? 'Allow microphone access to capture speech.'
+                    : 'Waiting for microphone…',
+            micBanner: _speechUnavailable
+                ? Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFDBA74)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.mic_off_rounded,
+                                size: 18, color: Color(0xFFEA580C)),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Microphone access needed',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _retryMicrophone,
+                            icon: const Icon(Icons.mic_rounded, size: 18),
+                            label: const Text('Enable microphone'),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _retryMicrophone,
-                      icon: const Icon(Icons.mic_rounded, size: 18),
-                      label: const Text('Enable microphone'),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            )
-          : null,
+                  )
+                : null,
     );
   }
 
@@ -1470,15 +1562,14 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
         if (secs is int && secs > 0) {
           sessionSecs = secs;
         }
-        sessionEnded =
-            DateTime.tryParse(initial['ended_at']?.toString() ?? '');
+        sessionEnded = DateTime.tryParse(initial['ended_at']?.toString() ?? '');
       }
 
       Map<String, dynamic>? roomPayload;
       try {
         roomPayload = await svc.chat.getRoom(widget.roomId).unwrap();
-        final members =
-            (roomPayload['members'] as List?)?.whereType<Map<String, dynamic>>();
+        final members = (roomPayload['members'] as List?)
+            ?.whereType<Map<String, dynamic>>();
         _participantsCount = members?.length ?? 0;
       } catch (_) {}
 
@@ -1487,9 +1578,8 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
       final sid = widget.sessionId;
       if (sid != null && sid.isNotEmpty) {
         try {
-          final session = await svc.chat
-              .getMeetingSession(widget.roomId, sid)
-              .unwrap();
+          final session =
+              await svc.chat.getMeetingSession(widget.roomId, sid).unwrap();
 
           sessionStarted = DateTime.tryParse(
                 session['started_at']?.toString() ?? '',
@@ -1541,9 +1631,8 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
 
       if (msgs.isEmpty && sid == null) {
         try {
-          final raw = await svc.chat
-              .getMessages(widget.roomId, perPage: 30)
-              .unwrap();
+          final raw =
+              await svc.chat.getMessages(widget.roomId, perPage: 30).unwrap();
           msgs = normalizeMeetingTranscript(raw);
         } catch (_) {}
       }
@@ -1637,8 +1726,7 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
     try {
       final project = await svc.projects.getProject(projectId).unwrap();
       _linkedProjectId = projectId;
-      _canCreateTasks =
-          project.ownerId.isNotEmpty && project.ownerId == userId;
+      _canCreateTasks = project.ownerId.isNotEmpty && project.ownerId == userId;
     } catch (_) {
       _canCreateTasks = false;
       _linkedProjectId = null;
@@ -1667,8 +1755,9 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
     if (!needsAi) return existing;
 
     try {
-      final fresh =
-          await svc.ai.summarizeChat(_transcriptPlainText(msgs), topN: 6).unwrap();
+      final fresh = await svc.ai
+          .summarizeChat(_transcriptPlainText(msgs), topN: 6)
+          .unwrap();
       return {
         ...existing,
         ...fresh,
@@ -1855,7 +1944,8 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Share unavailable on this device — PDF downloaded instead'),
+            content: Text(
+                'Share unavailable on this device — PDF downloaded instead'),
           ),
         );
       }
@@ -1952,7 +2042,8 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
                       const SummaryEmptyCard(
                         icon: Icons.summarize_outlined,
                         emoji: '✨',
-                        message: 'No summary points were generated for this meeting.',
+                        message:
+                            'No summary points were generated for this meeting.',
                       )
                     else
                       SummaryAiInsightsCard(bullets: _summaryBullets),
@@ -2026,7 +2117,8 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
                 color: AppColors.success,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+              child: const Icon(Icons.check_rounded,
+                  size: 14, color: Colors.white),
             ),
             Expanded(
               child: Text(
@@ -2041,4 +2133,875 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
           ],
         ),
       );
+}
+
+// ── Demo Mode Meeting Model & Screens ──────────────────────────────────────────
+class DemoMeeting {
+  final String id;
+  final String title;
+  final String projectName;
+  final String dateTimeLabel;
+  final DateTime scheduledAt;
+  final String hostName;
+  final String hostInitials;
+  final int participantCount;
+  final List<String> participantNames;
+  final String status;
+  final String description;
+
+  DemoMeeting({
+    required this.id,
+    required this.title,
+    required this.projectName,
+    required this.dateTimeLabel,
+    required this.scheduledAt,
+    required this.hostName,
+    required this.hostInitials,
+    required this.participantCount,
+    required this.participantNames,
+    required this.status,
+    this.description = '',
+  });
+}
+
+final List<DemoMeeting> globalMockMeetings = [
+  DemoMeeting(
+    id: 'm1',
+    title: 'Sprint Planning & Sync',
+    projectName: 'Teamify Mobile App',
+    dateTimeLabel: 'Today, 2:00 PM',
+    scheduledAt: DateTime.now().add(const Duration(minutes: 10)),
+    hostName: 'Alex Chen',
+    hostInitials: 'AC',
+    participantCount: 4,
+    participantNames: [
+      'Alex Chen',
+      'Sarah Miller',
+      'David Ross',
+      'Emily Watson'
+    ],
+    status: 'Live',
+    description:
+        'Weekly team sprint alignment, backlog prioritization, and workload allocation.',
+  ),
+  DemoMeeting(
+    id: 'm2',
+    title: 'Frontend Architecture Review',
+    projectName: 'AI Smart Engine',
+    dateTimeLabel: 'Tomorrow, 10:30 AM',
+    scheduledAt: DateTime.now().add(const Duration(days: 1, hours: 2)),
+    hostName: 'Sarah Miller',
+    hostInitials: 'SM',
+    participantCount: 5,
+    participantNames: [
+      'Sarah Miller',
+      'Alex Chen',
+      'Michael Chang',
+      'Jessica Wu'
+    ],
+    status: 'Upcoming',
+    description:
+        'Deep dive into state management, web worker optimization, and widget modularity.',
+  ),
+  DemoMeeting(
+    id: 'm3',
+    title: 'AI Feature Demo & Q&A',
+    projectName: 'Teamify Mobile App',
+    dateTimeLabel: 'Jul 31, 2026, 4:00 PM',
+    scheduledAt: DateTime.now().add(const Duration(days: 2)),
+    hostName: 'David Ross',
+    hostInitials: 'DR',
+    participantCount: 3,
+    participantNames: ['David Ross', 'Emily Watson', 'Alex Chen'],
+    status: 'Upcoming',
+    description:
+        'Live demonstration of automated transcription and summary extraction pipeline.',
+  ),
+  DemoMeeting(
+    id: 'm4',
+    title: 'Weekly Team Retrospective',
+    projectName: 'Security Portal',
+    dateTimeLabel: 'Jul 28, 2026, 11:00 AM',
+    scheduledAt: DateTime.now().subtract(const Duration(days: 2)),
+    hostName: 'Emily Watson',
+    hostInitials: 'EW',
+    participantCount: 6,
+    participantNames: [
+      'Emily Watson',
+      'Sarah Miller',
+      'David Ross',
+      'Alex Chen'
+    ],
+    status: 'Ended',
+    description:
+        'Review of past sprint deliverables, friction points, and process improvements.',
+  ),
+];
+
+class MeetingsListScreen extends StatefulWidget {
+  const MeetingsListScreen({super.key});
+
+  @override
+  State<MeetingsListScreen> createState() => _MeetingsListScreenState();
+}
+
+class _MeetingsListScreenState extends State<MeetingsListScreen> {
+  String _activeTab = 'All';
+
+  List<DemoMeeting> get _filteredMeetings {
+    if (_activeTab == 'Upcoming') {
+      return globalMockMeetings
+          .where((m) => m.status == 'Upcoming' || m.status == 'Live')
+          .toList();
+    } else if (_activeTab == 'Ended') {
+      return globalMockMeetings.where((m) => m.status == 'Ended').toList();
+    }
+    return globalMockMeetings;
+  }
+
+  void _openCreateMeeting() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateMeetingScreen(
+          onCreated: (newMeeting) {
+            setState(() {
+              globalMockMeetings.insert(0, newMeeting);
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  void _joinMeeting(DemoMeeting meeting) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => PermissionsPreviewSheet(meeting: meeting),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text(
+          'Smart Meetings',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_call),
+            onPressed: _openCreateMeeting,
+            tooltip: 'Schedule Meeting',
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  _tabChip('All'),
+                  const SizedBox(width: 8),
+                  _tabChip('Upcoming'),
+                  const SizedBox(width: 8),
+                  _tabChip('Ended'),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: _filteredMeetings.length,
+                itemBuilder: (context, index) {
+                  final m = _filteredMeetings[index];
+                  return _meetingCard(m);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreateMeeting,
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.video_call, color: Colors.white),
+        label: const Text(
+          'Create Meeting',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
+      bottomNavigationBar: TBottomNav(
+        current: 0,
+        onTap: (i) => handleRoleNav(context, i),
+      ),
+    );
+  }
+
+  Widget _tabChip(String label) {
+    final sel = _activeTab == label;
+    return GestureDetector(
+      onTap: () => setState(() => _activeTab = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.primary : AppColors.background,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: sel ? AppColors.primary : AppColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: sel ? Colors.white : AppColors.textPrimary,
+            fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _meetingCard(DemoMeeting m) {
+    final isLive = m.status == 'Live';
+    final isUpcoming = m.status == 'Upcoming';
+
+    Color statusBg;
+    Color statusFg;
+    if (isLive) {
+      statusBg = AppColors.success.withValues(alpha: 0.15);
+      statusFg = AppColors.success;
+    } else if (isUpcoming) {
+      statusBg = AppColors.primary.withValues(alpha: 0.15);
+      statusFg = AppColors.primary;
+    } else {
+      statusBg = AppColors.border;
+      statusFg = AppColors.textSecondary;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  m.projectName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    if (isLive) ...[
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      m.status.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: statusFg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            m.title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.schedule,
+                  size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                m.dateTimeLabel,
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const Spacer(),
+              const Icon(Icons.person_outline,
+                  size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Text(
+                'Host: ${m.hostName}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          if (m.description.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              m.description,
+              style: const TextStyle(fontSize: 12, color: AppColors.textHint),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Row(
+                children: m.participantNames.take(3).map((name) {
+                  final init = name.split(' ').map((e) => e[0]).take(2).join();
+                  return Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    child: CircleAvatar(
+                      radius: 12,
+                      backgroundColor:
+                          AppColors.primary.withValues(alpha: 0.15),
+                      child: Text(
+                        init,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${m.participantCount} members',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const Spacer(),
+              if (isLive || isUpcoming)
+                ElevatedButton.icon(
+                  onPressed: () => _joinMeeting(m),
+                  icon: const Icon(Icons.video_call, size: 16),
+                  label: Text(isLive ? 'Join Live Now' : 'Join Call'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isLive ? AppColors.success : AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MeetingSummaryScreen(
+                          roomId: m.id,
+                          roomName: m.title,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.description_outlined, size: 16),
+                  label: const Text('View Summary'),
+                  style: OutlinedButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CreateMeetingScreen extends StatefulWidget {
+  final ValueChanged<DemoMeeting> onCreated;
+  const CreateMeetingScreen({super.key, required this.onCreated});
+
+  @override
+  State<CreateMeetingScreen> createState() => _CreateMeetingScreenState();
+}
+
+class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  String _selectedProject = 'Teamify Mobile App';
+  DateTime _selectedDate = DateTime.now().add(const Duration(hours: 2));
+  TimeOfDay _selectedTime =
+      TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 2)));
+  String _duration = '30 minutes';
+  final List<String> _selectedParticipants = ['Alex Chen', 'Sarah Miller'];
+
+  final List<String> _availableProjects = [
+    'Teamify Mobile App',
+    'AI Smart Engine',
+    'Security Portal',
+    'General Sync',
+  ];
+
+  final List<String> _availableUsers = [
+    'Alex Chen',
+    'Sarah Miller',
+    'David Ross',
+    'Emily Watson',
+    'Michael Chang',
+  ];
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Meeting title is required')),
+      );
+      return;
+    }
+
+    final scheduled = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+
+    if (scheduled
+        .isBefore(DateTime.now().subtract(const Duration(minutes: 5)))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Meeting cannot be scheduled in the past')),
+      );
+      return;
+    }
+
+    if (_selectedParticipants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('At least one participant is required')),
+      );
+      return;
+    }
+
+    final newMeeting = DemoMeeting(
+      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
+      title: title,
+      projectName: _selectedProject,
+      dateTimeLabel:
+          '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year} at ${_selectedTime.format(context)}',
+      scheduledAt: scheduled,
+      hostName: 'Alex Chen',
+      hostInitials: 'AC',
+      participantCount: _selectedParticipants.length,
+      participantNames: _selectedParticipants,
+      status: 'Upcoming',
+      description: _descriptionController.text.trim(),
+    );
+
+    widget.onCreated(newMeeting);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Meeting created successfully!'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Schedule Meeting',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Meeting Title *',
+                hintText: 'e.g. Sprint Architecture Sync',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedProject,
+              decoration: const InputDecoration(
+                labelText: 'Related Project',
+                border: OutlineInputBorder(),
+              ),
+              items: _availableProjects
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedProject = v!),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Date', style: TextStyle(fontSize: 12)),
+                    subtitle: Text(
+                      '${_selectedDate.year}-${_selectedDate.month}-${_selectedDate.day}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null)
+                        setState(() => _selectedDate = picked);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Time', style: TextStyle(fontSize: 12)),
+                    subtitle: Text(
+                      _selectedTime.format(context),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    trailing: const Icon(Icons.access_time),
+                    onTap: () async {
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: _selectedTime,
+                      );
+                      if (picked != null) {
+                        setState(() => _selectedTime = picked);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _duration,
+              decoration: const InputDecoration(
+                labelText: 'Duration',
+                border: OutlineInputBorder(),
+              ),
+              items: ['15 minutes', '30 minutes', '45 minutes', '60 minutes']
+                  .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                  .toList(),
+              onChanged: (v) => setState(() => _duration = v!),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Participants *',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _availableUsers.map((user) {
+                final sel = _selectedParticipants.contains(user);
+                return FilterChip(
+                  label: Text(user),
+                  selected: sel,
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedParticipants.add(user);
+                      } else {
+                        _selectedParticipants.remove(user);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Meeting Description (Optional)',
+                hintText: 'Agenda topics, links, or notes...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Schedule Meeting',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PermissionsPreviewSheet extends StatefulWidget {
+  final DemoMeeting meeting;
+  const PermissionsPreviewSheet({super.key, required this.meeting});
+
+  @override
+  State<PermissionsPreviewSheet> createState() =>
+      _PermissionsPreviewSheetState();
+}
+
+class _PermissionsPreviewSheetState extends State<PermissionsPreviewSheet> {
+  bool _micOn = true;
+  bool _cameraOn = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            widget.meeting.title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            'Host: ${widget.meeting.hostName} · ${widget.meeting.projectName}',
+            style:
+                const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: _cameraOn
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 36,
+                              backgroundColor: AppColors.primary,
+                              child: Text(
+                                widget.meeting.hostInitials,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Camera Preview Active',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 12),
+                            ),
+                          ],
+                        )
+                      : const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.videocam_off,
+                                color: Colors.white54, size: 48),
+                            SizedBox(height: 8),
+                            Text('Camera is turned off',
+                                style: TextStyle(
+                                    color: Colors.white70, fontSize: 13)),
+                          ],
+                        ),
+                ),
+                Positioned(
+                  bottom: 12,
+                  left: 12,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _micOn ? Icons.mic : Icons.mic_off,
+                          color: _micOn ? AppColors.success : Colors.red,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _micOn ? 'Microphone Ready' : 'Muted',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _micOn = !_micOn),
+                icon: Icon(_micOn ? Icons.mic : Icons.mic_off),
+                color: _micOn ? AppColors.primary : Colors.red,
+                iconSize: 28,
+              ),
+              const SizedBox(width: 24),
+              IconButton(
+                onPressed: () => setState(() => _cameraOn = !_cameraOn),
+                icon: Icon(_cameraOn ? Icons.videocam : Icons.videocam_off),
+                color: _cameraOn ? AppColors.primary : Colors.red,
+                iconSize: 28,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MeetingScreen(),
+                    settings: RouteSettings(
+                      arguments: {
+                        'roomId': widget.meeting.id,
+                        'roomName': widget.meeting.title,
+                        'projectId': 'demo_project_1',
+                      },
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.video_call, size: 20),
+              label: const Text('Join Call Now',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -10,7 +10,8 @@ import 'meeting_web_continuous_speech.dart' show MeetingWebContinuousSpeech;
 /// Layer 1 live STT — Web Speech API (continuous) on web; speech_to_text elsewhere.
 class MeetingBrowserSpeech {
   final stt.SpeechToText _speech = stt.SpeechToText();
-  final MeetingWebContinuousSpeech _webContinuous = MeetingWebContinuousSpeech();
+  final MeetingWebContinuousSpeech _webContinuous =
+      MeetingWebContinuousSpeech();
 
   bool _available = false;
   bool _useWebContinuous = false;

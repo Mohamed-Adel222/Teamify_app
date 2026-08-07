@@ -205,6 +205,103 @@ def mark_all_read():
     return jsonify({"message": f"Marked {updated} notifications as read"}), 200
 
 
+# ─── Notification preferences ────────────────────────────────────────────────
+
+# Per-user email notification switches. Keys mirror the Flutter
+# NotificationPreferences model so the payload round-trips unchanged.
+BOOL_PREFERENCES = {
+    "masterEmailEnabled": True,
+    "emailTeamInvitations": True,
+    "emailInvitationResponses": True,
+    "emailTaskAssignments": True,
+    "emailTaskUpdates": False,
+    "emailDeadlineReminders": True,
+    "emailNewMessages": False,
+    "emailRoleChanges": True,
+    "emailMembershipChanges": True,
+    "emailAdminAnnouncements": True,
+}
+
+CHOICE_PREFERENCES = {
+    "taskReminderTiming": (
+        {"3_hours", "12_hours", "24_hours", "48_hours"},
+        "24_hours",
+    ),
+    "messageEmailBehavior": (
+        {"never", "offline", "15_min_inactivity", "every_message"},
+        "offline",
+    ),
+    "deliveryFrequency": (
+        {"instant", "daily_digest", "weekly_digest"},
+        "instant",
+    ),
+}
+
+
+def _merged_preferences(stored: dict | None) -> dict:
+    """Overlay the stored preferences on top of the defaults."""
+    stored = stored or {}
+    merged = {key: stored.get(key, default) for key, default in BOOL_PREFERENCES.items()}
+    for key, (_allowed, default) in CHOICE_PREFERENCES.items():
+        merged[key] = stored.get(key, default)
+    return merged
+
+
+@notifications_bp.route("/preferences", methods=["GET"])
+@auth_required
+def get_notification_preferences():
+    """Return the current user's email notification preferences."""
+    from models.user import User
+
+    user = db.session.get(User, int(get_jwt_identity()))
+    if not user:
+        return jsonify({"error": "Not Found", "message": "User not found"}), 404
+    return jsonify({"preferences": _merged_preferences(user.notification_prefs)}), 200
+
+
+@notifications_bp.route("/preferences", methods=["PUT"])
+@auth_required
+def update_notification_preferences():
+    """Replace the current user's email notification preferences."""
+    from models.user import User
+
+    user = db.session.get(User, int(get_jwt_identity()))
+    if not user:
+        return jsonify({"error": "Not Found", "message": "User not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    if isinstance(data.get("preferences"), dict):
+        data = data["preferences"]
+
+    errors = []
+    prefs = _merged_preferences(user.notification_prefs)
+
+    for key in BOOL_PREFERENCES:
+        if key in data:
+            value = data[key]
+            if isinstance(value, bool):
+                prefs[key] = value
+            elif isinstance(value, str):
+                prefs[key] = value.strip().lower() in ("true", "1", "yes")
+            else:
+                errors.append(f"{key} must be a boolean")
+
+    for key, (allowed, _default) in CHOICE_PREFERENCES.items():
+        if key in data:
+            value = str(data[key] or "").strip()
+            if value not in allowed:
+                errors.append(f"{key} must be one of: {', '.join(sorted(allowed))}")
+            else:
+                prefs[key] = value
+
+    if errors:
+        return jsonify({"error": "Validation failed", "messages": errors}), 400
+
+    user.notification_prefs = prefs
+    db.session.commit()
+    return jsonify({"preferences": prefs}), 200
+
+
 # ─── Helper: create notification (used by other routes) ──────────────────────
 
 def create_notification(

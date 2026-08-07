@@ -264,6 +264,18 @@ def update_profile():
         else:
             user.preferred_language = lang or None
 
+    if "university_name" in data or "university_id" in data:
+        uni_name = (data.get("university_name") or "").strip()
+        uni_id = (data.get("university_id") or "").strip()
+        if len(uni_name) > 200:
+            errors.append("university_name exceeds 200 characters")
+        elif len(uni_id) > 64:
+            errors.append("university_id exceeds 64 characters")
+        else:
+            user.university_name = uni_name or None
+            user.university_id = uni_id or None
+            user.is_custom_university = bool(data.get("is_custom_university"))
+
     if errors:
         return jsonify({"error": "Validation failed", "messages": errors}), 400
 
@@ -376,6 +388,8 @@ def get_public_profile(user_id):
         "bio":                user.bio,
         "current_level":      user.current_level,
         "major":              user.major,
+        "university_id":      user.university_id,
+        "university_name":    user.university_name,
         "looking_for_team":   user.looking_for_team,
         "reason_for_joining": user.reason_for_joining,
         "member_experience_years": user.member_experience_years,

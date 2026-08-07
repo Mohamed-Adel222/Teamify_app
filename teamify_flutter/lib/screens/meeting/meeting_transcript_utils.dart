@@ -222,7 +222,8 @@ bool isRawSpeechChunk(String text) {
   if (t.length > 150) return true;
   final caps = RegExp(r'[A-Z]').allMatches(t).length;
   if (t.length > 35 && caps < 2) return true;
-  if (RegExp(r'^(you|uh|um|okay|ok|so|and)\b', caseSensitive: false).hasMatch(t)) {
+  if (RegExp(r'^(you|uh|um|okay|ok|so|and)\b', caseSensitive: false)
+      .hasMatch(t)) {
     return true;
   }
   return false;
@@ -282,16 +283,13 @@ List<Map<String, String>> learningActionsFromTranscript(
   List<Map<String, dynamic>> msgs, {
   int maxItems = 4,
 }) {
-  final text = msgs
-      .map((m) => (m['content'] ?? '').toString())
-      .join(' ')
-      .toLowerCase();
+  final text =
+      msgs.map((m) => (m['content'] ?? '').toString()).join(' ').toLowerCase();
   if (text.isEmpty) return [];
 
-  final owner =
-      msgs.first['sender_name']?.toString().trim().isNotEmpty == true
-          ? msgs.first['sender_name'].toString().trim()
-          : 'Team';
+  final owner = msgs.first['sender_name']?.toString().trim().isNotEmpty == true
+      ? msgs.first['sender_name'].toString().trim()
+      : 'Team';
 
   final templates = <String, String>{
     'practice': 'Practice speaking regularly',
@@ -354,7 +352,8 @@ bool looksLikeTranscriptDump(String text) {
   final t = text.trim();
   if (t.length < 100) return false;
   if (RegExp(r'\[Speech\]', caseSensitive: false).hasMatch(t)) return true;
-  final sentences = t.split(RegExp(r'(?<=[.!?])\s+')).where((s) => s.length > 20);
+  final sentences =
+      t.split(RegExp(r'(?<=[.!?])\s+')).where((s) => s.length > 20);
   if (sentences.length >= 3) return true;
   final actionCue = RegExp(
     r'\b(will|should|must|need to|todo|task|assign|follow up|deadline|create|schedule|review)\b',

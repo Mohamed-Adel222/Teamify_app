@@ -56,7 +56,11 @@ class _AdminUserPickerDialogState extends State<_AdminUserPickerDialog> {
       _error = null;
     });
     try {
-      final res = await context.read<AppServices>().admin.listUsers(perPage: 200).unwrap();
+      final res = await context
+          .read<AppServices>()
+          .admin
+          .listUsers(perPage: 200)
+          .unwrap();
       final items = (res['items'] as List? ?? [])
           .map((e) => ApiUser.fromJson(e as Map<String, dynamic>))
           .where((u) => u.id != widget.excludeUserId)
@@ -102,7 +106,9 @@ class _AdminUserPickerDialogState extends State<_AdminUserPickerDialog> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
-                      ? Center(child: Text(_error!, style: const TextStyle(color: AppColors.error)))
+                      ? Center(
+                          child: Text(_error!,
+                              style: const TextStyle(color: AppColors.error)))
                       : filtered.isEmpty
                           ? const Center(child: Text('No users found'))
                           : ListView.builder(
@@ -110,9 +116,11 @@ class _AdminUserPickerDialogState extends State<_AdminUserPickerDialog> {
                               itemBuilder: (_, i) {
                                 final u = filtered[i];
                                 return ListTile(
-                                  leading: TAvatar(initials: u.initials, radius: 18),
+                                  leading:
+                                      TAvatar(initials: u.initials, radius: 18),
                                   title: Text(u.primaryName),
-                                  subtitle: Text('${u.email} · ${u.displayRole}'),
+                                  subtitle:
+                                      Text('${u.email} · ${u.displayRole}'),
                                   onTap: () => Navigator.pop(context, u),
                                 );
                               },
@@ -122,7 +130,9 @@ class _AdminUserPickerDialogState extends State<_AdminUserPickerDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
       ],
     );
   }

@@ -13,7 +13,8 @@ class MeetingBackgroundTranscriber {
   void enqueue({
     required Uint8List bytes,
     required String filename,
-    required Future<String?> Function(Uint8List bytes, String filename) transcribe,
+    required Future<String?> Function(Uint8List bytes, String filename)
+        transcribe,
     required void Function(String text) onText,
     VoidCallback? onQueueEmpty,
   }) {

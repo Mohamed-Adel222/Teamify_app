@@ -1,5 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 
+import '../routes.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/auth_repository.dart';
 
@@ -32,11 +34,7 @@ class SessionController extends ChangeNotifier {
       (status == SessionStatus.unknown && currentUser != null);
 
   bool get isPendingApproval => status == SessionStatus.pendingApproval;
-  bool get needsAdmin2faStep =>
-      !admin2faPassed &&
-      (currentUser?.needsAdmin2faSetup == true ||
-          admin2faLoginPending ||
-          admin2faSetupRequired);
+  bool get needsAdmin2faStep => false;
 
   Future<void> restoreSession() async {
     status = SessionStatus.unknown;
@@ -68,8 +66,8 @@ class SessionController extends ChangeNotifier {
     required String password,
     String? totpCode,
   }) async {
-    final result =
-        await _authRepository.login(email: email, password: password, totpCode: totpCode);
+    final result = await _authRepository.login(
+        email: email, password: password, totpCode: totpCode);
     currentUser = result.user;
     final hasSession = await _authRepository.hasSavedSession();
     if (currentUser == null && hasSession) {
@@ -148,8 +146,9 @@ class SessionController extends ChangeNotifier {
     admin2faPassed = true;
     final user = refreshedUser ?? currentUser;
     if (user != null) {
-      currentUser =
-          user.isAdmin && !user.totpEnabled ? user.copyWith(totpEnabled: true) : user;
+      currentUser = user.isAdmin && !user.totpEnabled
+          ? user.copyWith(totpEnabled: true)
+          : user;
       status = user.isPending
           ? SessionStatus.pendingApproval
           : SessionStatus.authenticated;
@@ -178,6 +177,22 @@ class SessionController extends ChangeNotifier {
     admin2faPassed = false;
     status = SessionStatus.unauthenticated;
     notifyListeners();
+  }
+
+  /// App-wide static logout helper to ensure all roles and entry points clear session data
+  /// and navigate to Choose Role screen (R.roleSelection) with clean stack.
+  static Future<void> performAppLogout(BuildContext context) async {
+    try {
+      final session = context.read<SessionController>();
+      await session.logout();
+    } catch (_) {}
+
+    if (!context.mounted) return;
+
+    Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+      R.roleSelection,
+      (route) => false,
+    );
   }
 
   /// Called when the API client clears tokens after a failed refresh.

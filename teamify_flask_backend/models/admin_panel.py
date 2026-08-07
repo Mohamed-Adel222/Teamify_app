@@ -4,6 +4,16 @@ from datetime import datetime, timezone
 from models import db
 
 
+def _utc_iso(dt):
+    """Serialize with an explicit UTC offset; the columns store naive UTC and
+    clients would otherwise read the timestamp as local time."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 class AdminAnalyticsSnapshot(db.Model):
     __tablename__ = "admin_analytics_snapshots"
 
@@ -33,7 +43,7 @@ class AdminAnalyticsSnapshot(db.Model):
             "disputes_opened": self.disputes_opened,
             "disputes_resolved": self.disputes_resolved,
             "ai_requests": self.ai_requests,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": _utc_iso(self.created_at),
         }
 
 
@@ -56,7 +66,7 @@ class BroadcastHistory(db.Model):
             "title": self.title,
             "body": self.body,
             "recipient_count": self.recipient_count,
-            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "sent_at": _utc_iso(self.sent_at),
         }
 
 
@@ -79,7 +89,7 @@ class RolePermission(db.Model):
             "role": self.role,
             "permissions": self.permissions or {},
             "updated_by": self.updated_by,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_at": _utc_iso(self.updated_at),
         }
 
 
@@ -101,6 +111,6 @@ class AdminSession(db.Model):
             "jti": self.jti,
             "ip_address": self.ip_address,
             "device_info": self.device_info,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "revoked_at": self.revoked_at.isoformat() if self.revoked_at else None,
+            "created_at": _utc_iso(self.created_at),
+            "revoked_at": _utc_iso(self.revoked_at),
         }

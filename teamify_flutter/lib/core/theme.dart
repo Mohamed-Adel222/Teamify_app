@@ -19,6 +19,14 @@ class AppColors {
   static const Color highRisk = Color(0xFFD32F2F);
   static const Color mediumRisk = Color(0xFFF5A623);
   static const Color lowRisk = Color(0xFF4CAF50);
+
+  // Dark Mode Tokens
+  static const Color darkBackground = Color(0xFF0F172A); // Slate 900
+  static const Color darkSurface = Color(0xFF1E293B); // Slate 800
+  static const Color darkCardBg = Color(0xFF1E293B); // Slate 800
+  static const Color darkBorder = Color(0xFF334155); // Slate 700
+  static const Color darkTextPrimary = Color(0xFFF8FAFC); // Slate 50
+  static const Color darkTextSecondary = Color(0xFF94A3B8); // Slate 400
 }
 
 class AppTheme {
@@ -28,10 +36,26 @@ class AppTheme {
 
   static ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
-    final surface = isDark ? const Color(0xFF1E293B) : AppColors.white;
-    final scaffold = isDark ? const Color(0xFF0F172A) : AppColors.background;
-    final onSurface = isDark ? const Color(0xFFF1F5F9) : AppColors.textPrimary;
-    final border = isDark ? const Color(0xFF334155) : AppColors.border;
+    final surface = isDark ? AppColors.darkSurface : AppColors.white;
+    final scaffold = isDark ? AppColors.darkBackground : AppColors.background;
+    final onSurface =
+        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    final textSecondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    final border = isDark ? AppColors.darkBorder : AppColors.border;
+
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: brightness,
+      primary: AppColors.primary,
+      secondary: AppColors.accent,
+      surface: surface,
+      onSurface: onSurface,
+      onSurfaceVariant: textSecondary,
+      outline: border,
+      error: AppColors.error,
+      onError: Colors.white,
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -39,17 +63,13 @@ class AppTheme {
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: scaffold,
       dividerColor: border,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: brightness,
-        primary: AppColors.primary,
-        secondary: AppColors.accent,
-        surface: surface,
-        onSurface: onSurface,
-      ),
+      colorScheme: colorScheme,
       textTheme: GoogleFonts.interTextTheme(
         ThemeData(brightness: brightness).textTheme,
-      ).apply(bodyColor: onSurface, displayColor: onSurface),
+      ).apply(
+        bodyColor: onSurface,
+        displayColor: onSurface,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: surface,
         elevation: 0,
@@ -62,6 +82,49 @@ class AppTheme {
         ),
       ),
       cardColor: surface,
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: border),
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surface,
+        modalBackgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+            color: onSurface, fontSize: 18, fontWeight: FontWeight.bold),
+        contentTextStyle: TextStyle(color: textSecondary, fontSize: 14),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: isDark ? const Color(0xFF0F172A) : AppColors.background,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+        hintStyle: TextStyle(color: textSecondary),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: TextStyle(color: onSurface),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(surface),
+        ),
+      ),
       listTileTheme: ListTileThemeData(
         iconColor: onSurface,
         textColor: onSurface,
@@ -74,6 +137,62 @@ class AppTheme {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           elevation: 0,
         ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor:
+              isDark ? AppColors.darkTextPrimary : AppColors.primary,
+          side: BorderSide(
+              color: isDark ? AppColors.darkBorder : AppColors.primary),
+        ),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: surface,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: textSecondary,
+        elevation: 8,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: isDark
+            ? AppColors.primary.withValues(alpha: 0.2)
+            : AppColors.primary.withValues(alpha: 0.1),
+        labelStyle: TextStyle(
+          color: isDark ? AppColors.darkTextPrimary : AppColors.primary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        side: BorderSide.none,
+      ),
+      dividerTheme: DividerThemeData(
+        color: border,
+        space: 1,
+        thickness: 1,
+      ),
+      iconTheme: IconThemeData(
+        color: onSurface,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        textStyle: TextStyle(color: onSurface, fontSize: 14),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor:
+            isDark ? const Color(0xFF334155) : AppColors.textPrimary,
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13),
+        actionTextColor: AppColors.accent,
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: AppColors.primary,
+        linearTrackColor: border,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return AppColors.primary;
+          }
+          return textSecondary;
+        }),
       ),
     );
   }

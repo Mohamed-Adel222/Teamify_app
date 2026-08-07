@@ -147,155 +147,160 @@ class _TeamsListScreenState extends State<TeamsListScreen> {
                 ],
               )
             : FutureBuilder<List<_ProjectTeam>>(
-          future: _teamsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 120),
-                  Center(child: CircularProgressIndicator()),
-                ],
-              );
-            }
-            if (snapshot.hasError) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
-                children: [
-                  const SizedBox(height: 80),
-                  Text(
-                    snapshot.error.toString(),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: TextButton(
-                      onPressed: _reload,
-                      child: const Text('Retry'),
-                    ),
-                  ),
-                ],
-              );
-            }
-            final teams = snapshot.data ?? [];
-            if (teams.isEmpty) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
-                children: const [
-                  SizedBox(height: 80),
-                  Center(
-                    child: Text(
-                      'No teams yet. Create a project — each project is a team in Teamify.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  ),
-                ],
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: teams.length,
-              itemBuilder: (_, i) {
-                final t = teams[i];
-                return TCard(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12)),
-                            child: const Icon(Icons.people_outline,
-                                color: AppColors.primary, size: 24),
+                future: _teamsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 120),
+                        Center(child: CircularProgressIndicator()),
+                      ],
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        const SizedBox(height: 80),
+                        Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style:
+                              const TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 16),
+                        Center(
+                          child: TextButton(
+                            onPressed: _reload,
+                            child: const Text('Retry'),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                        ),
+                      ],
+                    );
+                  }
+                  final teams = snapshot.data ?? [];
+                  if (teams.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
+                      children: const [
+                        SizedBox(height: 80),
+                        Center(
+                          child: Text(
+                            'No teams yet. Create a project — each project is a team in Teamify.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: teams.length,
+                    itemBuilder: (_, i) {
+                      final t = teams[i];
+                      return TCard(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                Text(t.name,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: AppColors.textPrimary)),
-                                Text(
-                                  t.description,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12)),
+                                  child: const Icon(Icons.people_outline,
+                                      color: AppColors.primary, size: 24),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(t.name,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: AppColors.textPrimary)),
+                                      Text(
+                                        t.description,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          SizedBox(
-                            height: 30,
-                            width: 70,
-                            child: Stack(
-                              children: List.generate(
-                                  t.members.length > 3 ? 3 : t.members.length,
-                                  (index) {
-                                final user = t.members[index];
-                                return Positioned(
-                                  left: index * 18.0,
-                                  child: TAvatar(
-                                      initials: user.initials, radius: 15),
-                                );
-                              }),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                SizedBox(
+                                  height: 30,
+                                  width: 70,
+                                  child: Stack(
+                                    children: List.generate(
+                                        t.members.length > 3
+                                            ? 3
+                                            : t.members.length, (index) {
+                                      final user = t.members[index];
+                                      return Positioned(
+                                        left: index * 18.0,
+                                        child: TAvatar(
+                                            initials: user.initials,
+                                            radius: 15),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text('${t.memberCount} members',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary)),
+                                const Spacer(),
+                                const Icon(Icons.folder_outlined,
+                                    size: 14, color: AppColors.textSecondary),
+                                const SizedBox(width: 4),
+                                Text('${t.projectsCount} projects',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary)),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text('${t.memberCount} members',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary)),
-                          const Spacer(),
-                          const Icon(Icons.folder_outlined,
-                              size: 14, color: AppColors.textSecondary),
-                          const SizedBox(width: 4),
-                          Text('${t.projectsCount} projects',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary)),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => openProjectTeamChat(
-                            context,
-                            projectId: t.id,
-                            projectName: t.name,
-                          ),
-                          icon: const Icon(Icons.chat_bubble_outline,
-                              size: 18),
-                          label: const Text('Team chat'),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => openProjectTeamChat(
+                                  context,
+                                  projectId: t.id,
+                                  projectName: t.name,
+                                ),
+                                icon: const Icon(Icons.chat_bubble_outline,
+                                    size: 18),
+                                label: const Text('Team chat'),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        ),
+                      );
+                    },
+                  );
+                },
+              ),
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
@@ -367,9 +372,8 @@ class _MembersListScreenState extends State<MembersListScreen> {
       result.when(
         success: (items) {
           setState(() {
-            _users = items
-                .where((u) => u.role.toLowerCase() != 'guest')
-                .toList();
+            _users =
+                items.where((u) => u.role.toLowerCase() != 'guest').toList();
             _loading = false;
             _loadError = null;
           });

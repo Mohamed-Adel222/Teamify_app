@@ -32,6 +32,11 @@ class User(db.Model):
     phone = db.Column(db.String(30), nullable=True)
     bio = db.Column(db.Text, nullable=True)
     preferred_language = db.Column(db.String(10), nullable=True)
+    university_id = db.Column(db.String(64), nullable=True)        # student: catalog id or custom slug
+    university_name = db.Column(db.String(200), nullable=True)
+    is_custom_university = db.Column(db.Boolean, nullable=False, default=False)
+    # Per-user email/in-app notification switches, keyed by preference name.
+    notification_prefs = db.Column(db.JSON, nullable=True, default=dict)
     avatar_file_id = db.Column(
         db.Integer,
         db.ForeignKey("file_metadata.id", ondelete="SET NULL"),
@@ -172,6 +177,9 @@ class User(db.Model):
             "phone": self.phone,
             "bio": self.bio,
             "preferred_language": self.preferred_language,
+            "university_id": self.university_id,
+            "university_name": self.university_name,
+            "is_custom_university": bool(self.is_custom_university),
             "avatar_file_id": self.avatar_file_id,
             "member_on_time_rate": self.member_on_time_rate,
             "member_avg_delay_days": self.member_avg_delay_days,

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'config/app_config.dart';
 import 'core/theme.dart';
 import 'core/theme_controller.dart';
+import 'core/localization/app_localizations.dart';
 import 'core/routes.dart';
 import 'core/auth/oauth_redirect_capture.dart';
 import 'core/cache/cache_manager.dart';
@@ -15,15 +18,16 @@ import 'data/models/api_user.dart';
 import 'services/app_services.dart';
 
 import 'screens/auth/auth_screens.dart';
-import 'screens/auth/admin_two_fa_setup_screen.dart';
 import 'screens/auth/oauth_profile_setup_screen.dart';
 import 'screens/home/home_screens.dart';
 import 'screens/home/new_user_home_screen.dart';
+import 'screens/notifications/notification_details_screen.dart';
 import 'screens/features/feature_screens.dart';
 import 'screens/project/project_screens.dart';
 import 'screens/chat/chat_screens.dart';
 import 'screens/ai/ai_screens.dart';
 import 'screens/profile/profile_screens.dart';
+import 'screens/profile/email_notification_settings_screen.dart';
 import 'screens/resume/resume_screens.dart';
 import 'screens/admin/admin_screens.dart';
 import 'screens/mentor/mentor_screens.dart';
@@ -66,21 +70,21 @@ void main() async {
     ws: ws,
   );
 
-  // Restore session, then connect WebSocket if authenticated
+  // Restore session, then connect WebSocket if authenticated (non-demo mode)
   await session.restoreSession();
-  if (session.isAuthenticated) {
+  if (!AppConfig.isDemoMode && session.isAuthenticated) {
     await ws.connect();
   }
 
   // Listen for session changes to connect/disconnect WebSocket automatically
   session.addListener(() {
-    if (session.isAuthenticated && !ws.isConnected) {
-      ws.connect();
-    } else if (!session.isAuthenticated && ws.isConnected) {
-      ws.disconnect();
-      // Clear the mutation queue on logout to avoid replaying another
-      // user's mutations after a session switch.
-      offline.clearAll();
+    if (!AppConfig.isDemoMode) {
+      if (session.isAuthenticated && !ws.isConnected) {
+        ws.connect();
+      } else if (!session.isAuthenticated && ws.isConnected) {
+        ws.disconnect();
+        offline.clearAll();
+      }
     }
   });
   globalDisposableRegistry.register(ws);
@@ -116,8 +120,7 @@ class TeamifyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeMode = context.watch<ThemeController>().themeMode;
     Widget protected(Widget child) => ProtectedRoute(child: child);
-    Widget adminOnly(Widget child) =>
-        protected(AdminRoute(child: child));
+    Widget adminOnly(Widget child) => protected(AdminRoute(child: child));
 
     return MaterialApp(
       title: 'Teamify',
@@ -125,6 +128,14 @@ class TeamifyApp extends StatelessWidget {
       theme: AppTheme.theme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+      locale: const Locale('en'),
+      supportedLocales: const [Locale('en')],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       initialRoute: R.splash,
       routes: {
         // ── Auth ──────────────────────────────────────────────────────────────
@@ -147,8 +158,7 @@ class TeamifyApp extends StatelessWidget {
         // ── Home ─────────────────────────────────────────────────────────────
         R.freelancerHome: (_) => protected(const FreelancerHomeScreen()),
         R.studentHome: (_) => protected(const StudentHomeScreen()),
-        R.adminHome: (_) => protected(const AdminShellScreen()),
-        R.adminTwoFaSetup: (_) => protected(const AdminTwoFASetupScreen()),
+        R.adminHome: (_) => protected(const AdminDashboardScreen()),
         R.newUserHome: (_) => const NewUserHomeScreen(),
         R.search: (_) => protected(const SearchScreen()),
         R.completeProfile: (_) => protected(const CompleteProfileScreen()),
@@ -159,6 +169,8 @@ class TeamifyApp extends StatelessWidget {
             protected(const MeetingTranscriptionScreen()),
         R.fileHistory: (_) => protected(const FileVersionHistoryScreen()),
         R.notifications: (_) => protected(const NotificationsScreen()),
+        R.notificationDetails: (_) =>
+            protected(const NotificationDetailsScreen()),
         R.settings: (_) => protected(const SettingsScreen()),
         R.privacyPolicy: (_) => protected(const PrivacyPolicyScreen()),
         R.addUser: (_) => adminOnly(const AddUserScreen()),
@@ -185,7 +197,7 @@ class TeamifyApp extends StatelessWidget {
         R.smartQA: (_) => protected(const SmartQAScreen()),
         R.fileSharing: (_) => protected(const FileSharingScreen()),
         R.fileIntegrity: (_) => protected(const FileIntegrityScreen()),
-        R.meeting: (_) => protected(const MeetingScreen()),
+        R.meeting: (_) => protected(const MeetingsListScreen()),
 
         // ── AI ────────────────────────────────────────────────────────────────
         R.aiHub: (_) => protected(const AIHubScreen()),
@@ -213,7 +225,8 @@ class TeamifyApp extends StatelessWidget {
         R.completedProjects: (_) => protected(const CompletedProjectsScreen()),
         R.ratings: (_) => protected(const RatingsScreen()),
         R.performance: (_) => protected(const PerformanceScreen()),
-        R.languageSwitch: (_) => protected(const LanguageSwitchScreen()),
+        R.emailNotificationSettings: (_) =>
+            protected(const EmailNotificationSettingsScreen()),
 
         // ── Resume ────────────────────────────────────────────────────────────
         R.resumeCVStart: (_) => protected(const ResumeCVStartScreen()),
@@ -230,11 +243,13 @@ class TeamifyApp extends StatelessWidget {
         R.adminTasks: (_) => adminOnly(const AdminTasksScreen()),
         R.adminAi: (_) => adminOnly(const AdminAiScreen()),
         R.adminDisputes: (_) => adminOnly(const AdminDisputesScreen()),
-        R.adminNotifications: (_) => adminOnly(const AdminNotificationsScreen()),
+        R.adminNotifications: (_) =>
+            adminOnly(const AdminNotificationsScreen()),
         R.adminFiles: (_) => adminOnly(const AdminFilesScreen()),
         R.adminLogs: (_) => adminOnly(const AdminLogsScreen()),
         R.adminSecurity: (_) => adminOnly(const AdminSecurityScreen()),
         R.adminSettings: (_) => adminOnly(const AdminSettingsScreen()),
+        R.adminLeaderboard: (_) => adminOnly(const AdminLeaderboardScreen()),
 
         R.adminUsers: (_) => adminOnly(const AdminUsersScreen()),
         R.adminUserDetails: (context) {
@@ -252,12 +267,10 @@ class TeamifyApp extends StatelessWidget {
         R.loginLogs: (_) => adminOnly(const LoginLogsScreen()),
         R.securityAlerts: (_) => adminOnly(const SecurityAlertsScreen()),
         R.alertDetails: (_) => adminOnly(const AlertDetailsScreen()),
-        R.securityMonitor: (_) => adminOnly(const SecurityMonitorScreen()),
+        R.securityMonitor: (_) => adminOnly(const AdminSecurityScreen()),
         R.rateLimiting: (_) => adminOnly(const RateLimitingScreen()),
         R.encryptionStatus: (_) => adminOnly(const EncryptionStatusScreen()),
-        R.twoFAStatus: (_) => adminOnly(const TwoFAEnableScreen()),
-        R.twoFAVerify: (_) => adminOnly(const TwoFAVerifyScreen()),
-        R.twoFASuccess: (_) => adminOnly(const TwoFASuccessScreen()),
+
         R.analyst: (_) => adminOnly(const AnalystScreen()),
         R.securityFiles: (_) => adminOnly(const SecurityFilesScreen()),
         R.securityCenter: (_) => adminOnly(const SecurityCenterScreen()),
@@ -266,6 +279,12 @@ class TeamifyApp extends StatelessWidget {
         R.logoutAllDevices: (_) => adminOnly(const LogoutAllDevicesScreen()),
         R.reviewActivity: (_) => adminOnly(const ReviewActivityScreen()),
         R.askAI: (_) => adminOnly(const AskAIScreen()),
+        R.adminAnnouncements: (_) =>
+            adminOnly(const AdminAnnouncementsScreen()),
+        R.adminAnnouncementsCreate: (_) =>
+            adminOnly(const CreateAnnouncementScreen()),
+        R.adminAnnouncementsPreview: (_) =>
+            adminOnly(const AnnouncementPreviewScreen()),
         R.teamsList: (_) => protected(const TeamsListScreen()),
         R.membersList: (_) => protected(const MembersListScreen()),
       },
@@ -280,14 +299,19 @@ class ProtectedRoute extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (AppConfig.isDemoMode) {
+      return child;
+    }
     final session = context.watch<SessionController>();
-    if (session.status == SessionStatus.unknown && session.currentUser == null) {
+    if (session.status == SessionStatus.unknown &&
+        session.currentUser == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (!session.isAuthenticated) {
       Future.microtask(() {
         if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, R.login, (_) => false);
+          Navigator.pushNamedAndRemoveUntil(
+              context, R.roleSelection, (_) => false);
         }
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -304,6 +328,9 @@ class AdminRoute extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (AppConfig.isDemoMode) {
+      return child;
+    }
     final session = context.watch<SessionController>();
     final user = session.currentUser;
     if (user?.isAdmin != true) {
@@ -342,9 +369,6 @@ class AdminRoute extends StatelessWidget {
           ),
         ),
       );
-    }
-    if (session.needsAdmin2faStep) {
-      return const AdminTwoFASetupScreen();
     }
     return child;
   }

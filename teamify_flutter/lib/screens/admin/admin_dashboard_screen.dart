@@ -4,6 +4,7 @@ import '../../core/theme.dart';
 import '../../core/network/api_result.dart';
 import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
+import 'admin_screens.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -32,7 +33,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Admin Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Admin Dashboard',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
@@ -53,7 +55,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Error: ${snapshot.error}', style: const TextStyle(color: AppColors.textSecondary)),
+                    Text('Error: ${snapshot.error}',
+                        style: const TextStyle(color: AppColors.textSecondary)),
                     const SizedBox(height: 12),
                     TButton(label: 'Retry', onTap: _refresh),
                   ],
@@ -103,12 +106,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.5,
                 children: [
-                  _metricCard('Total Users', '${cards['total_users'] ?? 0}', Icons.people_outline, AppColors.primary),
-                  _metricCard('Active Users (30d)', '${cards['active_users'] ?? 0}', Icons.offline_pin_outlined, AppColors.success),
-                  _metricCard('Total Projects', '${cards['total_projects'] ?? 0}', Icons.assignment_outlined, AppColors.accent),
-                  _metricCard('Pending Disputes', '${cards['pending_disputes'] ?? 0}', Icons.gavel_outlined, AppColors.error),
-                  _metricCard('Open Tasks', '${cards['open_tasks'] ?? 0}', Icons.pending_actions_outlined, AppColors.warning),
-                  _metricCard('AI Requests Today', '${cards['ai_requests_today'] ?? 0}', Icons.auto_awesome_outlined, AppColors.primary),
+                  _metricCard('Total Users', '${cards['total_users'] ?? 0}',
+                      Icons.people_outline, AppColors.primary),
+                  _metricCard(
+                      'Active Users (30d)',
+                      '${cards['active_users'] ?? 0}',
+                      Icons.offline_pin_outlined,
+                      AppColors.success),
+                  _metricCard(
+                      'Total Projects',
+                      '${cards['total_projects'] ?? 0}',
+                      Icons.assignment_outlined,
+                      AppColors.accent),
+                  _metricCard(
+                      'Pending Disputes',
+                      '${cards['pending_disputes'] ?? 0}',
+                      Icons.gavel_outlined,
+                      AppColors.error),
+                  _metricCard('Open Tasks', '${cards['open_tasks'] ?? 0}',
+                      Icons.pending_actions_outlined, AppColors.warning),
+                  _metricCard(
+                      'AI Requests Today',
+                      '${cards['ai_requests_today'] ?? 0}',
+                      Icons.auto_awesome_outlined,
+                      AppColors.primary),
                 ],
               ),
               const SizedBox(height: 24),
@@ -118,7 +139,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 12),
               TCard(
                 padding: const EdgeInsets.all(16),
-                child: _buildRatioChart(charts['ratios'] as Map<String, dynamic>? ?? {}),
+                child: _buildRatioChart(
+                    charts['ratios'] as Map<String, dynamic>? ?? {}),
               ),
               const SizedBox(height: 24),
 
@@ -129,15 +151,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 padding: const EdgeInsets.all(16),
                 child: _buildGrowthChart(charts['user_growth'] as List? ?? []),
               ),
-              const SizedBox(height: 32),
             ],
           );
         },
       ),
+      bottomNavigationBar: AdminBottomNav(current: 0, ctx: context),
     );
   }
 
-  Widget _dashboardStatusCard(String label, String value, IconData icon, Color color) {
+  Widget _dashboardStatusCard(
+      String label, String value, IconData icon, Color color) {
     return TCard(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -147,8 +170,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary)),
             ],
           ),
         ],
@@ -165,8 +194,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.textSecondary)),
         ],
       ),
     );
@@ -179,7 +214,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final int total = freelancers + students + others;
 
     if (total == 0) {
-      return const Center(child: Text('No user data available', style: TextStyle(color: AppColors.textSecondary)));
+      return const Center(
+          child: Text('No user data available',
+              style: TextStyle(color: AppColors.textSecondary)));
     }
 
     final double fPct = freelancers / total;
@@ -190,9 +227,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         Row(
           children: [
-            Expanded(flex: (fPct * 100).round().clamp(1, 100), child: Container(height: 12, color: AppColors.primary)),
-            Expanded(flex: (sPct * 100).round().clamp(1, 100), child: Container(height: 12, color: AppColors.success)),
-            if (oPct > 0) Expanded(flex: (oPct * 100).round().clamp(1, 100), child: Container(height: 12, color: AppColors.border)),
+            Expanded(
+                flex: (fPct * 100).round().clamp(1, 100),
+                child: Container(height: 12, color: AppColors.primary)),
+            Expanded(
+                flex: (sPct * 100).round().clamp(1, 100),
+                child: Container(height: 12, color: AppColors.success)),
+            if (oPct > 0)
+              Expanded(
+                  flex: (oPct * 100).round().clamp(1, 100),
+                  child: Container(height: 12, color: AppColors.border)),
           ],
         ),
         const SizedBox(height: 16),
@@ -211,9 +255,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _ratioLegend(String label, Color color) {
     return Row(
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
       ],
     );
   }
@@ -222,10 +271,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (growthData.isEmpty) {
       return const SizedBox(
         height: 150,
-        child: Center(child: Text('No growth trend data', style: TextStyle(color: AppColors.textSecondary))),
+        child: Center(
+            child: Text('No growth trend data',
+                style: TextStyle(color: AppColors.textSecondary))),
       );
     }
-    
+
     // Find maximum count for scale
     int maxVal = 1;
     for (var d in growthData) {
@@ -255,13 +306,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                   ),
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(4)),
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(4)),
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 month.split('-').last,
-                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.bold),
               ),
             ],
           );

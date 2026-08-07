@@ -30,6 +30,9 @@ class ApiUser {
   final double memberOnTimeRate;
   final bool totpEnabled;
   final String preferredLanguage;
+  final String universityId;
+  final String universityName;
+  final bool isCustomUniversity;
 
   const ApiUser({
     required this.id,
@@ -60,11 +63,13 @@ class ApiUser {
     this.memberOnTimeRate = 0,
     this.totpEnabled = false,
     this.preferredLanguage = 'en',
+    this.universityId = '',
+    this.universityName = '',
+    this.isCustomUniversity = false,
   });
 
   /// Best label for lists (full name, else @display_name).
-  String get primaryName =>
-      fullName.isNotEmpty ? fullName : displayName;
+  String get primaryName => fullName.isNotEmpty ? fullName : displayName;
 
   /// Secondary line: email · account type · field · availability.
   String get memberMetaLine {
@@ -78,8 +83,7 @@ class ApiUser {
   }
 
   /// Skills summary for member cards.
-  String get skillsSummary =>
-      skills.isEmpty ? '' : skills.take(6).join(', ');
+  String get skillsSummary => skills.isEmpty ? '' : skills.take(6).join(', ');
 
   /// Role label for project member lists (Owner / Member).
   String get projectRoleLabel {
@@ -95,15 +99,14 @@ class ApiUser {
   bool get needsAdmin2faSetup => isAdmin && !totpEnabled;
   bool get isStudent => userType.toLowerCase() == 'student';
   bool get isFreelancer => userType.toLowerCase() == 'freelancer';
+
   /// Account approval workflow removed — always false.
   bool get isPending => accountStatus.toLowerCase() == 'pending';
 
   /// True when OAuth or minimal sign-up left extended profile fields empty.
   bool get needsProfileSetup {
     if (isStudent) {
-      return major.isEmpty ||
-          currentLevel.isEmpty ||
-          skills.isEmpty;
+      return major.isEmpty || currentLevel.isEmpty || skills.isEmpty;
     }
     if (isFreelancer || userType.isEmpty) {
       return professionalField.isEmpty ||
@@ -137,29 +140,46 @@ class ApiUser {
   }
 
   ApiUser copyWith({
+    String? displayName,
+    String? fullName,
+    String? email,
+    List<String>? skills,
+    String? professionalField,
+    String? availability,
+    String? experienceLevel,
+    String? phone,
+    String? bio,
+    String? avatarFileId,
+    String? major,
+    String? currentLevel,
+    bool? lookingForTeam,
     bool? totpEnabled,
+    String? preferredLanguage,
+    String? universityId,
+    String? universityName,
+    bool? isCustomUniversity,
   }) {
     return ApiUser(
       id: id,
-      displayName: displayName,
-      fullName: fullName,
-      email: email,
+      displayName: displayName ?? this.displayName,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
       role: role,
       systemRole: systemRole,
       projectRole: projectRole,
       userType: userType,
-      skills: skills,
-      professionalField: professionalField,
-      availability: availability,
-      experienceLevel: experienceLevel,
+      skills: skills ?? this.skills,
+      professionalField: professionalField ?? this.professionalField,
+      availability: availability ?? this.availability,
+      experienceLevel: experienceLevel ?? this.experienceLevel,
       joinedAt: joinedAt,
-      phone: phone,
-      bio: bio,
-      avatarFileId: avatarFileId,
+      phone: phone ?? this.phone,
+      bio: bio ?? this.bio,
+      avatarFileId: avatarFileId ?? this.avatarFileId,
       accountStatus: accountStatus,
-      major: major,
-      currentLevel: currentLevel,
-      lookingForTeam: lookingForTeam,
+      major: major ?? this.major,
+      currentLevel: currentLevel ?? this.currentLevel,
+      lookingForTeam: lookingForTeam ?? this.lookingForTeam,
       reasonForJoining: reasonForJoining,
       memberExperienceYears: memberExperienceYears,
       tasksCompleted: tasksCompleted,
@@ -167,7 +187,10 @@ class ApiUser {
       attendanceRate: attendanceRate,
       memberOnTimeRate: memberOnTimeRate,
       totpEnabled: totpEnabled ?? this.totpEnabled,
-      preferredLanguage: preferredLanguage,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
+      universityId: universityId ?? this.universityId,
+      universityName: universityName ?? this.universityName,
+      isCustomUniversity: isCustomUniversity ?? this.isCustomUniversity,
     );
   }
 
@@ -211,10 +234,10 @@ class ApiUser {
       ),
       major: asString(json['major']),
       currentLevel: asString(json['current_level'] ?? json['currentLevel']),
-      lookingForTeam: json['looking_for_team'] == null &&
-              json['lookingForTeam'] == null
-          ? null
-          : asBool(json['looking_for_team'] ?? json['lookingForTeam']),
+      lookingForTeam:
+          json['looking_for_team'] == null && json['lookingForTeam'] == null
+              ? null
+              : asBool(json['looking_for_team'] ?? json['lookingForTeam']),
       reasonForJoining: asString(
         json['reason_for_joining'] ?? json['reasonForJoining'],
       ),
@@ -231,6 +254,9 @@ class ApiUser {
       ),
       totpEnabled: asBool(json['totp_enabled'] ?? json['totpEnabled']),
       preferredLanguage: asString(json['preferred_language'], 'en'),
+      universityId: asString(json['university_id'] ?? json['universityId']),
+      universityName: asString(json['university_name'] ?? json['universityName']),
+      isCustomUniversity: asBool(json['is_custom_university'] ?? json['isCustomUniversity']),
     );
   }
 

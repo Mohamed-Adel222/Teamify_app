@@ -40,8 +40,7 @@ class LogService with ServiceErrorHandler {
       // Revalidate in background
       _dedup.deduplicate('$_keyMy-bg', () async {
         final fresh = await _repo.getMyActivity();
-        await _cache.putList(
-            _box, _keyMy, fresh.cast<Map<String, dynamic>>());
+        await _cache.putList(_box, _keyMy, fresh.cast<Map<String, dynamic>>());
         return ApiResult.success(fresh);
       });
       return ApiResult.success(cached.cast<Map<String, dynamic>>());
@@ -73,8 +72,7 @@ class LogService with ServiceErrorHandler {
     if (cached != null && !forceRefresh) {
       _dedup.deduplicate('$_keyAll-bg', () async {
         final fresh = await _repo.getAllLogs();
-        await _cache.putList(
-            _box, _keyAll, fresh.cast<Map<String, dynamic>>());
+        await _cache.putList(_box, _keyAll, fresh.cast<Map<String, dynamic>>());
         return ApiResult.success(fresh);
       });
       return ApiResult.success(cached.cast<Map<String, dynamic>>());

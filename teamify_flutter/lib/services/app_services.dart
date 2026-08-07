@@ -19,6 +19,7 @@ import 'rating_service.dart';
 import 'reminder_service.dart';
 import 'search_service.dart';
 import 'task_service.dart';
+import 'university_service.dart';
 import 'user_service.dart';
 
 /// Central registry for all service-layer instances.
@@ -47,6 +48,7 @@ class AppServices {
   late final HomeService home;
   late final RatingService ratings;
   late final FeedbackService feedback;
+  late final UniversityService universities;
 
   // ── Admin ──────────────────────────────────────────────────────────────────
   late final AdminService admin;
@@ -118,12 +120,16 @@ class AppServices {
 
     // ── Communication ─────────────────────────────────────────────────────
     chat = ChatService(repos.chat, offlineManager, cache);
-    notifications = NotificationService(repos.notifications, cache, ws: ws, offline: offlineManager);
+    notifications = NotificationService(repos.notifications, cache,
+        ws: ws, offline: offlineManager);
 
     // ── Search & Home ─────────────────────────────────────────────────────
     search = SearchService(repos.search);
     home = HomeService(repos.home, cache);
     notifications.linkHomeService(home);
+
+    // ── Reference data ────────────────────────────────────────────────────
+    universities = UniversityService(repos.universities);
 
     // ── Admin (full surface) ──────────────────────────────────────────────
     admin = AdminService(repos.admin, cache);

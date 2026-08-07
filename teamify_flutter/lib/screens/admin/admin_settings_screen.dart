@@ -48,7 +48,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     _aiEnabled = res['ai_enabled'] == true;
     _aiLimitsCtrl.text = (res['ai_limits'] ?? 100).toString();
     _maxUploadCtrl.text = (res['max_upload_size_mb'] ?? 5).toString();
-    _allowedTypesCtrl.text = (res['allowed_file_types'] as List? ?? []).join(', ');
+    _allowedTypesCtrl.text =
+        (res['allowed_file_types'] as List? ?? []).join(', ');
     _sessionTimeoutCtrl.text = (res['session_timeout_min'] ?? 60).toString();
     _passwordPolicy = (res['password_policy'] ?? 'medium').toString();
     _emailNotifs = res['email_notifications'] == true;
@@ -58,13 +59,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Future<void> _loadSettings() async {
     setState(() => _loading = true);
     try {
-      final res = await context.read<AppServices>().admin.getSettings().unwrap();
+      final res =
+          await context.read<AppServices>().admin.getSettings().unwrap();
       if (!mounted) return;
       setState(() => _applySettings(res));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load settings: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Failed to load settings: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -95,19 +99,26 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     };
 
     try {
-      final saved = await context.read<AppServices>().admin.updateSettings(payload).unwrap();
+      final saved = await context
+          .read<AppServices>()
+          .admin
+          .updateSettings(payload)
+          .unwrap();
       if (!mounted) return;
       setState(() => _applySettings(saved));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Settings saved — changes are now active across the platform.'),
+          content: Text(
+              'Settings saved — changes are now active across the platform.'),
           backgroundColor: AppColors.success,
         ),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Save failed: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -120,7 +131,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('System Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('System Settings',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             tooltip: 'Reload settings',
@@ -141,11 +153,17 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   TCard(
                     padding: const EdgeInsets.all(12),
                     child: SwitchListTile(
-                      title: const Text('Enable Registration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('Blocks new sign-ups platform-wide when turned off', style: TextStyle(fontSize: 12)),
+                      title: const Text('Enable Registration',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text(
+                          'Blocks new sign-ups platform-wide when turned off',
+                          style: TextStyle(fontSize: 12)),
                       value: _registrationEnabled,
                       activeThumbColor: AppColors.primary,
-                      onChanged: _saving ? null : (val) => setState(() => _registrationEnabled = val),
+                      onChanged: _saving
+                          ? null
+                          : (val) => setState(() => _registrationEnabled = val),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -157,11 +175,17 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                       children: [
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Enable Platform AI Features', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          subtitle: const Text('Disables AI Hub routes when turned off', style: TextStyle(fontSize: 12)),
+                          title: const Text('Enable Platform AI Features',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          subtitle: const Text(
+                              'Disables AI Hub routes when turned off',
+                              style: TextStyle(fontSize: 12)),
                           value: _aiEnabled,
                           activeThumbColor: AppColors.primary,
-                          onChanged: _saving ? null : (val) => setState(() => _aiEnabled = val),
+                          onChanged: _saving
+                              ? null
+                              : (val) => setState(() => _aiEnabled = val),
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
@@ -173,9 +197,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                           ),
                           keyboardType: TextInputType.number,
                           validator: (val) {
-                            if (val == null || val.trim().isEmpty) return 'Limit is required';
+                            if (val == null || val.trim().isEmpty) {
+                              return 'Limit is required';
+                            }
                             final n = int.tryParse(val);
-                            if (n == null || n < 1) return 'Enter a valid limit (minimum 1)';
+                            if (n == null || n < 1) {
+                              return 'Enter a valid limit (minimum 1)';
+                            }
                             return null;
                           },
                         ),
@@ -198,9 +226,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                           ),
                           keyboardType: TextInputType.number,
                           validator: (val) {
-                            if (val == null || val.trim().isEmpty) return 'Max size is required';
+                            if (val == null || val.trim().isEmpty)
+                              return 'Max size is required';
                             final n = int.tryParse(val);
-                            if (n == null || n < 1) return 'Enter a valid size in MB';
+                            if (n == null || n < 1)
+                              return 'Enter a valid size in MB';
                             return null;
                           },
                         ),
@@ -209,11 +239,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                           controller: _allowedTypesCtrl,
                           enabled: !_saving,
                           decoration: const InputDecoration(
-                            labelText: 'Allowed File Extensions (Comma separated)',
+                            labelText:
+                                'Allowed File Extensions (Comma separated)',
                             border: OutlineInputBorder(),
                           ),
                           validator: (val) {
-                            if (val == null || val.trim().isEmpty) return 'File extensions are required';
+                            if (val == null || val.trim().isEmpty)
+                              return 'File extensions are required';
                             return null;
                           },
                         ),
@@ -236,9 +268,11 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                           ),
                           keyboardType: TextInputType.number,
                           validator: (val) {
-                            if (val == null || val.trim().isEmpty) return 'Timeout is required';
+                            if (val == null || val.trim().isEmpty)
+                              return 'Timeout is required';
                             final n = int.tryParse(val);
-                            if (n == null || n < 5) return 'Minimum session timeout is 5 minutes';
+                            if (n == null || n < 5)
+                              return 'Minimum session timeout is 5 minutes';
                             return null;
                           },
                         ),
@@ -251,14 +285,22 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                             border: OutlineInputBorder(),
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'low', child: Text('Low (Min 6 chars)')),
-                            DropdownMenuItem(value: 'medium', child: Text('Medium (Min 8 chars, 1 number, 1 capital)')),
-                            DropdownMenuItem(value: 'high', child: Text('High (Min 10 chars, special characters required)')),
+                            DropdownMenuItem(
+                                value: 'low', child: Text('Low (Min 6 chars)')),
+                            DropdownMenuItem(
+                                value: 'medium',
+                                child: Text(
+                                    'Medium (Min 8 chars, 1 number, 1 capital)')),
+                            DropdownMenuItem(
+                                value: 'high',
+                                child: Text(
+                                    'High (Min 10 chars, special characters required)')),
                           ],
                           onChanged: _saving
                               ? null
                               : (val) {
-                                  if (val != null) setState(() => _passwordPolicy = val);
+                                  if (val != null)
+                                    setState(() => _passwordPolicy = val);
                                 },
                         ),
                       ],
@@ -273,19 +315,31 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                       children: [
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Email Notifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          subtitle: const Text('Reserved for outbound email delivery', style: TextStyle(fontSize: 12)),
+                          title: const Text('Email Notifications',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          subtitle: const Text(
+                              'Reserved for outbound email delivery',
+                              style: TextStyle(fontSize: 12)),
                           value: _emailNotifs,
                           activeThumbColor: AppColors.primary,
-                          onChanged: _saving ? null : (val) => setState(() => _emailNotifs = val),
+                          onChanged: _saving
+                              ? null
+                              : (val) => setState(() => _emailNotifs = val),
                         ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Mobile Push Notifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          subtitle: const Text('Controls real-time Socket.IO push alerts', style: TextStyle(fontSize: 12)),
+                          title: const Text('Mobile Push Notifications',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          subtitle: const Text(
+                              'Controls real-time Socket.IO push alerts',
+                              style: TextStyle(fontSize: 12)),
                           value: _pushNotifs,
                           activeThumbColor: AppColors.primary,
-                          onChanged: _saving ? null : (val) => setState(() => _pushNotifs = val),
+                          onChanged: _saving
+                              ? null
+                              : (val) => setState(() => _pushNotifs = val),
                         ),
                       ],
                     ),

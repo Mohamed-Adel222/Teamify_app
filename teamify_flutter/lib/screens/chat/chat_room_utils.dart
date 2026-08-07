@@ -28,10 +28,7 @@ ChatRoom chatRoomFromApi(Map<String, dynamic> json) {
   }
   final parts =
       displayName.split(' ').where((part) => part.isNotEmpty).toList();
-  final initials = parts
-      .take(2)
-      .map((part) => part[0].toUpperCase())
-      .join();
+  final initials = parts.take(2).map((part) => part[0].toUpperCase()).join();
   return ChatRoom(
     id: json['id'].toString(),
     name: displayName,

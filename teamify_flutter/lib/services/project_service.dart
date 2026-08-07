@@ -62,43 +62,43 @@ class ProjectService with ServiceErrorHandler {
   // ── Cached reads ──────────────────────────────────────────────────────────
 
   Future<ApiResult<List<ApiProject>>> listCompletedProjects() =>
-      _dedup.deduplicate(
-          'list_completed_projects',
+      _dedup.deduplicate('list_completed_projects',
           () => guard(() => _repo.listCompletedProjects()));
 
   Future<ApiResult<List<ApiProject>>> listProjects({
     bool forceRefresh = false,
     void Function(List<ApiProject>)? onRefreshed,
   }) =>
-      _dedup.deduplicate('list_projects', () => guard(() async {
-            if (forceRefresh) {
-              final projects = await _repo.listProjects();
-              await _cache.putList(
-                  _box, 'all', projects.map((p) => p.toJson()).toList());
-              return projects;
-            }
+      _dedup.deduplicate(
+          'list_projects',
+          () => guard(() async {
+                if (forceRefresh) {
+                  final projects = await _repo.listProjects();
+                  await _cache.putList(
+                      _box, 'all', projects.map((p) => p.toJson()).toList());
+                  return projects;
+                }
 
-            return _swr
-                .withSwrList<ApiProject>(
-                  boxName: _box,
-                  key: 'all',
-                  fetcher: () => _repo.listProjects(),
-                  fromJson: ApiProject.fromJson,
-                  toJson: (p) => p.toJson(),
-                  onRefreshed: onRefreshed,
-                )
-                .then((res) => res.isSuccess ? res.data! : throw Exception(res.error));
-          }));
+                return _swr
+                    .withSwrList<ApiProject>(
+                      boxName: _box,
+                      key: 'all',
+                      fetcher: () => _repo.listProjects(),
+                      fromJson: ApiProject.fromJson,
+                      toJson: (p) => p.toJson(),
+                      onRefreshed: onRefreshed,
+                    )
+                    .then((res) =>
+                        res.isSuccess ? res.data! : throw Exception(res.error));
+              }));
 
   Future<ApiResult<ApiProject>> getProject(String id) => _dedup.deduplicate(
-      'get_project_$id',
-      () => guardWithRetry(() => _repo.getProject(id)));
+      'get_project_$id', () => guardWithRetry(() => _repo.getProject(id)));
 
   // ── Offline-first mutations ───────────────────────────────────────────────
 
   /// Creates a project. On network failure, queues for later replay.
-  Future<ApiResult<ApiProject>> createProject(
-          Map<String, dynamic> payload) =>
+  Future<ApiResult<ApiProject>> createProject(Map<String, dynamic> payload) =>
       guardWithOffline(
         () async {
           final project = await _repo.createProject(payload);
@@ -205,20 +205,24 @@ class ProjectService with ServiceErrorHandler {
         offlineManager: _offline,
       );
 
-  Future<ApiResult<bool>> acceptInvitation(String invitationId) => guard(() async {
+  Future<ApiResult<bool>> acceptInvitation(String invitationId) =>
+      guard(() async {
         await _repo.acceptInvitation(invitationId);
         await _invalidateProjectCaches();
         return true;
       });
 
-  Future<ApiResult<bool>> declineInvitation(String invitationId) => guard(() async {
+  Future<ApiResult<bool>> declineInvitation(String invitationId) =>
+      guard(() async {
         await _repo.declineInvitation(invitationId);
         return true;
       });
 
   Future<ApiResult<void>> removeMember(String projectId, String userId) =>
       guardWithOffline(
-        () => _repo.removeProjectMember(projectId: projectId, userId: userId),
+        () async {
+          await _repo.removeProjectMember(projectId: projectId, userId: userId);
+        },
         mutation: OfflineMutation(
           id: MutationId.generate(),
           method: 'DELETE',

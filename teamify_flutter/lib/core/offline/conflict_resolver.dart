@@ -18,7 +18,7 @@ class ConflictResolver<T> {
     if (strategy == MergeStrategy.serverWins) {
       return serverPayload;
     }
-    
+
     if (strategy == MergeStrategy.clientWins) {
       return clientPayload;
     }
@@ -32,7 +32,8 @@ class ConflictResolver<T> {
       return customMerge(clientPayload, serverPayload);
     }
 
-    debugPrint('[ConflictResolver] Server time newer, resolving with server payload');
+    debugPrint(
+        '[ConflictResolver] Server time newer, resolving with server payload');
     return serverPayload;
   }
 }

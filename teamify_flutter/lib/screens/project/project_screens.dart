@@ -4,6 +4,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/app_config.dart';
+import '../../core/permissions/project_permissions.dart';
+import '../../data/models/notification_preferences_model.dart';
+import '../../services/notification_event_dispatcher.dart';
 import '../../core/theme.dart';
 import '../../core/routes.dart';
 import '../../core/session/session_controller.dart';
@@ -17,10 +21,9 @@ import '../chat/chat_room_utils.dart';
 
 bool _matchesMemberSearch(api.ApiUser user, String query) {
   if (query.isEmpty) return true;
-  final hay =
-      '${user.primaryName} ${user.displayName} ${user.email} '
-      '${user.memberMetaLine} ${user.skillsSummary} ${user.bio}'
-          .toLowerCase();
+  final hay = '${user.primaryName} ${user.displayName} ${user.email} '
+          '${user.memberMetaLine} ${user.skillsSummary} ${user.bio}'
+      .toLowerCase();
   return hay.contains(query);
 }
 
@@ -63,6 +66,11 @@ class AddTaskRouteArgs {
 String? _routeProjectIdForTask(Object? args) {
   if (args is String && args.isNotEmpty) return args;
   if (args is AddTaskRouteArgs) return args.projectId;
+  if (args is Map && args['projectId'] != null) {
+    return args['projectId'].toString();
+  }
+  if (args is ProjectModel) return args.id;
+  if (args is api.ApiProject) return args.id;
   return null;
 }
 
@@ -217,7 +225,8 @@ Color _delayRiskText(String? raw) {
 bool _isKnownDelayRisk(String? risk) =>
     risk != null && risk.isNotEmpty && risk.toLowerCase() != 'unknown';
 
-String _estimateDelayRiskFromTasks(List<TaskModel> tasks, ProjectModel project) {
+String _estimateDelayRiskFromTasks(
+    List<TaskModel> tasks, ProjectModel project) {
   final active = tasks.where((t) => t.status != 'done').toList();
   if (active.isEmpty) return 'low';
 
@@ -853,7 +862,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
       _project = p;
       _tasks = List<TaskModel>.from(p.tasks);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrapProjectData());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _bootstrapProjectData());
   }
 
   Future<void> _bootstrapProjectData() async {
@@ -877,9 +887,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
       result.when(
         success: (apiProject) {
           final fresh = apiProject.toDisplayModel();
-          final progress = _tasks.isNotEmpty
-              ? _progressFromTasks(_tasks)
-              : fresh.progress;
+          final progress =
+              _tasks.isNotEmpty ? _progressFromTasks(_tasks) : fresh.progress;
           final keepRisk = _project?.delayRisk;
           setState(() {
             _project = fresh.copyWith(
@@ -951,7 +960,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
     setState(() {
       _project = fresh.copyWith(
         tasks: _tasks,
-        progress: _tasks.isNotEmpty ? _progressFromTasks(_tasks) : fresh.progress,
+        progress:
+            _tasks.isNotEmpty ? _progressFromTasks(_tasks) : fresh.progress,
         delayRisk: proj.delayRisk,
       );
     });
@@ -959,6 +969,29 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Project updated')),
     );
+  }
+
+  Future<void> _openAddTaskForProject() async {
+    final proj = _project;
+    if (proj == null) return;
+    final created = await Navigator.pushNamed(
+      context,
+      R.addTask,
+      arguments: {'projectId': proj.id},
+    );
+    if (mounted) {
+      if (created == true) {
+        NotificationEventDispatcher.triggerEvent(
+          context: context,
+          type: NotificationType.taskAssigned,
+          title: 'New Task Assigned',
+          body: 'A new task was created and assigned in "${proj.name}".',
+          entityType: 'project',
+          entityId: proj.id,
+        );
+      }
+      await _fetchTasks();
+    }
   }
 
   Future<void> _fetchTasks() async {
@@ -1021,14 +1054,113 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
     }
   }
 
+  ProjectRole _activeDemoRole = ProjectRole.owner;
+
+  ProjectRole _resolveActiveRole(ProjectModel p, String currentUserId) {
+    if (AppConfig.isDemoMode) {
+      return _activeDemoRole;
+    }
+    if (p.ownerId.isNotEmpty && p.ownerId == currentUserId) {
+      return ProjectRole.owner;
+    }
+    return ProjectRole.member;
+  }
+
+  Widget _buildDemoRoleSelector() {
+    final roleName = _activeDemoRole.name[0].toUpperCase() +
+        _activeDemoRole.name.substring(1);
+    return Container(
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: PopupMenuButton<ProjectRole>(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        onSelected: (role) {
+          setState(() => _activeDemoRole = role);
+          NotificationEventDispatcher.triggerEvent(
+            context: context,
+            type: NotificationType.roleChanged,
+            title: 'Role & Permissions Changed',
+            body:
+                'Your role in "${_project?.name ?? 'Project'}" was updated to ${role.name.toUpperCase()}.',
+            entityType: 'project',
+            entityId: _project?.id ?? '',
+          );
+        },
+        itemBuilder: (context) => const [
+          PopupMenuItem(value: ProjectRole.owner, child: Text('Owner')),
+          PopupMenuItem(value: ProjectRole.admin, child: Text('Admin')),
+          PopupMenuItem(value: ProjectRole.member, child: Text('Member')),
+          PopupMenuItem(value: ProjectRole.viewer, child: Text('Viewer')),
+        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.shield_outlined,
+                size: 14, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Text(
+              'Role: $roleName',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_drop_down,
+                size: 18, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _delayRiskWidget(String? risk) {
+    return Row(
+      children: [
+        const Text('Delay Risk: ',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        const SizedBox(width: 4),
+        if (_delayRiskLoading)
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: _delayRiskBg(risk),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              _delayRiskDisplayLabel(risk),
+              style: TextStyle(
+                color: _delayRiskText(risk),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = _project;
     if (p == null) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios,
@@ -1042,10 +1174,13 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'No project selected or data is invalid.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 TextButton(
@@ -1059,15 +1194,15 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
       );
     }
 
-    // Determine whether the current user is the project owner
     final currentUserId =
         context.read<SessionController>().currentUser?.id ?? '';
-    final isOwner = p.ownerId.isNotEmpty && p.ownerId == currentUserId;
+    final activeRole = _resolveActiveRole(p, currentUserId);
+    final permissions = ProjectPermissions.forRole(activeRole);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
         toolbarHeight: 48,
         leading: IconButton(
@@ -1090,14 +1225,31 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
                     Expanded(
                       child: Text(
                         p.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ),
-                    if (isOwner)
+                    if (permissions.canCreateTasks)
+                      ElevatedButton.icon(
+                        onPressed: _openAddTaskForProject,
+                        icon: const Icon(Icons.add_task, size: 16),
+                        label: const Text('New Task',
+                            style: TextStyle(fontSize: 13)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    if (permissions.canEditProject) ...[
+                      const SizedBox(width: 8),
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
@@ -1110,65 +1262,45 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
                           color: AppColors.primary,
                         ),
                       ),
+                    ],
                   ],
                 ),
                 Text(p.company,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary,
+                    style: TextStyle(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textSecondary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500)),
+                if (AppConfig.isDemoMode) _buildDemoRoleSelector(),
                 const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Overall Process',
+                    Text('Overall Process',
                         style: TextStyle(
-                            fontSize: 15,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500)),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface)),
                     Text('${p.progress}%',
                         style: const TextStyle(
-                            fontSize: 15,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary)),
+                            color: AppColors.primary)),
                   ],
                 ),
                 const SizedBox(height: 4),
-                TBar(
-                    value: p.progress / 100,
-                    height: 6,
-                    color: AppColors.primary),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Text('Delay Risk: ',
-                        style: TextStyle(
-                            fontSize: 15, color: AppColors.textSecondary)),
-                    if (_delayRiskLoading)
-                      const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _delayRiskBg(p.delayRisk),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _delayRiskDisplayLabel(p.delayRisk),
-                          style: TextStyle(
-                            color: _delayRiskText(p.delayRisk),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: (p.progress / 100).clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor: const Color(0xFFE2E8F0),
+                    color: AppColors.primary,
+                  ),
                 ),
+                const SizedBox(height: 8),
+                _delayRiskWidget(p.delayRisk),
               ],
             ),
           ),
@@ -1206,11 +1338,13 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
           const SizedBox(height: 8),
           Expanded(
             child: Container(
-              color: const Color(0xFFF8FAFC),
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFF8FAFC),
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _OverviewTab(project: p, isOwner: isOwner),
+                  _OverviewTab(project: p, permissions: permissions),
                   _TasksTab(
                     projectId: p.id,
                     tasks: _tasks,
@@ -1218,7 +1352,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
                     errorMessage: _tasksError,
                     onRetry: _fetchTasks,
                     onRefreshTasks: _fetchTasks,
-                    isOwner: isOwner,
+                    permissions: permissions,
                   ),
                   _FilesTab(
                     projectId: p.id,
@@ -1241,8 +1375,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen>
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 class _OverviewTab extends StatefulWidget {
   final ProjectModel project;
-  final bool isOwner;
-  const _OverviewTab({required this.project, this.isOwner = false});
+  final ProjectPermissions permissions;
+  const _OverviewTab({required this.project, required this.permissions});
 
   @override
   State<_OverviewTab> createState() => _OverviewTabState();
@@ -1260,7 +1394,7 @@ class _OverviewTabState extends State<_OverviewTab> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchMembers();
-      if (widget.isOwner) _fetchInvitations();
+      if (widget.permissions.canInviteMembers) _fetchInvitations();
     });
   }
 
@@ -1290,7 +1424,7 @@ class _OverviewTabState extends State<_OverviewTab> {
   }
 
   Future<void> _fetchInvitations() async {
-    if (!widget.isOwner) return;
+    if (!widget.permissions.canInviteMembers) return;
     setState(() => _invitationsLoading = true);
     try {
       final result = await context
@@ -1398,9 +1532,8 @@ class _OverviewTabState extends State<_OverviewTab> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialog) {
           final q = _inviteSearchController.text.trim().toLowerCase();
-          final visible = allUsers
-              .where((m) => _userMatchesInviteSearch(m, q))
-              .toList();
+          final visible =
+              allUsers.where((m) => _userMatchesInviteSearch(m, q)).toList();
 
           Future<void> sendInvites() async {
             if (selected.isEmpty || sending) return;
@@ -1410,7 +1543,17 @@ class _OverviewTabState extends State<_OverviewTab> {
             for (final id in selected) {
               final r = await projects.addMember(widget.project.id, id);
               r.when(
-                success: (_) => sent++,
+                success: (_) {
+                  sent++;
+                  NotificationEventDispatcher.triggerEvent(
+                    context: context,
+                    type: NotificationType.teamInvitation,
+                    title: 'Project Invitation',
+                    body: 'You were invited to join "${widget.project.name}".',
+                    entityType: 'project',
+                    entityId: widget.project.id,
+                  );
+                },
                 failure: (_) => failed++,
               );
             }
@@ -1448,8 +1591,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                               controller: _inviteSearchController,
                               decoration: InputDecoration(
                                 hintText: 'Search name, email, skills, field…',
-                                prefixIcon:
-                                    const Icon(Icons.search, size: 18),
+                                prefixIcon: const Icon(Icons.search, size: 18),
                                 isDense: true,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -1548,7 +1690,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             'Project Owner',
             _ownerDisplayName(p),
             Icons.person_outline,
-            trailing: widget.isOwner
+            trailing: widget.permissions.role == ProjectRole.owner
                 ? Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1602,9 +1744,10 @@ class _OverviewTabState extends State<_OverviewTab> {
                       ),
                     ),
                   ),
-                  if (widget.isOwner)
+                  if (widget.permissions.canInviteMembers)
                     TextButton.icon(
-                      onPressed: _membersLoading ? null : _openInviteMembersDialog,
+                      onPressed:
+                          _membersLoading ? null : _openInviteMembersDialog,
                       icon: const Icon(Icons.person_add_outlined, size: 18),
                       label: const Text('Invite'),
                       style: TextButton.styleFrom(
@@ -1614,7 +1757,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                     ),
                 ],
               ),
-              if (widget.isOwner) ...[
+              if (widget.permissions.canInviteMembers) ...[
                 const SizedBox(height: 4),
                 const Text(
                   'Pending invites appear below until accepted or declined.',
@@ -1625,19 +1768,21 @@ class _OverviewTabState extends State<_OverviewTab> {
                 ),
               ],
               const SizedBox(height: 8),
-              if (widget.isOwner) ...[
+              if (widget.permissions.canInviteMembers) ...[
                 _buildInvitationsSection(),
                 const SizedBox(height: 12),
               ],
               if (_membersLoading)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  child:
+                      Center(child: CircularProgressIndicator(strokeWidth: 2)),
                 )
               else if (_members == null || _members!.isEmpty)
                 const Text(
                   'No team members found',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textSecondary),
                 )
               else
                 ..._members!.map(
@@ -1747,8 +1892,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: badgeBg,
                   borderRadius: BorderRadius.circular(8),
@@ -1776,9 +1920,8 @@ class _OverviewTabState extends State<_OverviewTab> {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: skills
-                  .map((s) => TChip(label: s, fontSize: 10))
-                  .toList(),
+              children:
+                  skills.map((s) => TChip(label: s, fontSize: 10)).toList(),
             ),
           ],
         ],
@@ -1838,7 +1981,7 @@ class _TasksTab extends StatefulWidget {
   final String? errorMessage;
   final VoidCallback onRetry;
   final Future<void> Function() onRefreshTasks;
-  final bool isOwner;
+  final ProjectPermissions permissions;
 
   const _TasksTab({
     required this.projectId,
@@ -1847,7 +1990,7 @@ class _TasksTab extends StatefulWidget {
     required this.errorMessage,
     required this.onRetry,
     required this.onRefreshTasks,
-    this.isOwner = false,
+    required this.permissions,
   });
 
   @override
@@ -1954,11 +2097,19 @@ class _TasksTabState extends State<_TasksTab> {
         builder: (_) => TaskDetailScreen(
           initialTask: t,
           projectId: widget.projectId,
-          isOwner: widget.isOwner,
+          isOwner: widget.permissions.canEditAnyTask,
         ),
       ),
     );
     if (changed == true && context.mounted) {
+      NotificationEventDispatcher.triggerEvent(
+        context: context,
+        type: NotificationType.taskUpdated,
+        title: 'Task Updated',
+        body: 'Status or details for task "${t.title}" were updated.',
+        entityType: 'task',
+        entityId: t.id,
+      );
       await widget.onRefreshTasks();
     }
   }
@@ -1993,7 +2144,7 @@ class _TasksTabState extends State<_TasksTab> {
                 child: const Icon(Icons.grid_view_rounded,
                     size: 24, color: AppColors.textSecondary)),
             const Spacer(),
-            if (widget.isOwner)
+            if (widget.permissions.canCreateTasks)
               ElevatedButton.icon(
                 onPressed: widget.loading
                     ? null
@@ -3828,7 +3979,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       if (!mounted) return;
       await result.when(
         success: (project) async {
-          if (project.ownerId != _currentUserId) {
+          if (!AppConfig.isDemoMode && project.ownerId != _currentUserId) {
             setState(() {
               _projectsLoading = false;
               _projectsError =
@@ -3935,8 +4086,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
     final projectId = _selectedProjectId ??
         _routeProjectIdForTask(ModalRoute.of(context)?.settings.arguments);
-    final pid = int.tryParse(projectId ?? '');
-    if (pid == null) {
+    if (projectId == null || projectId.isEmpty) {
       setState(() => _error = 'Select a valid project.');
       messenger.showSnackBar(
         const SnackBar(
@@ -3947,7 +4097,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       return;
     }
 
-    if (!_isProjectOwner(projectId)) {
+    if (!AppConfig.isDemoMode && !_isProjectOwner(projectId)) {
       setState(() => _error = 'Only the project owner can add tasks.');
       messenger.showSnackBar(
         const SnackBar(
@@ -3966,7 +4116,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     try {
       final payload = <String, dynamic>{
         'title': _titleController.text.trim(),
-        'project_id': pid,
+        'project_id': int.tryParse(projectId) ?? projectId,
         'description': _descController.text.trim(),
         'status': _apiTaskStatusFromUi(_selectedStatus),
         'priority': _priorityApi(_selectedPriority),
@@ -4160,8 +4310,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                           TextButton(
                             onPressed: _isLoading
                                 ? null
-                                : () =>
-                                    _loadProjectMembers(_activeProjectId!),
+                                : () => _loadProjectMembers(_activeProjectId!),
                             child: const Text('Retry'),
                           ),
                         ],
@@ -4580,7 +4729,8 @@ class _EditProjectSheetState extends State<_EditProjectSheet> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
+          borderSide:
+              BorderSide(color: AppColors.border.withValues(alpha: 0.6)),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -4756,8 +4906,9 @@ class _EditProjectSheetState extends State<_EditProjectSheet> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed:
-                                  _saving ? null : () => _pickDate(isStart: true),
+                              onPressed: _saving
+                                  ? null
+                                  : () => _pickDate(isStart: true),
                               icon: const Icon(Icons.calendar_today_outlined,
                                   size: 16),
                               label: Text(
@@ -4773,13 +4924,14 @@ class _EditProjectSheetState extends State<_EditProjectSheet> {
                           const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 8),
                             child: Text('–',
-                                style: TextStyle(
-                                    color: AppColors.textSecondary)),
+                                style:
+                                    TextStyle(color: AppColors.textSecondary)),
                           ),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed:
-                                  _saving ? null : () => _pickDate(isStart: false),
+                              onPressed: _saving
+                                  ? null
+                                  : () => _pickDate(isStart: false),
                               icon: const Icon(Icons.event_outlined, size: 16),
                               label: Text(
                                 _displayDateLabel(_endDate),
@@ -5011,7 +5163,8 @@ class _AddProjectScreenState extends State<AddProjectScreen> {
                         color: AppColors.primary),
                   ),
                 ),
-                label: Text(m.primaryName, style: const TextStyle(fontSize: 12)),
+                label:
+                    Text(m.primaryName, style: const TextStyle(fontSize: 12)),
                 deleteIcon: const Icon(Icons.close, size: 14),
                 onDeleted: () => _toggleMember(m.id),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

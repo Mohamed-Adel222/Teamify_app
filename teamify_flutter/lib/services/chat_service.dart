@@ -32,31 +32,33 @@ class ChatService with ServiceErrorHandler {
     bool forceRefresh = false,
     void Function(List<Map<String, dynamic>>)? onRefreshed,
   }) =>
-      _dedup.deduplicate('chat_list_rooms', () => guard(() async {
-            if (forceRefresh) {
-              final rooms = await _repo.listRooms();
-              await _cache.putList(_box, 'rooms',
-                  rooms.map((r) => Map<String, dynamic>.from(r)).toList());
-              return rooms;
-            }
-            return _swr
-                .withSwrList<Map<String, dynamic>>(
-                  boxName: _box,
-                  key: 'rooms',
-                  fetcher: () => _repo.listRooms(),
-                  fromJson: (j) => j,
-                  toJson: (r) => r,
-                  staleAge: _roomsTtl,
-                  onRefreshed: onRefreshed,
-                )
-                .then((res) =>
-                    res.isSuccess ? res.data! : throw Exception(res.error));
-          }));
+      _dedup.deduplicate(
+          'chat_list_rooms',
+          () => guard(() async {
+                if (forceRefresh) {
+                  final rooms = await _repo.listRooms();
+                  await _cache.putList(_box, 'rooms',
+                      rooms.map((r) => Map<String, dynamic>.from(r)).toList());
+                  return rooms;
+                }
+                return _swr
+                    .withSwrList<Map<String, dynamic>>(
+                      boxName: _box,
+                      key: 'rooms',
+                      fetcher: () => _repo.listRooms(),
+                      fromJson: (j) => j,
+                      toJson: (r) => r,
+                      staleAge: _roomsTtl,
+                      onRefreshed: onRefreshed,
+                    )
+                    .then((res) =>
+                        res.isSuccess ? res.data! : throw Exception(res.error));
+              }));
 
   Future<void> invalidateRooms() => _cache.invalidateBox(_box);
 
   Future<ApiResult<Map<String, dynamic>>> createRoom(
-      Map<String, dynamic> payload) =>
+          Map<String, dynamic> payload) =>
       guard(() async {
         final room = await _repo.createRoom(payload);
         await invalidateRooms();
@@ -76,7 +78,8 @@ class ChatService with ServiceErrorHandler {
   }) =>
       _dedup.deduplicate(
         'chat_msgs_${roomId}_${page}_$perPage',
-        () => guard(() => _repo.getMessages(roomId, page: page, perPage: perPage)),
+        () => guard(
+            () => _repo.getMessages(roomId, page: page, perPage: perPage)),
       );
 
   Future<ApiResult<Map<String, dynamic>>> startMeetingSession(String roomId) =>

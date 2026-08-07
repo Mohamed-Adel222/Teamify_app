@@ -74,7 +74,9 @@ class AuthService with ServiceErrorHandler {
   Future<ApiResult<String>> verifyOtp(String email, String otp) =>
       guard(() async {
         final data = await _repo.verifyOtp(email, otp);
-        return data['reset_token']?.toString() ?? data['token']?.toString() ?? '';
+        return data['reset_token']?.toString() ??
+            data['token']?.toString() ??
+            '';
       });
 
   Future<ApiResult<void>> resetPassword(String token, String newPassword) =>
@@ -86,8 +88,7 @@ class AuthService with ServiceErrorHandler {
           {String? userType}) =>
       guard(() async {
         await _cache.clearAll();
-        final result =
-            await _repo.loginWithGoogle(idToken, userType: userType);
+        final result = await _repo.loginWithGoogle(idToken, userType: userType);
         await _session.completeOAuthLogin(result);
         return _session.currentUser;
       });
@@ -110,15 +111,13 @@ class AuthService with ServiceErrorHandler {
   Future<ApiResult<Map<String, dynamic>>> setup2fa() =>
       guard(() => _repo.setup2fa());
 
-  Future<ApiResult<ApiUser?>> verify2fa(String token) =>
-      guard(() async {
+  Future<ApiResult<ApiUser?>> verify2fa(String token) => guard(() async {
         final user = await _repo.verify2fa(token);
         _session.completeAdmin2fa(refreshedUser: user);
         return _session.currentUser;
       });
 
-  Future<ApiResult<ApiUser?>> confirm2faLogin(String token) =>
-      guard(() async {
+  Future<ApiResult<ApiUser?>> confirm2faLogin(String token) => guard(() async {
         final user = await _repo.confirm2faLogin(token);
         _session.completeAdmin2fa(refreshedUser: user);
         return _session.currentUser;

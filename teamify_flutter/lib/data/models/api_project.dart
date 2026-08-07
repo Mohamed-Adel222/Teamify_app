@@ -39,9 +39,8 @@ class ApiProject {
   factory ApiProject.fromJson(Map<String, dynamic> json) {
     // Parse the nested owner object if present
     final ownerJson = json['owner'];
-    final ApiUser? parsedOwner = ownerJson is Map<String, dynamic>
-        ? ApiUser.fromJson(ownerJson)
-        : null;
+    final ApiUser? parsedOwner =
+        ownerJson is Map<String, dynamic> ? ApiUser.fromJson(ownerJson) : null;
 
     // Derive ownerName: prefer nested owner, fall back to flat string
     final flatOwnerName = asString(json['owner_name']);

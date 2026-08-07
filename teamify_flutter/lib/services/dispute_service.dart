@@ -51,8 +51,7 @@ class DisputeService with ServiceErrorHandler {
       // Background revalidate
       _dedup.deduplicate('$_keyMy-bg', () async {
         final fresh = await _repo.getMyDisputes();
-        await _cache.putList(
-            _box, _keyMy, fresh.cast<Map<String, dynamic>>());
+        await _cache.putList(_box, _keyMy, fresh.cast<Map<String, dynamic>>());
         return ApiResult.success(fresh);
       });
       return ApiResult.success(cached.cast<Map<String, dynamic>>());
@@ -81,8 +80,7 @@ class DisputeService with ServiceErrorHandler {
     if (cached != null && !forceRefresh) {
       _dedup.deduplicate('$_keyAll-bg', () async {
         final fresh = await _repo.getAllDisputes();
-        await _cache.putList(
-            _box, _keyAll, fresh.cast<Map<String, dynamic>>());
+        await _cache.putList(_box, _keyAll, fresh.cast<Map<String, dynamic>>());
         return ApiResult.success(fresh);
       });
       return ApiResult.success(cached.cast<Map<String, dynamic>>());
@@ -135,8 +133,7 @@ class DisputeService with ServiceErrorHandler {
   }
 
   /// PATCH /api/disputes/<id>/status — admin: resolve / reject / review.
-  Future<ApiResult<void>> updateDisputeStatus(
-      String id, String status) async {
+  Future<ApiResult<void>> updateDisputeStatus(String id, String status) async {
     final result = await guardWithOffline(
       () => _repo.updateDisputeStatus(id, status),
       mutation: OfflineMutation(

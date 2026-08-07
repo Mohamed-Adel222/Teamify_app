@@ -10,10 +10,12 @@ class AdminNotificationsScreen extends StatefulWidget {
   const AdminNotificationsScreen({super.key});
 
   @override
-  State<AdminNotificationsScreen> createState() => _AdminNotificationsScreenState();
+  State<AdminNotificationsScreen> createState() =>
+      _AdminNotificationsScreenState();
 }
 
-class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> with SingleTickerProviderStateMixin {
+class _AdminNotificationsScreenState extends State<AdminNotificationsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabs;
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
@@ -42,7 +44,11 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
   Future<void> _loadHistory() async {
     setState(() => _loadingHistory = true);
     try {
-      final res = await context.read<AppServices>().admin.listBroadcastHistory().unwrap();
+      final res = await context
+          .read<AppServices>()
+          .admin
+          .listBroadcastHistory()
+          .unwrap();
       if (mounted) setState(() => _history = res['items'] as List? ?? []);
     } catch (_) {
       if (mounted) setState(() => _history = []);
@@ -58,22 +64,29 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
     try {
       String? specificId;
       if (_target == 'specific') {
-        final user = await showAdminUserPicker(context, title: 'Select recipient');
+        final user =
+            await showAdminUserPicker(context, title: 'Select recipient');
         if (!mounted) return;
         if (user == null) return;
         specificId = user.id;
       }
 
-      await context.read<AppServices>().admin.broadcastNotification(
-        _target,
-        _titleCtrl.text.trim(),
-        _bodyCtrl.text.trim(),
-        userId: specificId,
-      ).unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .broadcastNotification(
+            _target,
+            _titleCtrl.text.trim(),
+            _bodyCtrl.text.trim(),
+            userId: specificId,
+          )
+          .unwrap();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Announcement successfully broadcasted!'), backgroundColor: AppColors.success),
+          const SnackBar(
+              content: Text('Announcement successfully broadcasted!'),
+              backgroundColor: AppColors.success),
         );
         _titleCtrl.clear();
         _bodyCtrl.clear();
@@ -82,7 +95,9 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Broadcast failed: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Broadcast failed: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -95,7 +110,8 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Announcement Center', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Announcement Center',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
@@ -120,32 +136,49 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Target Audience', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                            labelText: 'Target Audience',
+                            border: OutlineInputBorder()),
                         child: DropdownButton<String>(
                           value: _target,
                           isExpanded: true,
                           underline: const SizedBox(),
                           items: const [
-                            DropdownMenuItem(value: 'all', child: Text('All Users')),
-                            DropdownMenuItem(value: 'students', child: Text('Students Only')),
-                            DropdownMenuItem(value: 'freelancers', child: Text('Freelancers Only')),
-                            DropdownMenuItem(value: 'specific', child: Text('Specific User (picker)')),
+                            DropdownMenuItem(
+                                value: 'all', child: Text('All Users')),
+                            DropdownMenuItem(
+                                value: 'students',
+                                child: Text('Students Only')),
+                            DropdownMenuItem(
+                                value: 'freelancers',
+                                child: Text('Freelancers Only')),
+                            DropdownMenuItem(
+                                value: 'specific',
+                                child: Text('Specific User (picker)')),
                           ],
-                          onChanged: (v) => setState(() => _target = v ?? 'all'),
+                          onChanged: (v) =>
+                              setState(() => _target = v ?? 'all'),
                         ),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _titleCtrl,
-                        decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Title required' : null,
+                        decoration: const InputDecoration(
+                            labelText: 'Title', border: OutlineInputBorder()),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Title required'
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _bodyCtrl,
                         maxLines: 4,
-                        decoration: const InputDecoration(labelText: 'Message Body', border: OutlineInputBorder()),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Body required' : null,
+                        decoration: const InputDecoration(
+                            labelText: 'Message Body',
+                            border: OutlineInputBorder()),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Body required'
+                            : null,
                       ),
                       const SizedBox(height: 20),
                       SizedBox(
@@ -153,7 +186,11 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
                         child: ElevatedButton(
                           onPressed: _sending ? null : _sendAnnouncement,
                           child: _sending
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : const Text('Send Broadcast'),
                         ),
                       ),
@@ -166,7 +203,9 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
           _loadingHistory
               ? const Center(child: CircularProgressIndicator())
               : _history.isEmpty
-                  ? const Center(child: Text('No broadcast history yet', style: TextStyle(color: AppColors.textSecondary)))
+                  ? const Center(
+                      child: Text('No broadcast history yet',
+                          style: TextStyle(color: AppColors.textSecondary)))
                   : RefreshIndicator(
                       onRefresh: _loadHistory,
                       child: ListView.builder(
@@ -184,8 +223,14 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> wit
                                 overflow: TextOverflow.ellipsis,
                               ),
                               trailing: Text(
-                                (h['sent_at'] ?? '').toString().replaceAll('T', ' ').split('.').first,
-                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                (h['sent_at'] ?? '')
+                                    .toString()
+                                    .replaceAll('T', ' ')
+                                    .split('.')
+                                    .first,
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary),
                               ),
                             ),
                           );

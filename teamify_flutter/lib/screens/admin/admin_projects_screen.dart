@@ -16,7 +16,8 @@ class AdminProjectsScreen extends StatefulWidget {
 class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
-  String _filterStatus = ''; // '', 'active', 'completed', 'delayed', 'high_risk'
+  String _filterStatus =
+      ''; // '', 'active', 'completed', 'delayed', 'high_risk'
   int _currentPage = 1;
   int _totalPages = 1;
   bool _loading = false;
@@ -46,11 +47,15 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
     setState(() => _loading = true);
 
     try {
-      final res = await context.read<AppServices>().admin.listProjects(
-        search: _searchQuery,
-        status: _filterStatus,
-        page: _currentPage,
-      ).unwrap();
+      final res = await context
+          .read<AppServices>()
+          .admin
+          .listProjects(
+            search: _searchQuery,
+            status: _filterStatus,
+            page: _currentPage,
+          )
+          .unwrap();
 
       setState(() {
         _projects = res['items'] as List? ?? [];
@@ -59,7 +64,9 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load projects: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Failed to load projects: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -69,10 +76,16 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
 
   Future<void> _reassignOwner(String projectId, String newOwnerId) async {
     try {
-      await context.read<AppServices>().admin.reassignProject(projectId, newOwnerId).unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .reassignProject(projectId, newOwnerId)
+          .unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project ownership transferred successfully'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('Project ownership transferred successfully'),
+            backgroundColor: AppColors.success),
       );
       _loadProjects();
     } catch (e) {
@@ -88,7 +101,9 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
       await context.read<AppServices>().admin.deleteProject(projectId).unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project force-deleted successfully'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('Project force-deleted successfully'),
+            backgroundColor: AppColors.success),
       );
       _loadProjects();
     } catch (e) {
@@ -104,7 +119,8 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Project Management', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Project Management',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: Column(
         children: [
@@ -125,7 +141,8 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Search by project name or description...',
                       border: InputBorder.none,
-                      prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                      prefixIcon:
+                          Icon(Icons.search, color: AppColors.textSecondary),
                     ),
                   ),
                 ),
@@ -145,10 +162,14 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
                     underline: const SizedBox(),
                     items: const [
                       DropdownMenuItem(value: '', child: Text('All Projects')),
-                      DropdownMenuItem(value: 'active', child: Text('Active Only')),
-                      DropdownMenuItem(value: 'completed', child: Text('Completed Only')),
-                      DropdownMenuItem(value: 'delayed', child: Text('Delayed Only')),
-                      DropdownMenuItem(value: 'high_risk', child: Text('High Risk Only')),
+                      DropdownMenuItem(
+                          value: 'active', child: Text('Active Only')),
+                      DropdownMenuItem(
+                          value: 'completed', child: Text('Completed Only')),
+                      DropdownMenuItem(
+                          value: 'delayed', child: Text('Delayed Only')),
+                      DropdownMenuItem(
+                          value: 'high_risk', child: Text('High Risk Only')),
                     ],
                     onChanged: (val) {
                       setState(() {
@@ -168,7 +189,9 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
             child: _loading && _projects.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _projects.isEmpty
-                    ? const Center(child: Text('No projects found matching filters', style: TextStyle(color: AppColors.textSecondary)))
+                    ? const Center(
+                        child: Text('No projects found matching filters',
+                            style: TextStyle(color: AppColors.textSecondary)))
                     : RefreshIndicator(
                         onRefresh: _loadProjects,
                         child: ListView.builder(
@@ -176,7 +199,9 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
                           itemCount: _projects.length,
                           itemBuilder: (context, index) {
                             final p = _projects[index] as Map<String, dynamic>;
-                            final double progress = ((p['progress'] ?? 0) as num).toDouble() / 100.0;
+                            final double progress =
+                                ((p['progress'] ?? 0) as num).toDouble() /
+                                    100.0;
                             final String risk = p['risk_level'] ?? 'Healthy';
 
                             return TCard(
@@ -187,21 +212,27 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Expanded(
                                           child: Text(
                                             p['name'] ?? 'Project',
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16),
                                           ),
                                         ),
                                         TChip(
                                           label: risk.toUpperCase(),
                                           bg: risk == 'High Risk'
-                                              ? AppColors.error.withValues(alpha: 0.1)
+                                              ? AppColors.error
+                                                  .withValues(alpha: 0.1)
                                               : risk == 'Medium Risk'
-                                                  ? AppColors.warning.withValues(alpha: 0.1)
-                                                  : AppColors.success.withValues(alpha: 0.1),
+                                                  ? AppColors.warning
+                                                      .withValues(alpha: 0.1)
+                                                  : AppColors.success
+                                                      .withValues(alpha: 0.1),
                                           textColor: risk == 'High Risk'
                                               ? AppColors.error
                                               : risk == 'Medium Risk'
@@ -212,27 +243,46 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      p['description'] ?? 'No description provided.',
+                                      p['description'] ??
+                                          'No description provided.',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary),
                                     ),
                                     const SizedBox(height: 12),
                                     // Owner and members info
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text('Owner: ${p['owner_name'] ?? 'System'}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                        Text('Members: ${p['member_count'] ?? 1}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                        Text(
+                                            'Owner: ${p['owner_name'] ?? 'System'}',
+                                            style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold)),
+                                        Text(
+                                            'Members: ${p['member_count'] ?? 1}',
+                                            style: const TextStyle(
+                                                fontSize: 11,
+                                                color:
+                                                    AppColors.textSecondary)),
                                       ],
                                     ),
                                     const SizedBox(height: 10),
                                     // Progress Bar
                                     Row(
                                       children: [
-                                        Expanded(child: TBar(value: progress, color: AppColors.primary)),
+                                        Expanded(
+                                            child: TBar(
+                                                value: progress,
+                                                color: AppColors.primary)),
                                         const SizedBox(width: 8),
-                                        Text('${(progress * 100).round()}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                        Text('${(progress * 100).round()}%',
+                                            style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold)),
                                       ],
                                     ),
                                     const Divider(height: 24),
@@ -241,15 +291,26 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
                                         TextButton.icon(
-                                          icon: const Icon(Icons.transfer_within_a_station_outlined, size: 16),
-                                          label: const Text('Reassign Owner', style: TextStyle(fontSize: 11)),
-                                          onPressed: () => _showReassignDialog(p['id'].toString()),
+                                          icon: const Icon(
+                                              Icons
+                                                  .transfer_within_a_station_outlined,
+                                              size: 16),
+                                          label: const Text('Reassign Owner',
+                                              style: TextStyle(fontSize: 11)),
+                                          onPressed: () => _showReassignDialog(
+                                              p['id'].toString()),
                                         ),
                                         const SizedBox(width: 12),
                                         TextButton.icon(
-                                          icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 16),
-                                          label: const Text('Delete', style: TextStyle(fontSize: 11, color: AppColors.error)),
-                                          onPressed: () => _showDeleteConfirmation(p['id'].toString()),
+                                          icon: const Icon(Icons.delete_outline,
+                                              color: AppColors.error, size: 16),
+                                          label: const Text('Delete',
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppColors.error)),
+                                          onPressed: () =>
+                                              _showDeleteConfirmation(
+                                                  p['id'].toString()),
                                         ),
                                       ],
                                     ),
@@ -279,7 +340,8 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
                           }
                         : null,
                   ),
-                  Text('Page $_currentPage of $_totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Page $_currentPage of $_totalPages',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
                     onPressed: _currentPage < _totalPages
@@ -298,7 +360,8 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
   }
 
   Future<void> _showReassignDialog(String projectId) async {
-    final user = await showAdminUserPicker(context, title: 'Select New Project Owner');
+    final user =
+        await showAdminUserPicker(context, title: 'Select New Project Owner');
     if (user == null || !mounted) return;
     await _reassignOwner(projectId, user.id);
   }
@@ -309,9 +372,12 @@ class _AdminProjectsScreenState extends State<AdminProjectsScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Force Delete Project'),
-          content: const Text('Are you sure you want to permanently delete this project? All associated tasks and data will be destroyed.'),
+          content: const Text(
+              'Are you sure you want to permanently delete this project? All associated tasks and data will be destroyed.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () {

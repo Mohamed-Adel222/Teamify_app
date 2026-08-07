@@ -216,6 +216,7 @@ class MeetingTranscriptStatusCard extends StatelessWidget {
   final MeetingTranscriptPhase phase;
   final String detail;
   final String durationLabel;
+
   /// Temporary debug line (Listening, Speech detected, Restarting, …).
   final String? diagnosticLabel;
 
@@ -328,7 +329,8 @@ class MeetingTranscriptStatusCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.schedule, size: 14, color: AppColors.textSecondary),
+                const Icon(Icons.schedule,
+                    size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Text(
                   durationLabel,
@@ -634,12 +636,9 @@ class MeetingSpeechBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = line.isSpeech
-        ? const Color(0xFFEFF6FF)
-        : const Color(0xFFF8FAFC);
-    final border = line.isSpeech
-        ? const Color(0xFFBFDBFE)
-        : AppColors.border;
+    final bg =
+        line.isSpeech ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC);
+    final border = line.isSpeech ? const Color(0xFFBFDBFE) : AppColors.border;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -655,9 +654,7 @@ class MeetingSpeechBubble extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: isPartial
-                    ? AppColors.textSecondary
-                    : AppColors.primary,
+                color: isPartial ? AppColors.textSecondary : AppColors.primary,
               ),
             ),
           ),
@@ -721,15 +718,19 @@ class MeetingLiveControls extends StatelessWidget {
     required this.onRecord,
     required this.onSave,
     required this.onEndMeeting,
+    this.isSharing = false,
+    this.onShare,
   });
 
   final bool muted;
   final bool isRecording;
   final bool speechUnavailable;
   final bool saving;
+  final bool isSharing;
   final VoidCallback onMute;
   final VoidCallback? onRecord;
   final VoidCallback? onSave;
+  final VoidCallback? onShare;
   final VoidCallback onEndMeeting;
 
   @override
@@ -737,48 +738,79 @@ class MeetingLiveControls extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _ControlBtn(
-                label: muted ? 'Unmute' : 'Mute',
-                icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                style: _ControlStyle.secondary,
-                onPressed: onMute,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final int count = onShare != null ? 4 : 3;
+            final double spacing = (count - 1) * 8.0;
+            final double btnWidth = (constraints.maxWidth - spacing) / count;
+            final double actualWidth = btnWidth < 75 ? 75 : btnWidth;
+
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: actualWidth,
+                    child: _ControlBtn(
+                      label: muted ? 'Unmute' : 'Mute',
+                      icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                      style: _ControlStyle.secondary,
+                      onPressed: onMute,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: actualWidth,
+                    child: _ControlBtn(
+                      label: speechUnavailable
+                          ? 'Enable mic'
+                          : (isRecording ? 'Live' : 'Record'),
+                      icon: isRecording
+                          ? Icons.fiber_manual_record_rounded
+                          : Icons.mic_none_rounded,
+                      style: isRecording && !speechUnavailable
+                          ? _ControlStyle.recording
+                          : _ControlStyle.primary,
+                      onPressed: onRecord,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: actualWidth,
+                    child: _ControlBtn(
+                      label: saving
+                          ? 'Saving…'
+                          : (isRecording ? 'Stop & Save' : 'Save'),
+                      icon: Icons.save_rounded,
+                      style: _ControlStyle.secondary,
+                      onPressed: saving ? null : onSave,
+                    ),
+                  ),
+                  if (onShare != null) ...[
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: actualWidth,
+                      child: _ControlBtn(
+                        label: isSharing ? 'Stop Sharing' : 'Share Screen',
+                        icon: isSharing
+                            ? Icons.stop_screen_share
+                            : Icons.screen_share,
+                        style: isSharing
+                            ? _ControlStyle.recording
+                            : _ControlStyle.primary,
+                        onPressed: onShare,
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ControlBtn(
-                label: speechUnavailable
-                    ? 'Enable mic'
-                    : (isRecording ? 'Live' : 'Record'),
-                icon: isRecording
-                    ? Icons.fiber_manual_record_rounded
-                    : Icons.mic_none_rounded,
-                style: isRecording && !speechUnavailable
-                    ? _ControlStyle.recording
-                    : _ControlStyle.primary,
-                onPressed: onRecord,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ControlBtn(
-                label: saving
-                    ? 'Saving…'
-                    : (isRecording ? 'Stop & Save' : 'Save'),
-                icon: Icons.save_rounded,
-                style: _ControlStyle.secondary,
-                onPressed: saving ? null : onSave,
-              ),
-            ),
-          ],
+            );
+          },
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
-          height: 50,
+          height: 46,
           child: FilledButton(
             onPressed: onEndMeeting,
             style: FilledButton.styleFrom(
@@ -825,9 +857,8 @@ class _ControlBtn extends StatelessWidget {
         : (style == _ControlStyle.primary
             ? AppColors.primaryLight
             : Colors.white);
-    final BorderSide side = recording
-        ? BorderSide.none
-        : const BorderSide(color: AppColors.border);
+    final BorderSide side =
+        recording ? BorderSide.none : const BorderSide(color: AppColors.border);
 
     return Material(
       color: bg,
@@ -843,7 +874,8 @@ class _ControlBtn extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 20, color: onPressed == null ? AppColors.textHint : fg),
+              Icon(icon,
+                  size: 20, color: onPressed == null ? AppColors.textHint : fg),
               const SizedBox(height: 2),
               Text(
                 label,
@@ -925,14 +957,17 @@ class _MetaChip extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
       ],
     );
   }
 }
 
 class SummarySectionHeader extends StatelessWidget {
-  const SummarySectionHeader({super.key, required this.icon, required this.title});
+  const SummarySectionHeader(
+      {super.key, required this.icon, required this.title});
   final IconData icon;
   final String title;
 
@@ -1342,7 +1377,8 @@ class _Tag extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            style:
+                const TextStyle(fontSize: 11, color: AppColors.textSecondary),
           ),
         ],
       ),

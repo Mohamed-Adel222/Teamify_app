@@ -313,7 +313,6 @@ class ChatEmotionScreen extends StatelessWidget {
   }
 }
 
-
 // ── Meeting Transcription ─────────────────────────────────────────────────────
 class MeetingTranscriptionScreen extends StatelessWidget {
   const MeetingTranscriptionScreen({super.key});

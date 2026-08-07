@@ -44,10 +44,14 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
     setState(() => _loading = true);
 
     try {
-      final res = await context.read<AppServices>().admin.listFiles(
-        search: _searchQuery,
-        page: _currentPage,
-      ).unwrap();
+      final res = await context
+          .read<AppServices>()
+          .admin
+          .listFiles(
+            search: _searchQuery,
+            page: _currentPage,
+          )
+          .unwrap();
 
       setState(() {
         _files = res['items'] as List? ?? [];
@@ -56,7 +60,9 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load files: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Failed to load files: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -69,7 +75,9 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
       await context.read<AppServices>().admin.deleteFile(fileId).unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File record permanently deleted'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('File record permanently deleted'),
+            backgroundColor: AppColors.success),
       );
       _loadFiles();
     } catch (e) {
@@ -85,7 +93,8 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('File Management', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('File Management',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: Column(
         children: [
@@ -104,7 +113,8 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Search uploads by filename...',
                   border: InputBorder.none,
-                  prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                  prefixIcon:
+                      Icon(Icons.search, color: AppColors.textSecondary),
                 ),
               ),
             ),
@@ -115,7 +125,9 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
             child: _loading && _files.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _files.isEmpty
-                    ? const Center(child: Text('No files found on server', style: TextStyle(color: AppColors.textSecondary)))
+                    ? const Center(
+                        child: Text('No files found on server',
+                            style: TextStyle(color: AppColors.textSecondary)))
                     : RefreshIndicator(
                         onRefresh: _loadFiles,
                         child: ListView.builder(
@@ -123,8 +135,13 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
                           itemCount: _files.length,
                           itemBuilder: (context, index) {
                             final f = _files[index] as Map<String, dynamic>;
-                            final double sizeMb = ((f['size_bytes'] ?? 0) as num).toDouble() / (1024.0 * 1024.0);
-                            final String uploadDate = (f['created_at'] ?? '').toString().split('T').first;
+                            final double sizeMb =
+                                ((f['size_bytes'] ?? 0) as num).toDouble() /
+                                    (1024.0 * 1024.0);
+                            final String uploadDate = (f['created_at'] ?? '')
+                                .toString()
+                                .split('T')
+                                .first;
 
                             return TCard(
                               margin: const EdgeInsets.only(bottom: 10),
@@ -132,19 +149,30 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
                                 leading: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.1),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.insert_drive_file_outlined, color: AppColors.primary, size: 20),
+                                  child: const Icon(
+                                      Icons.insert_drive_file_outlined,
+                                      color: AppColors.primary,
+                                      size: 20),
                                 ),
-                                title: Text(f['filename'] ?? 'File', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                title: Text(f['filename'] ?? 'File',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13)),
                                 subtitle: Text(
                                   'Owner: ${f['owner_name'] ?? 'System'} · Size: ${sizeMb.toStringAsFixed(2)} MB · Uploaded: $uploadDate',
-                                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary),
                                 ),
                                 trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                                  onPressed: () => _showDeleteConfirmation(f['id'].toString()),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: AppColors.error),
+                                  onPressed: () => _showDeleteConfirmation(
+                                      f['id'].toString()),
                                   tooltip: 'Delete File',
                                 ),
                               ),
@@ -171,7 +199,8 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
                           }
                         : null,
                   ),
-                  Text('Page $_currentPage of $_totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Page $_currentPage of $_totalPages',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
                     onPressed: _currentPage < _totalPages
@@ -195,9 +224,12 @@ class _AdminFilesScreenState extends State<AdminFilesScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete File Pointer'),
-          content: const Text('Are you sure you want to permanently delete this file metadata from the database? Users will lose access immediately.'),
+          content: const Text(
+              'Are you sure you want to permanently delete this file metadata from the database? Users will lose access immediately.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () {

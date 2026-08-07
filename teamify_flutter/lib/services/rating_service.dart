@@ -42,26 +42,28 @@ class RatingService with ServiceErrorHandler {
     bool forceRefresh = false,
     void Function(List<Map<String, dynamic>>)? onRefreshed,
   }) =>
-      _dedup.deduplicate('rating_list_$userId', () => guard(() async {
-            if (forceRefresh) {
-              final list = await _repo.getUserRatings(userId);
-              await _cache.putList(_box, 'user_$userId',
-                  list.map((r) => Map<String, dynamic>.from(r)).toList());
-              return list;
-            }
-            return _swr
-                .withSwrList<Map<String, dynamic>>(
-                  boxName: _box,
-                  key: 'user_$userId',
-                  fetcher: () => _repo.getUserRatings(userId),
-                  fromJson: (j) => j,
-                  toJson: (r) => r,
-                  staleAge: _ttl,
-                  onRefreshed: onRefreshed,
-                )
-                .then((res) =>
-                    res.isSuccess ? res.data! : throw Exception(res.error));
-          }));
+      _dedup.deduplicate(
+          'rating_list_$userId',
+          () => guard(() async {
+                if (forceRefresh) {
+                  final list = await _repo.getUserRatings(userId);
+                  await _cache.putList(_box, 'user_$userId',
+                      list.map((r) => Map<String, dynamic>.from(r)).toList());
+                  return list;
+                }
+                return _swr
+                    .withSwrList<Map<String, dynamic>>(
+                      boxName: _box,
+                      key: 'user_$userId',
+                      fetcher: () => _repo.getUserRatings(userId),
+                      fromJson: (j) => j,
+                      toJson: (r) => r,
+                      staleAge: _ttl,
+                      onRefreshed: onRefreshed,
+                    )
+                    .then((res) =>
+                        res.isSuccess ? res.data! : throw Exception(res.error));
+              }));
 
   Future<ApiResult<void>> submitRating(Map<String, dynamic> payload) =>
       guardWithOffline(
@@ -94,8 +96,7 @@ class RatingService with ServiceErrorHandler {
         offlineManager: _offline,
       );
 
-  Future<ApiResult<void>> deleteRating(String id) =>
-      guardWithOffline(
+  Future<ApiResult<void>> deleteRating(String id) => guardWithOffline(
         () => _repo.deleteRating(id),
         mutation: OfflineMutation(
           id: MutationId.generate(),

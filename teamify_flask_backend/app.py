@@ -136,6 +136,28 @@ def _apply_runtime_schema_patches(app: Flask) -> None:
     except Exception as exc:
         app.logger.warning("Schema patch users.preferred_language skipped: %s", exc)
 
+    for column, pg_type, sqlite_type in (
+        ("university_id", "VARCHAR(64)", "VARCHAR(64)"),
+        ("university_name", "VARCHAR(200)", "VARCHAR(200)"),
+        ("is_custom_university", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT 0"),
+        ("notification_prefs", "JSONB", "JSON"),
+    ):
+        try:
+            insp = inspect(db.engine)
+            if "users" not in insp.get_table_names():
+                break
+            if column in {c["name"] for c in insp.get_columns("users")}:
+                continue
+            if db.engine.dialect.name == "postgresql":
+                sql = f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column} {pg_type}"
+            else:
+                sql = f"ALTER TABLE users ADD COLUMN {column} {sqlite_type}"
+            with db.engine.begin() as conn:
+                conn.execute(text(sql))
+            app.logger.info("Schema patch: added users.%s", column)
+        except Exception as exc:
+            app.logger.warning("Schema patch users.%s skipped: %s", column, exc)
+
 
 def create_app(test_config=None):
     """Create and configure the Flask application."""
@@ -285,6 +307,7 @@ def create_app(test_config=None):
     from routes.cv import cv_bp
     from routes.disputes import disputes_bp
     from routes.chat import chat_bp
+    from routes.universities import universities_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
@@ -305,6 +328,7 @@ def create_app(test_config=None):
     app.register_blueprint(cv_bp)
     app.register_blueprint(disputes_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(universities_bp)
 
     @app.before_request
     def enforce_maintenance_mode():

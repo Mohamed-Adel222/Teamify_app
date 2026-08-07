@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import jsonify
+from flask import current_app, jsonify
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 
 
@@ -101,21 +101,22 @@ def admin_required(fn):
                 "message": "Admin access required."
             }), 403
 
-        if not user.totp_enabled:
-            return jsonify({
-                "error": "Admin 2FA required",
-                "message": "Enable two-factor authentication to access the admin panel.",
-                "requires_2fa_setup": True,
-            }), 403
+        if current_app.config.get("ADMIN_2FA_REQUIRED"):
+            if not user.totp_enabled:
+                return jsonify({
+                    "error": "Admin 2FA required",
+                    "message": "Enable two-factor authentication to access the admin panel.",
+                    "requires_2fa_setup": True,
+                }), 403
 
-        from flask_jwt_extended import get_jwt
-        claims = get_jwt() or {}
-        if claims.get("admin_2fa_pending"):
-            return jsonify({
-                "error": "Admin 2FA confirmation required",
-                "message": "Enter your authenticator code to access the admin panel.",
-                "requires_2fa_login": True,
-            }), 403
+            from flask_jwt_extended import get_jwt
+            claims = get_jwt() or {}
+            if claims.get("admin_2fa_pending"):
+                return jsonify({
+                    "error": "Admin 2FA confirmation required",
+                    "message": "Enter your authenticator code to access the admin panel.",
+                    "requires_2fa_login": True,
+                }), 403
 
         return fn(*args, **kwargs)
 

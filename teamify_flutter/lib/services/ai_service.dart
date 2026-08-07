@@ -59,20 +59,22 @@ class AIService with ServiceErrorHandler {
   Future<ApiResult<AnomalyReport>> detectAnomaly(
     Map<String, dynamic> payload,
   ) =>
-      _dedup.deduplicate('detect_anomaly', () => guard(() async {
-        final data = await _ai.detectAnomaly(payload);
-        final anomalies = (data['anomalies'] as List?)
-                ?.map((e) => AnomalyItem.fromJson(
-                    e is Map<String, dynamic> ? e : const {}))
-                .toList() ??
-            const [];
-        return AnomalyReport(
-          isAnomalous: data['is_anomalous'] == true,
-          riskScore: (data['risk_score'] as num?)?.toDouble() ?? 0.0,
-          anomalies: anomalies,
-          summary: data['summary']?.toString() ?? '',
-        );
-      }));
+      _dedup.deduplicate(
+          'detect_anomaly',
+          () => guard(() async {
+                final data = await _ai.detectAnomaly(payload);
+                final anomalies = (data['anomalies'] as List?)
+                        ?.map((e) => AnomalyItem.fromJson(
+                            e is Map<String, dynamic> ? e : const {}))
+                        .toList() ??
+                    const [];
+                return AnomalyReport(
+                  isAnomalous: data['is_anomalous'] == true,
+                  riskScore: (data['risk_score'] as num?)?.toDouble() ?? 0.0,
+                  anomalies: anomalies,
+                  summary: data['summary']?.toString() ?? '',
+                );
+              }));
 
   // ── Mentor Analysis ───────────────────────────────────────────────────
 
@@ -82,20 +84,22 @@ class AIService with ServiceErrorHandler {
     String userId, {
     bool forceRefresh = false,
   }) =>
-      _dedup.deduplicate('mentor_insights_$userId', () => guard(() async {
-            if (forceRefresh) {
-              await _cache.invalidate(_box, 'mentor_insights_$userId');
-            }
-            final cached = forceRefresh
-                ? null
-                : await _cache.getMap(_box, 'mentor_insights_$userId');
-            if (cached != null) {
-              final insights = _parseMentorInsights(cached);
-              _fetchAndCacheMentorInsights(userId);
-              return insights;
-            }
-            return _fetchAndCacheMentorInsights(userId);
-          }));
+      _dedup.deduplicate(
+          'mentor_insights_$userId',
+          () => guard(() async {
+                if (forceRefresh) {
+                  await _cache.invalidate(_box, 'mentor_insights_$userId');
+                }
+                final cached = forceRefresh
+                    ? null
+                    : await _cache.getMap(_box, 'mentor_insights_$userId');
+                if (cached != null) {
+                  final insights = _parseMentorInsights(cached);
+                  _fetchAndCacheMentorInsights(userId);
+                  return insights;
+                }
+                return _fetchAndCacheMentorInsights(userId);
+              }));
 
   Future<void> invalidateMentorInsights(String userId) =>
       _cache.invalidate(_box, 'mentor_insights_$userId');
@@ -160,7 +164,8 @@ class AIService with ServiceErrorHandler {
       targetRole = gm['target_role']?.toString() ?? '';
       final owned = gm['owned_skills'];
       if (owned is List) {
-        ownedSkills = owned.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+        ownedSkills =
+            owned.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
       }
       final details = gm['skill_details'];
       if (details is List && details.isNotEmpty) {
@@ -180,8 +185,8 @@ class AIService with ServiceErrorHandler {
                         : 'Skill gap from your profile vs. target role')),
             score: (m['gap_score'] as num?)?.toDouble() ??
                 (isOwned ? 100.0 : 70.0),
-            severity: m['severity']?.toString() ??
-                (isOwned ? 'owned' : 'medium'),
+            severity:
+                m['severity']?.toString() ?? (isOwned ? 'owned' : 'medium'),
           ));
         }
         skillGaps.sort((a, b) {
@@ -280,8 +285,10 @@ class AIService with ServiceErrorHandler {
           .toList();
     }
     if (raw is List) {
-      final items =
-          raw.map((e) => e.toString().trim()).where((s) => s.isNotEmpty).toList();
+      final items = raw
+          .map((e) => e.toString().trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
       if (items.isEmpty) return const [];
       final shortCount = items.where((s) => s.length <= 2).length;
       if (items.length >= 5 && shortCount / items.length > 0.6) {
@@ -367,7 +374,8 @@ class AIService with ServiceErrorHandler {
     String text, {
     int topN = 6,
   }) =>
-      _dedup.deduplicate('summarize_chat', () => guard(() => _ai.summarizeChat(text, topN: topN)));
+      _dedup.deduplicate('summarize_chat',
+          () => guard(() => _ai.summarizeChat(text, topN: topN)));
 
   Future<ApiResult<Map<String, dynamic>>> recommendTeammates(
     Map<String, dynamic> userStats, {
@@ -379,10 +387,12 @@ class AIService with ServiceErrorHandler {
       );
 
   Future<ApiResult<Map<String, dynamic>>> mentorCourses(String userId) =>
-      _dedup.deduplicate('mentor_courses_$userId', () => guard(() => _ai.mentorCourses(userId)));
+      _dedup.deduplicate('mentor_courses_$userId',
+          () => guard(() => _ai.mentorCourses(userId)));
 
   /// GET /api/ai/mentor/recommendations/<id> — career summary + next steps (raw map)
-  Future<ApiResult<Map<String, dynamic>>> mentorRecommendations(String userId) =>
+  Future<ApiResult<Map<String, dynamic>>> mentorRecommendations(
+          String userId) =>
       _dedup.deduplicate('mentor_recommendations_$userId',
           () => guard(() => _ai.mentorRecommendations(userId)));
 
@@ -390,7 +400,6 @@ class AIService with ServiceErrorHandler {
   Future<ApiResult<Map<String, dynamic>>> mentorInsights(String userId) =>
       _dedup.deduplicate('mentor_insights_raw_$userId',
           () => guard(() => _ai.mentorInsights(userId)));
-
 
   // ── Task AI features ──────────────────────────────────────────────────
 
@@ -423,11 +432,13 @@ class AIService with ServiceErrorHandler {
     String title = '',
     String description = '',
   }) =>
-      _dedup.deduplicate('suggest_priority_$projectId', () => guard(() => _ai.suggestPriority(
-            projectId: projectId,
-            title: title,
-            description: description,
-          )));
+      _dedup.deduplicate(
+          'suggest_priority_$projectId',
+          () => guard(() => _ai.suggestPriority(
+                projectId: projectId,
+                title: title,
+                description: description,
+              )));
 
   Future<ApiResult<Map<String, dynamic>>> suggestDeadline({
     required String projectId,
@@ -435,12 +446,14 @@ class AIService with ServiceErrorHandler {
     String title = '',
     String description = '',
   }) =>
-      _dedup.deduplicate('suggest_deadline_$projectId', () => guard(() => _ai.suggestDeadline(
-            projectId: projectId,
-            priority: priority,
-            title: title,
-            description: description,
-          )));
+      _dedup.deduplicate(
+          'suggest_deadline_$projectId',
+          () => guard(() => _ai.suggestDeadline(
+                projectId: projectId,
+                priority: priority,
+                title: title,
+                description: description,
+              )));
 
   Future<ApiResult<Map<String, dynamic>>> predictDelay({
     String? taskId,
@@ -455,22 +468,24 @@ class AIService with ServiceErrorHandler {
     return _dedup.deduplicate(key, fetch);
   }
 
-  Future<ApiResult<Map<String, dynamic>>> getDelayModelStatus() =>
-      _dedup.deduplicate('delay_model_status', () => guard(_ai.getDelayModelStatus));
+  Future<ApiResult<Map<String, dynamic>>> getDelayModelStatus() => _dedup
+      .deduplicate('delay_model_status', () => guard(_ai.getDelayModelStatus));
 
   // ── CV AI ─────────────────────────────────────────────────────────────
 
   Future<ApiResult<Map<String, dynamic>>> buildCVWithAI(
           {String? targetUserId}) =>
-      _dedup.deduplicate('build_cv_ai', () => guard(() => _cv.buildWithAI(targetUserId: targetUserId)));
+      _dedup.deduplicate('build_cv_ai',
+          () => guard(() => _cv.buildWithAI(targetUserId: targetUserId)));
 
   /// Downloads a CV PDF via secure token, returning raw bytes.
   Future<ApiResult<Uint8List>> downloadCVByToken(String token) =>
-      _dedup.deduplicate('download_cv_$token', () => guard(() async {
-        final response = await _cv.downloadByToken(token);
-        return Uint8List.fromList(response.data ?? []);
-      }));
-
+      _dedup.deduplicate(
+          'download_cv_$token',
+          () => guard(() async {
+                final response = await _cv.downloadByToken(token);
+                return Uint8List.fromList(response.data ?? []);
+              }));
 }
 
 // ── Result Models ─────────────────────────────────────────────────────────

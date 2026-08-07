@@ -38,28 +38,28 @@ class FileService with ServiceErrorHandler {
       _dedup.deduplicate(
           'list_files_${projectId ?? "personal"}',
           () => guard(() async {
-            final cacheKey = projectId != null && projectId.isNotEmpty
-                ? 'project_$projectId'
-                : 'personal';
-            if (forceRefresh) {
-              final files = await _repo.listFiles(projectId: projectId);
-              await _cache.putList(
-                  _box, cacheKey, files.map((f) => f.toJson()).toList());
-              return files;
-            }
-            return _swr
-                .withSwrList<ApiFile>(
-                  boxName: _box,
-                  key: cacheKey,
-                  fetcher: () => _repo.listFiles(projectId: projectId),
-                  fromJson: ApiFile.fromJson,
-                  toJson: (f) => f.toJson(),
-                  staleAge: _ttl,
-                  onRefreshed: onRefreshed,
-                )
-                .then((res) =>
-                    res.isSuccess ? res.data! : throw Exception(res.error));
-          }));
+                final cacheKey = projectId != null && projectId.isNotEmpty
+                    ? 'project_$projectId'
+                    : 'personal';
+                if (forceRefresh) {
+                  final files = await _repo.listFiles(projectId: projectId);
+                  await _cache.putList(
+                      _box, cacheKey, files.map((f) => f.toJson()).toList());
+                  return files;
+                }
+                return _swr
+                    .withSwrList<ApiFile>(
+                      boxName: _box,
+                      key: cacheKey,
+                      fetcher: () => _repo.listFiles(projectId: projectId),
+                      fromJson: ApiFile.fromJson,
+                      toJson: (f) => f.toJson(),
+                      staleAge: _ttl,
+                      onRefreshed: onRefreshed,
+                    )
+                    .then((res) =>
+                        res.isSuccess ? res.data! : throw Exception(res.error));
+              }));
 
   /// Uploads a file.  On network failure, queues a retry-metadata record
   /// so the user's intent is preserved (file can be re-uploaded on sync).
@@ -102,8 +102,7 @@ class FileService with ServiceErrorHandler {
         () => guard(() => _repo.downloadFile(fileId)),
       );
 
-  Future<ApiResult<void>> deleteFile(String fileId) =>
-      guard(() async {
+  Future<ApiResult<void>> deleteFile(String fileId) => guard(() async {
         await _repo.deleteFile(fileId);
         await _cache.invalidateBox(_box);
       });

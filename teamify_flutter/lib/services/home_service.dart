@@ -43,26 +43,28 @@ class HomeService with ServiceErrorHandler {
     bool forceRefresh = false,
     void Function(Map<String, dynamic>)? onRefreshed,
   }) =>
-      _dedup.deduplicate('dashboard_${userId ?? 'anon'}', () => guard(() async {
-            final cacheKey = _cacheKey(userId);
-            if (forceRefresh) {
-              final data = await _repo.getDashboard();
-              await _cache.putMap(_box, cacheKey, data);
-              return data;
-            }
-            return _swr
-                .withSwrMap<Map<String, dynamic>>(
-                  boxName: _box,
-                  key: cacheKey,
-                  fetcher: () => _repo.getDashboard(),
-                  fromJson: (j) => j,
-                  toJson: (d) => d,
-                  staleAge: _ttl,
-                  onRefreshed: onRefreshed,
-                )
-                .then((res) =>
-                    res.isSuccess ? res.data! : throw Exception(res.error));
-          }));
+      _dedup.deduplicate(
+          'dashboard_${userId ?? 'anon'}',
+          () => guard(() async {
+                final cacheKey = _cacheKey(userId);
+                if (forceRefresh) {
+                  final data = await _repo.getDashboard();
+                  await _cache.putMap(_box, cacheKey, data);
+                  return data;
+                }
+                return _swr
+                    .withSwrMap<Map<String, dynamic>>(
+                      boxName: _box,
+                      key: cacheKey,
+                      fetcher: () => _repo.getDashboard(),
+                      fromJson: (j) => j,
+                      toJson: (d) => d,
+                      staleAge: _ttl,
+                      onRefreshed: onRefreshed,
+                    )
+                    .then((res) =>
+                        res.isSuccess ? res.data! : throw Exception(res.error));
+              }));
 
   Future<ApiResult<Map<String, dynamic>>> checkHealth() =>
       _dedup.deduplicate('health', () => guard(() => _repo.checkHealth()));

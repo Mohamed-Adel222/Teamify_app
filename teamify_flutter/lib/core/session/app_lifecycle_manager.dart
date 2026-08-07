@@ -6,7 +6,7 @@ import '../observability/app_logger.dart';
 class AppLifecycleManager with WidgetsBindingObserver {
   final WebSocketManager wsManager;
   final OfflineManager offlineManager;
-  
+
   bool _isBackground = false;
 
   AppLifecycleManager({
@@ -46,12 +46,12 @@ class AppLifecycleManager with WidgetsBindingObserver {
     if (_isBackground) return;
     _isBackground = true;
     AppLogger.log('App entering background. Suspending heavy tasks.');
-    
+
     // Suspend WebSocket but don't clear session
     if (wsManager.isConnected) {
       wsManager.disconnect();
     }
-    
+
     offlineManager.pauseReplay();
   }
 
@@ -62,7 +62,7 @@ class AppLifecycleManager with WidgetsBindingObserver {
 
     // Resume WebSocket
     wsManager.connect();
-    
+
     // Resume Offline Manager
     offlineManager.resumeReplay();
   }

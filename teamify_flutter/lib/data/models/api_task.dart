@@ -85,9 +85,7 @@ class ApiTask {
     final name = assigneePrimaryName;
     final label = name.isNotEmpty
         ? name
-        : (assigneeDisplayName.isNotEmpty
-            ? assigneeDisplayName
-            : 'Unassigned');
+        : (assigneeDisplayName.isNotEmpty ? assigneeDisplayName : 'Unassigned');
     return TaskModel(
       id: id,
       title: title,
@@ -96,8 +94,7 @@ class ApiTask {
       assigneeId: assignedTo,
       assigneeEmail: assigneeEmail,
       assigneeDisplayName: assigneeDisplayName,
-      assigneeInitials:
-          name.isNotEmpty ? initialsFrom(name) : '?',
+      assigneeInitials: name.isNotEmpty ? initialsFrom(name) : '?',
       status: status,
       priority: priority,
       dueDate: dueDate,

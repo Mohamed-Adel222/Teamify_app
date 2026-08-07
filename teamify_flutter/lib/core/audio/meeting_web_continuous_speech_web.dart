@@ -81,7 +81,8 @@ class MeetingWebContinuousSpeech {
     _onStartJs = ((JSObject _) => _onStatus?.call('listening')).toJS;
     rec.setProperty('onstart'.toJS, _onStartJs);
 
-    _onSpeechStartJs = ((JSObject _) => _onStatus?.call('speech_detected')).toJS;
+    _onSpeechStartJs =
+        ((JSObject _) => _onStatus?.call('speech_detected')).toJS;
     rec.setProperty('onspeechstart'.toJS, _onSpeechStartJs);
 
     try {

@@ -71,52 +71,56 @@ class TaskService with ServiceErrorHandler {
     bool forceRefresh = false,
     void Function(List<ApiTask>)? onRefreshed,
   }) =>
-      _dedup.deduplicate('list_tasks_$projectId', () => guard(() async {
-            if (forceRefresh) {
-              final tasks = await _repo.listTasks(projectId: projectId);
-              await _cache.putList(
-                  _box, 'project_$projectId', tasks.map((t) => t.toJson()).toList());
-              return tasks;
-            }
+      _dedup.deduplicate(
+          'list_tasks_$projectId',
+          () => guard(() async {
+                if (forceRefresh) {
+                  final tasks = await _repo.listTasks(projectId: projectId);
+                  await _cache.putList(_box, 'project_$projectId',
+                      tasks.map((t) => t.toJson()).toList());
+                  return tasks;
+                }
 
-            return _swr
-                .withSwrList<ApiTask>(
-                  boxName: _box,
-                  key: 'project_$projectId',
-                  fetcher: () => _repo.listTasks(projectId: projectId),
-                  fromJson: ApiTask.fromJson,
-                  toJson: (t) => t.toJson(),
-                  onRefreshed: onRefreshed,
-                )
-                .then((res) => res.isSuccess ? res.data! : throw Exception(res.error));
-          }));
+                return _swr
+                    .withSwrList<ApiTask>(
+                      boxName: _box,
+                      key: 'project_$projectId',
+                      fetcher: () => _repo.listTasks(projectId: projectId),
+                      fromJson: ApiTask.fromJson,
+                      toJson: (t) => t.toJson(),
+                      onRefreshed: onRefreshed,
+                    )
+                    .then((res) =>
+                        res.isSuccess ? res.data! : throw Exception(res.error));
+              }));
 
   /// All tasks across accessible projects — single API round-trip for AI Hub screens.
   Future<ApiResult<List<Map<String, dynamic>>>> listAccessibleTasks({
     int limit = 100,
     bool forceRefresh = false,
   }) =>
-      _dedup.deduplicate('accessible_tasks', () => guard(() async {
-            const cacheKey = 'accessible';
-            if (!forceRefresh) {
-              final cached = await _cache.getList(_box, cacheKey);
-              if (cached != null && cached.isNotEmpty) {
-                _repo.listAccessibleTasks(limit: limit).then((fresh) async {
-                  await _cache.putList(_box, cacheKey, fresh);
-                }).catchError((_) {});
-                return cached
-                    .map((e) => Map<String, dynamic>.from(e as Map))
-                    .toList();
-              }
-            }
-            final tasks = await _repo.listAccessibleTasks(limit: limit);
-            await _cache.putList(_box, cacheKey, tasks);
-            return tasks;
-          }));
+      _dedup.deduplicate(
+          'accessible_tasks',
+          () => guard(() async {
+                const cacheKey = 'accessible';
+                if (!forceRefresh) {
+                  final cached = await _cache.getList(_box, cacheKey);
+                  if (cached != null && cached.isNotEmpty) {
+                    _repo.listAccessibleTasks(limit: limit).then((fresh) async {
+                      await _cache.putList(_box, cacheKey, fresh);
+                    }).catchError((_) {});
+                    return cached
+                        .map((e) => Map<String, dynamic>.from(e as Map))
+                        .toList();
+                  }
+                }
+                final tasks = await _repo.listAccessibleTasks(limit: limit);
+                await _cache.putList(_box, cacheKey, tasks);
+                return tasks;
+              }));
 
-  Future<ApiResult<ApiTask>> getTask(String id) =>
-      _dedup.deduplicate('get_task_$id',
-          () => guardWithRetry(() => _repo.getTask(id)));
+  Future<ApiResult<ApiTask>> getTask(String id) => _dedup.deduplicate(
+      'get_task_$id', () => guardWithRetry(() => _repo.getTask(id)));
 
   // ── Offline-first mutations ──────────────────────────────────────────────
 

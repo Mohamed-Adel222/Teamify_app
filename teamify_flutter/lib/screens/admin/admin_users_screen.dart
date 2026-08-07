@@ -4,6 +4,7 @@ import '../../core/theme.dart';
 import '../../core/network/api_result.dart';
 import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
+import 'admin_screens.dart';
 
 /// Normalizes API user payload to a UI status key.
 String _resolveAccountStatus(Map<String, dynamic> u) {
@@ -77,12 +78,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     setState(() => _loading = true);
 
     try {
-      final res = await context.read<AppServices>().admin.listUsers(
-        search: _searchQuery,
-        status: _filterStatus,
-        type: _filterType,
-        page: _currentPage,
-      ).unwrap();
+      final res = await context
+          .read<AppServices>()
+          .admin
+          .listUsers(
+            search: _searchQuery,
+            status: _filterStatus,
+            type: _filterType,
+            page: _currentPage,
+          )
+          .unwrap();
 
       setState(() {
         _users = res['items'] as List? ?? [];
@@ -91,7 +96,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load users: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Failed to load users: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -99,9 +106,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     }
   }
 
-  Future<void> _updateStatus(String userId, String action, {String reason = ''}) async {
+  Future<void> _updateStatus(String userId, String action,
+      {String reason = ''}) async {
     try {
-      await context.read<AppServices>().admin.updateUserStatus(userId, action, reason: reason).unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .updateUserStatus(userId, action, reason: reason)
+          .unwrap();
       if (!mounted) return;
       final message = action == 'unlock'
           ? 'Account unlocked — user can sign in again'
@@ -136,7 +148,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: action == 'unlock' ? AppColors.success : AppColors.warning,
+              backgroundColor:
+                  action == 'unlock' ? AppColors.success : AppColors.warning,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text(action == 'unlock' ? 'Unlock' : 'Lock'),
@@ -151,10 +164,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   Future<void> _changeRole(String userId, String role) async {
     try {
-      await context.read<AppServices>().admin.changeUserRole(userId, role).unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .changeUserRole(userId, role)
+          .unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User role updated successfully'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('User role updated successfully'),
+            backgroundColor: AppColors.success),
       );
       _loadUsers();
     } catch (e) {
@@ -167,10 +186,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   Future<void> _resetPassword(String userId, String newPassword) async {
     try {
-      await context.read<AppServices>().admin.resetUserPassword(userId, newPassword).unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .resetUserPassword(userId, newPassword)
+          .unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset successfully'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('Password reset successfully'),
+            backgroundColor: AppColors.success),
       );
     } catch (e) {
       if (!mounted) return;
@@ -185,7 +210,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       await context.read<AppServices>().admin.deleteUser(userId).unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User permanently deleted'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('User permanently deleted'),
+            backgroundColor: AppColors.success),
       );
       _loadUsers();
     } catch (e) {
@@ -201,7 +228,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('User Management', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('User Management',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: Column(
         children: [
@@ -222,7 +250,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Search by name, email, username...',
                       border: InputBorder.none,
-                      prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                      prefixIcon:
+                          Icon(Icons.search, color: AppColors.textSecondary),
                     ),
                   ),
                 ),
@@ -243,9 +272,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           isExpanded: true,
                           underline: const SizedBox(),
                           items: const [
-                            DropdownMenuItem(value: '', child: Text('All Types', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'freelancer', child: Text('Freelancers', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'student', child: Text('Students', style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: '',
+                                child: Text('All Types',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'freelancer',
+                                child: Text('Freelancers',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'student',
+                                child: Text('Students',
+                                    style: TextStyle(fontSize: 12))),
                           ],
                           onChanged: (val) {
                             setState(() {
@@ -271,10 +309,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           isExpanded: true,
                           underline: const SizedBox(),
                           items: const [
-                            DropdownMenuItem(value: '', child: Text('All Statuses', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'active', child: Text('Active Only', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'locked', child: Text('Locked Only', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'pending', child: Text('Pending Approval', style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: '',
+                                child: Text('All Statuses',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'active',
+                                child: Text('Active Only',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'locked',
+                                child: Text('Locked Only',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'pending',
+                                child: Text('Pending Approval',
+                                    style: TextStyle(fontSize: 12))),
                           ],
                           onChanged: (val) {
                             setState(() {
@@ -297,7 +347,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             child: _loading && _users.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _users.isEmpty
-                    ? const Center(child: Text('No users found matching filters', style: TextStyle(color: AppColors.textSecondary)))
+                    ? const Center(
+                        child: Text('No users found matching filters',
+                            style: TextStyle(color: AppColors.textSecondary)))
                     : RefreshIndicator(
                         onRefresh: _loadUsers,
                         child: ListView.builder(
@@ -305,7 +357,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           itemCount: _users.length,
                           itemBuilder: (context, index) {
                             final u = _users[index] as Map<String, dynamic>;
-                            final String initials = (u['display_name'] ?? 'U').toString().substring(0, 1).toUpperCase();
+                            final String initials = (u['display_name'] ?? 'U')
+                                .toString()
+                                .substring(0, 1)
+                                .toUpperCase();
                             final String status = _resolveAccountStatus(u);
                             final String role = u['role'] ?? 'member';
                             final bool isRestricted =
@@ -323,31 +378,56 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              Text(u['full_name'] ?? u['display_name'] ?? 'User', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                              Text(u['email'] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                              Text(
+                                                  u['full_name'] ??
+                                                      u['display_name'] ??
+                                                      'User',
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                              Text(u['email'] ?? '',
+                                                  style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: AppColors
+                                                          .textSecondary)),
                                             ],
                                           ),
                                         ),
                                         Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
                                           children: [
                                             TChip(
                                               label: _statusLabel(status),
                                               bg: status == 'active'
-                                                  ? AppColors.success.withValues(alpha: 0.1)
-                                                  : status == 'locked' || status == 'suspended'
-                                                      ? AppColors.error.withValues(alpha: 0.1)
-                                                      : AppColors.warning.withValues(alpha: 0.1),
+                                                  ? AppColors.success
+                                                      .withValues(alpha: 0.1)
+                                                  : status == 'locked' ||
+                                                          status == 'suspended'
+                                                      ? AppColors.error
+                                                          .withValues(
+                                                              alpha: 0.1)
+                                                      : AppColors.warning
+                                                          .withValues(
+                                                              alpha: 0.1),
                                               textColor: status == 'active'
                                                   ? AppColors.success
-                                                  : status == 'locked' || status == 'suspended'
+                                                  : status == 'locked' ||
+                                                          status == 'suspended'
                                                       ? AppColors.error
                                                       : AppColors.warning,
                                             ),
                                             const SizedBox(height: 4),
-                                            Text(u['user_type']?.toUpperCase() ?? 'MEMBER', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                            Text(
+                                                u['user_type']?.toUpperCase() ??
+                                                    'MEMBER',
+                                                style: const TextStyle(
+                                                    fontSize: 10,
+                                                    color: AppColors
+                                                        .textSecondary)),
                                           ],
                                         ),
                                       ],
@@ -355,24 +435,34 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                     const Divider(height: 16),
                                     // Row of Actions
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceAround,
                                       children: [
                                         if (status == 'pending')
                                           IconButton(
-                                            icon: const Icon(Icons.check_circle_outline, color: AppColors.success),
-                                            onPressed: () => _updateStatus(u['id'].toString(), 'approve'),
+                                            icon: const Icon(
+                                                Icons.check_circle_outline,
+                                                color: AppColors.success),
+                                            onPressed: () => _updateStatus(
+                                                u['id'].toString(), 'approve'),
                                             tooltip: 'Approve User',
                                           ),
                                         if (status == 'pending')
                                           IconButton(
-                                            icon: const Icon(Icons.cancel_outlined, color: AppColors.error),
-                                            onPressed: () => _updateStatus(u['id'].toString(), 'reject'),
+                                            icon: const Icon(
+                                                Icons.cancel_outlined,
+                                                color: AppColors.error),
+                                            onPressed: () => _updateStatus(
+                                                u['id'].toString(), 'reject'),
                                             tooltip: 'Reject User',
                                           ),
-                                        if (status != 'pending' && !isRestricted)
+                                        if (status != 'pending' &&
+                                            !isRestricted)
                                           IconButton(
-                                            icon: const Icon(Icons.lock_outline, color: AppColors.warning),
-                                            onPressed: () => _confirmStatusChange(
+                                            icon: const Icon(Icons.lock_outline,
+                                                color: AppColors.warning),
+                                            onPressed: () =>
+                                                _confirmStatusChange(
                                               userId: u['id'].toString(),
                                               action: 'lock',
                                               title: 'Lock Account',
@@ -383,8 +473,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                           ),
                                         if (isRestricted)
                                           IconButton(
-                                            icon: const Icon(Icons.lock_open, color: AppColors.success),
-                                            onPressed: () => _confirmStatusChange(
+                                            icon: const Icon(Icons.lock_open,
+                                                color: AppColors.success),
+                                            onPressed: () =>
+                                                _confirmStatusChange(
                                               userId: u['id'].toString(),
                                               action: 'unlock',
                                               title: 'Unlock Account',
@@ -394,18 +486,28 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                             tooltip: 'Unlock Account',
                                           ),
                                         IconButton(
-                                          icon: const Icon(Icons.password_outlined, color: AppColors.primary),
-                                          onPressed: () => _showResetPasswordDialog(u['id'].toString()),
+                                          icon: const Icon(
+                                              Icons.password_outlined,
+                                              color: AppColors.primary),
+                                          onPressed: () =>
+                                              _showResetPasswordDialog(
+                                                  u['id'].toString()),
                                           tooltip: 'Reset Password',
                                         ),
                                         IconButton(
-                                          icon: const Icon(Icons.edit_attributes_outlined, color: AppColors.accent),
-                                          onPressed: () => _showRoleDialog(u['id'].toString(), role),
+                                          icon: const Icon(
+                                              Icons.edit_attributes_outlined,
+                                              color: AppColors.accent),
+                                          onPressed: () => _showRoleDialog(
+                                              u['id'].toString(), role),
                                           tooltip: 'Change Role',
                                         ),
                                         IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                                          onPressed: () => _showDeleteConfirmation(u['id'].toString()),
+                                          icon: const Icon(Icons.delete_outline,
+                                              color: AppColors.error),
+                                          onPressed: () =>
+                                              _showDeleteConfirmation(
+                                                  u['id'].toString()),
                                           tooltip: 'Delete Account',
                                         ),
                                       ],
@@ -436,7 +538,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           }
                         : null,
                   ),
-                  Text('Page $_currentPage of $_totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Page $_currentPage of $_totalPages',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
                     onPressed: _currentPage < _totalPages
@@ -451,6 +554,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ),
         ],
       ),
+      bottomNavigationBar: AdminBottomNav(current: 1, ctx: context),
     );
   }
 
@@ -473,7 +577,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             },
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -496,17 +602,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           title: const Text('Reset Password'),
           content: TextField(
             controller: passwordCtrl,
-            decoration: const InputDecoration(hintText: 'Enter new password (min 8 chars)'),
+            decoration: const InputDecoration(
+                hintText: 'Enter new password (min 8 chars)'),
             obscureText: true,
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
                 final pw = passwordCtrl.text.trim();
                 if (pw.length < 8) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password too short!'), backgroundColor: AppColors.error),
+                    const SnackBar(
+                        content: Text('Password too short!'),
+                        backgroundColor: AppColors.error),
                   );
                   return;
                 }
@@ -527,9 +638,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Confirm Deletion'),
-          content: const Text('Are you absolutely sure you want to permanently delete this user account? This action is irreversible.'),
+          content: const Text(
+              'Are you absolutely sure you want to permanently delete this user account? This action is irreversible.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () {

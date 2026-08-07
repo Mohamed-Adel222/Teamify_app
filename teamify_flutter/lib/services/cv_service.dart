@@ -40,16 +40,20 @@ class CVService with ServiceErrorHandler {
     if (cached != null && !forceRefresh) {
       _dedup.deduplicate('$key-bg', () async {
         final fresh = await _repo.listCVs();
-        await _cache.putList(_box, key, fresh.map((cv) => cv.toJson()).toList());
+        await _cache.putList(
+            _box, key, fresh.map((cv) => cv.toJson()).toList());
         return ApiResult.success(fresh);
       });
-      return ApiResult.success(cached.map((e) => ApiCV.fromJson(e.cast<String, dynamic>())).toList());
+      return ApiResult.success(cached
+          .map((e) => ApiCV.fromJson(e.cast<String, dynamic>()))
+          .toList());
     }
 
     return _dedup.deduplicate(key, () async {
       final result = await guard(() => _repo.listCVs());
       if (result.isSuccess) {
-        await _cache.putList(_box, key, result.data!.map((cv) => cv.toJson()).toList());
+        await _cache.putList(
+            _box, key, result.data!.map((cv) => cv.toJson()).toList());
       }
       return result;
     });
@@ -87,7 +91,8 @@ class CVService with ServiceErrorHandler {
     return result;
   }
 
-  Future<ApiResult<ApiCV>> updateCV(String id, Map<String, dynamic> payload) async {
+  Future<ApiResult<ApiCV>> updateCV(
+      String id, Map<String, dynamic> payload) async {
     final result = await guardWithOffline(
       () => _repo.updateCV(id, payload),
       mutation: OfflineMutation(
@@ -132,8 +137,7 @@ class CVService with ServiceErrorHandler {
         if (bytes.isEmpty) {
           throw Exception('PDF export returned empty file');
         }
-        if (bytes.length < 4 ||
-            String.fromCharCodes(bytes.take(4)) != '%PDF') {
+        if (bytes.length < 4 || String.fromCharCodes(bytes.take(4)) != '%PDF') {
           throw Exception('Server did not return a valid PDF');
         }
         var name = filename;

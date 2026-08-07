@@ -32,7 +32,8 @@ class _MentorMainScreenState extends State<MentorMainScreen>
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 4),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load(forceRefresh: true));
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _load(forceRefresh: true));
   }
 
   Future<void> _load({bool forceRefresh = false}) async {
@@ -236,9 +237,7 @@ class _DetailedPerformanceTab extends StatelessWidget {
       'Teammate';
 
   String _feedbackBody(Map<String, dynamic> f) =>
-      f['feedback_text']?.toString() ??
-      f['content']?.toString() ??
-      '';
+      f['feedback_text']?.toString() ?? f['content']?.toString() ?? '';
 
   String _feedbackDate(String raw) {
     if (raw.isEmpty) return '';
@@ -310,7 +309,8 @@ class _DetailedPerformanceTab extends StatelessWidget {
                       value: hasPeer ? perfScore / 100 : 0,
                       strokeWidth: 12,
                       backgroundColor: AppColors.border,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
+                      valueColor:
+                          const AlwaysStoppedAnimation(AppColors.primary))),
               Column(mainAxisSize: MainAxisSize.min, children: [
                 Text(hasPeer ? perfScore.toInt().toString() : '—',
                     style: const TextStyle(
@@ -343,10 +343,10 @@ class _DetailedPerformanceTab extends StatelessWidget {
         const Text('Performance Metrics',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 12),
-        _metricItem('Commitment', commitment.toInt(),
-            Icons.visibility_outlined, AppColors.success),
-        _metricItem(
-            'Teamwork', teamwork.toInt(), Icons.people_outline, AppColors.primary),
+        _metricItem('Commitment', commitment.toInt(), Icons.visibility_outlined,
+            AppColors.success),
+        _metricItem('Teamwork', teamwork.toInt(), Icons.people_outline,
+            AppColors.primary),
         _metricItem('Quality', quality.toInt(),
             Icons.workspace_premium_outlined, AppColors.accent),
         const SizedBox(height: 24),
@@ -438,7 +438,8 @@ class _DetailedPerformanceTab extends StatelessWidget {
                 child: history.isEmpty
                     ? Center(
                         child: Text(
-                          insights.feedbackCount == 0 && insights.ratingCount == 0
+                          insights.feedbackCount == 0 &&
+                                  insights.ratingCount == 0
                               ? 'No peer feedback yet. Use the Feedback tab to rate teammates — scores will appear here.'
                               : 'Not enough monthly data for a chart yet.',
                           textAlign: TextAlign.center,
@@ -451,9 +452,8 @@ class _DetailedPerformanceTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: history.take(6).map((e) {
                           final period = e['period']?.toString() ?? '';
-                          final label = period.length >= 7
-                              ? period.substring(5)
-                              : period;
+                          final label =
+                              period.length >= 7 ? period.substring(5) : period;
                           return _bar(
                             label,
                             ((e['score'] as num?)?.toDouble() ?? 0) / 100,
@@ -473,8 +473,8 @@ class _DetailedPerformanceTab extends StatelessWidget {
           ),
           child: Column(children: [
             Text(value,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 14)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             Text(label,
                 style: const TextStyle(
                     fontSize: 10, color: AppColors.textSecondary)),
@@ -526,7 +526,8 @@ class _DetailedCoursesTab extends StatefulWidget {
 class _DetailedCoursesTabState extends State<_DetailedCoursesTab> {
   final Set<String> _enrolled = {};
 
-  Future<void> _enroll(BuildContext context, Map<String, dynamic> course) async {
+  Future<void> _enroll(
+      BuildContext context, Map<String, dynamic> course) async {
     final title = course['title']?.toString() ?? 'Course';
     final platform = course['platform']?.toString() ?? 'provider';
     final urlStr = course['url']?.toString() ?? '';
@@ -585,7 +586,9 @@ class _DetailedCoursesTabState extends State<_DetailedCoursesTab> {
           ...courses.map((c) {
             final hours = c['hours']?.toString();
             final duration = c['duration']?.toString() ??
-                (hours != null && hours.isNotEmpty ? '$hours hrs' : 'Self-paced');
+                (hours != null && hours.isNotEmpty
+                    ? '$hours hrs'
+                    : 'Self-paced');
             final ratingRaw = c['rating'];
             final rating = ratingRaw is num
                 ? ratingRaw.toDouble()
@@ -609,64 +612,60 @@ class _DetailedCoursesTabState extends State<_DetailedCoursesTab> {
     final enrolled = _enrolled.contains(title);
 
     return TCard(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Row(children: [
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14)),
-                Text('$org • $time',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary)),
-                if (course['fills'] is List &&
-                    (course['fills'] as List).isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Closes gap: ${(course['fills'] as List).take(3).join(', ')}',
-                      style: const TextStyle(
-                          fontSize: 10, color: AppColors.primary),
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Row(children: [
-                  const Icon(Icons.star, color: Colors.amber, size: 14),
-                  Text(' $rate',
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold)),
-                  if (course['relevance'] != null) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      'match ${((course['relevance'] as num) * 100).round()}%',
-                      style: const TextStyle(
-                          fontSize: 10, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ]),
-              ])),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            TChip(
-                label: level,
-                bg: AppColors.primary.withValues(alpha: 0.1),
-                textColor: AppColors.primary),
-            const SizedBox(height: 8),
-            ElevatedButton(
-                onPressed: enrolled ? null : () => _enroll(context, course),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        enrolled ? AppColors.success : AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20)),
-                child: Text(
-                    enrolled ? 'Enrolled ✓' : 'Enroll',
-                    style: const TextStyle(color: Colors.white, fontSize: 12))),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title,
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          Text('$org • $time',
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.textSecondary)),
+          if (course['fills'] is List && (course['fills'] as List).isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Closes gap: ${(course['fills'] as List).take(3).join(', ')}',
+                style: const TextStyle(fontSize: 10, color: AppColors.primary),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Row(children: [
+            const Icon(Icons.star, color: Colors.amber, size: 14),
+            Text(' $rate',
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            if (course['relevance'] != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                'match ${((course['relevance'] as num) * 100).round()}%',
+                style: const TextStyle(
+                    fontSize: 10, color: AppColors.textSecondary),
+              ),
+            ],
           ]),
+        ])),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          TChip(
+              label: level,
+              bg: AppColors.primary.withValues(alpha: 0.1),
+              textColor: AppColors.primary),
+          const SizedBox(height: 8),
+          ElevatedButton(
+              onPressed: enrolled ? null : () => _enroll(context, course),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      enrolled ? AppColors.success : AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20)),
+              child: Text(enrolled ? 'Enrolled ✓' : 'Enroll',
+                  style: const TextStyle(color: Colors.white, fontSize: 12))),
         ]),
-      );
+      ]),
+    );
   }
 }
 
@@ -732,7 +731,9 @@ class _FeedbackTabState extends State<_FeedbackTab> {
   String _memberName() {
     if (_selectedMemberId == null) return 'your teammate';
     for (final m in _members) {
-      if (m['id'] == _selectedMemberId) return m['name'] as String? ?? 'your teammate';
+      if (m['id'] == _selectedMemberId) {
+        return m['name'] as String? ?? 'your teammate';
+      }
     }
     return 'your teammate';
   }
@@ -740,7 +741,9 @@ class _FeedbackTabState extends State<_FeedbackTab> {
   String _projectName() {
     if (_selectedProjectId == null) return 'the project';
     for (final p in _projects) {
-      if (p['id'] == _selectedProjectId) return p['name'] as String? ?? 'the project';
+      if (p['id'] == _selectedProjectId) {
+        return p['name'] as String? ?? 'the project';
+      }
     }
     return 'the project';
   }
@@ -753,11 +756,12 @@ class _FeedbackTabState extends State<_FeedbackTab> {
     }
     setState(() => _aiAssisting = true);
     try {
-      final result = await context.read<AppServices>().ai.generateFeedbackAssist(
-            rating: _rating,
-            teammateName: _memberName(),
-            projectName: _projectName(),
-          );
+      final result =
+          await context.read<AppServices>().ai.generateFeedbackAssist(
+                rating: _rating,
+                teammateName: _memberName(),
+                projectName: _projectName(),
+              );
       if (!mounted) return;
       result.when(
         success: (data) {
@@ -791,9 +795,7 @@ class _FeedbackTabState extends State<_FeedbackTab> {
       'Teammate';
 
   String _feedbackBody(Map<String, dynamic> f) =>
-      f['feedback_text']?.toString() ??
-      f['content']?.toString() ??
-      '';
+      f['feedback_text']?.toString() ?? f['content']?.toString() ?? '';
 
   Future<void> _loadProjects() async {
     final projects = context.read<AppServices>().projects;
@@ -802,9 +804,8 @@ class _FeedbackTabState extends State<_FeedbackTab> {
       if (!mounted) return;
       if (res.isSuccess) {
         setState(() {
-          _projects = res.data!
-              .map((p) => {'id': p.id, 'name': p.name})
-              .toList();
+          _projects =
+              res.data!.map((p) => {'id': p.id, 'name': p.name}).toList();
           _loadingProjects = false;
         });
       } else {
@@ -857,8 +858,8 @@ class _FeedbackTabState extends State<_FeedbackTab> {
       return;
     }
     if (_selectedMemberId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a team member to rate.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please select a team member to rate.')));
       return;
     }
 
@@ -931,12 +932,12 @@ class _FeedbackTabState extends State<_FeedbackTab> {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // ── Project picker ──────────────────────────────────────────────
-          const Text('Project',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('Project', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           _projects.isEmpty
               ? const Text('No projects found.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13))
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 13))
               : DropdownButtonFormField<String>(
                   key: ValueKey('project_${_selectedProjectId ?? 'none'}'),
                   initialValue: _selectedProjectId,
@@ -966,14 +967,14 @@ class _FeedbackTabState extends State<_FeedbackTab> {
           const SizedBox(height: 8),
           _selectedProjectId == null
               ? const Text('Select a project first.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13))
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 13))
               : _members.isEmpty
                   ? const Text('No other members in this project.',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 13))
                   : DropdownButtonFormField<String>(
-                      key: ValueKey(
-                          'member_${_selectedProjectId}_'
+                      key: ValueKey('member_${_selectedProjectId}_'
                           '${_selectedMemberId ?? 'none'}_${_members.length}'),
                       initialValue: _selectedMemberId,
                       hint: const Text('Select a member'),
@@ -1239,7 +1240,9 @@ class _MentorOverviewTab extends StatelessWidget {
                   ? 'Teamify ML model: $rating/5${label != null ? ' ($label)' : ''}'
                   : 'Estimated rating: $rating/5',
               style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary),
             ),
           ),
         ],
@@ -1279,14 +1282,13 @@ class _MentorOverviewTab extends StatelessWidget {
                 '${insights.tasksCompleted}/${insights.tasksAssigned} tasks done',
                 '${insights.feedbackCount} feedback',
               ].join(' · '),
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
             if (_recentTasks(insights).isNotEmpty) ...[
               const SizedBox(height: 12),
               const Text('Your projects (from database)',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13)),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
               const SizedBox(height: 6),
               ..._recentTasks(insights).map(
                 (t) => Padding(
@@ -1309,12 +1311,16 @@ class _MentorOverviewTab extends StatelessWidget {
         const SizedBox(height: 12),
         TCard(
             child: Column(children: [
-          const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Current',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            Text('Next Level',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          ]),
+          const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Current',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+                Text('Next Level',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ]),
           const SizedBox(height: 12),
           TBar(value: insights.careerScore / 100),
           const SizedBox(height: 8),
@@ -1327,7 +1333,8 @@ class _MentorOverviewTab extends StatelessWidget {
         const Text('Strengths',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         if (insights.strengths.isEmpty)
-          const Text('Complete projects and receive peer feedback to see strengths.',
+          const Text(
+              'Complete projects and receive peer feedback to see strengths.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary))
         else
           ...insights.strengths.map((s) => Padding(
@@ -1392,8 +1399,7 @@ class _MentorOverviewTab extends StatelessWidget {
           if (insights.skillGaps.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Text('Skills to develop',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 13)),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
             ...insights.skillGaps.take(3).map((g) => Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text('• ${g.area}',
@@ -1473,7 +1479,8 @@ class _SkillsTab extends StatelessWidget {
             (r) => MentorSkillCard(
               title: r.title,
               score: r.score,
-              levelLabel: MentorSkillCard.levelForScore(r.score, owned: r.owned),
+              levelLabel:
+                  MentorSkillCard.levelForScore(r.score, owned: r.owned),
               onExplore: () => MentorSkillCard.openExploreChat(
                 context,
                 skillName: r.title,
@@ -1548,9 +1555,8 @@ class _CareerMentorChatScreenState extends State<CareerMentorChatScreen> {
       threadKey: MentorGeneralChatArgs.threadKey,
       buildGreeting: () async => ml.buildGreeting(),
       suggestions: ml.buildSuggestions(),
-      greetingExtras: ml.usesMlModel
-          ? {'mlLabel': _mlLabelFromRating(ml.mlRating)}
-          : null,
+      greetingExtras:
+          ml.usesMlModel ? {'mlLabel': _mlLabelFromRating(ml.mlRating)} : null,
     );
   }
 
@@ -1751,9 +1757,7 @@ class _CareerMentorChatScreenState extends State<CareerMentorChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  skill != null
-                      ? 'Explore · ${skill.skillName}'
-                      : 'AI Mentor',
+                  skill != null ? 'Explore · ${skill.skillName}' : 'AI Mentor',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 15),
                 ),
@@ -1761,8 +1765,8 @@ class _CareerMentorChatScreenState extends State<CareerMentorChatScreen> {
                   ml != null
                       ? 'Teamify ML · ${MentorGeneralChatArgs.mlModelPath}'
                       : 'Teamify ML · Online',
-                  style: const TextStyle(
-                      fontSize: 10, color: AppColors.success),
+                  style:
+                      const TextStyle(fontSize: 10, color: AppColors.success),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -1795,8 +1799,7 @@ class _CareerMentorChatScreenState extends State<CareerMentorChatScreen> {
         )),
         if (_loadingHistory)
           const Padding(
-              padding: EdgeInsets.all(8),
-              child: CircularProgressIndicator())
+              padding: EdgeInsets.all(8), child: CircularProgressIndicator())
         else ...[
           if (_currentSuggestions.isNotEmpty) _buildSuggestions(),
           _buildInput(),
@@ -1951,9 +1954,7 @@ class _CareerMentorChatScreenState extends State<CareerMentorChatScreen> {
               Text(mlLabel,
                   style: TextStyle(
                       fontSize: 10,
-                      color: isMe
-                          ? Colors.white70
-                          : AppColors.textSecondary)),
+                      color: isMe ? Colors.white70 : AppColors.textSecondary)),
             ],
           ],
         ),
@@ -1965,47 +1966,49 @@ class _CareerMentorChatScreenState extends State<CareerMentorChatScreen> {
         elevation: 6,
         color: Colors.white,
         child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: SafeArea(
-            top: false,
-            child: Row(children: [
-          Expanded(
-              child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(24)),
-                  child: TextField(
-                      controller: _ctrl,
-                      enabled: !_loading,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (text) {
-                        final t = text.trim();
-                        if (t.isNotEmpty && !_loading) {
-                          _ctrl.clear();
-                          _sendMsg(t);
-                        }
-                      },
-                      decoration: const InputDecoration(
-                          hintText: 'Ask your mentor anything...',
-                          border: InputBorder.none)))),
-          const SizedBox(width: 8),
-          IconButton(
-              icon: Icon(Icons.send,
-                  color: _loading ? AppColors.textSecondary : AppColors.primary),
-              onPressed: _loading
-                  ? null
-                  : () {
-                      if (_ctrl.text.isNotEmpty) {
-                        final t = _ctrl.text.trim();
-                        _ctrl.clear();
-                        _sendMsg(t);
-                      }
-                    }),
-        ])),
-      ),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: SafeArea(
+              top: false,
+              child: Row(children: [
+                Expanded(
+                    child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(24)),
+                        child: TextField(
+                            controller: _ctrl,
+                            enabled: !_loading,
+                            minLines: 1,
+                            maxLines: 4,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (text) {
+                              final t = text.trim();
+                              if (t.isNotEmpty && !_loading) {
+                                _ctrl.clear();
+                                _sendMsg(t);
+                              }
+                            },
+                            decoration: const InputDecoration(
+                                hintText: 'Ask your mentor anything...',
+                                border: InputBorder.none)))),
+                const SizedBox(width: 8),
+                IconButton(
+                    icon: Icon(Icons.send,
+                        color: _loading
+                            ? AppColors.textSecondary
+                            : AppColors.primary),
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            if (_ctrl.text.isNotEmpty) {
+                              final t = _ctrl.text.trim();
+                              _ctrl.clear();
+                              _sendMsg(t);
+                            }
+                          }),
+              ])),
+        ),
       );
 
   @override

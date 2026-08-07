@@ -23,7 +23,7 @@ class SmartConnectivity {
   void init() {
     _connectivity.onConnectivityChanged.listen(_handleTransportChange);
     _checkInternetReachability();
-    
+
     // Poll every 30s to detect captive portals or dropped connections on active wifi
     _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _checkInternetReachability();
@@ -47,15 +47,16 @@ class SmartConnectivity {
   Future<void> _checkInternetReachability() async {
     try {
       final stopWatch = Stopwatch()..start();
-      
+
       // Ping a reliable endpoint
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 3);
-      final request = await client.getUrl(Uri.parse('https://connectivitycheck.gstatic.com/generate_204'));
+      final request = await client.getUrl(
+          Uri.parse('https://connectivitycheck.gstatic.com/generate_204'));
       final response = await request.close();
-      
+
       stopWatch.stop();
-      
+
       if (response.statusCode == 204) {
         if (stopWatch.elapsedMilliseconds > 2000) {
           _updateStatus(InternetStatus.degraded);

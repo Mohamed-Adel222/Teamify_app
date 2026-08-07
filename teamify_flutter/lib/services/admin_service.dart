@@ -18,7 +18,8 @@ class AdminService with ServiceErrorHandler {
 
   // ── 1. Admin Dashboard ──────────────────────────────────────────────────────
   Future<ApiResult<Map<String, dynamic>>> getDashboardStats() =>
-      _dedup.deduplicate('admin_dashboard', () => guard(() => _repo.getDashboardStats()));
+      _dedup.deduplicate(
+          'admin_dashboard', () => guard(() => _repo.getDashboardStats()));
 
   // ── 2. User Management ──────────────────────────────────────────────────────
   Future<ApiResult<Map<String, dynamic>>> listUsers({
@@ -39,7 +40,8 @@ class AdminService with ServiceErrorHandler {
             )),
       );
 
-  Future<ApiResult<void>> updateUserStatus(String id, String action, {String reason = ''}) =>
+  Future<ApiResult<void>> updateUserStatus(String id, String action,
+          {String reason = ''}) =>
       guard(() => _repo.updateUserStatus(id, action, reason: reason));
 
   Future<ApiResult<void>> changeUserRole(String id, String role) =>
@@ -81,7 +83,8 @@ class AdminService with ServiceErrorHandler {
             )),
       );
 
-  Future<ApiResult<void>> reassignProject(String projectId, String newOwnerId) =>
+  Future<ApiResult<void>> reassignProject(
+          String projectId, String newOwnerId) =>
       guard(() => _repo.reassignProject(projectId, newOwnerId));
 
   Future<ApiResult<void>> deleteProject(String projectId) =>
@@ -110,15 +113,17 @@ class AdminService with ServiceErrorHandler {
             )),
       );
 
-  Future<ApiResult<void>> updateTask(String taskId, {String? status, String? assignedTo}) =>
-      guard(() => _repo.updateTask(taskId, status: status, assignedTo: assignedTo));
+  Future<ApiResult<void>> updateTask(String taskId,
+          {String? status, String? assignedTo}) =>
+      guard(() =>
+          _repo.updateTask(taskId, status: status, assignedTo: assignedTo));
 
   Future<ApiResult<void>> deleteTask(String taskId) =>
       guard(() => _repo.deleteTask(taskId));
 
   // ── 5. AI Monitor ───────────────────────────────────────────────────────────
-  Future<ApiResult<Map<String, dynamic>>> getAiMetrics() =>
-      _dedup.deduplicate('admin_ai_metrics', () => guard(() => _repo.getAiMetrics()));
+  Future<ApiResult<Map<String, dynamic>>> getAiMetrics() => _dedup.deduplicate(
+      'admin_ai_metrics', () => guard(() => _repo.getAiMetrics()));
 
   // ── 6. Disputes ─────────────────────────────────────────────────────────────
   Future<ApiResult<Map<String, dynamic>>> listDisputes({
@@ -137,12 +142,15 @@ class AdminService with ServiceErrorHandler {
             )),
       );
 
-  Future<ApiResult<void>> resolveDispute(String disputeId, String action, String resolution) =>
+  Future<ApiResult<void>> resolveDispute(
+          String disputeId, String action, String resolution) =>
       guard(() => _repo.resolveDispute(disputeId, action, resolution));
 
   // ── 7. Notifications Center ─────────────────────────────────────────────────
-  Future<ApiResult<void>> broadcastNotification(String target, String title, String body, {String? userId}) =>
-      guard(() => _repo.broadcastNotification(target, title, body, userId: userId));
+  Future<ApiResult<void>> broadcastNotification(
+          String target, String title, String body, {String? userId}) =>
+      guard(() =>
+          _repo.broadcastNotification(target, title, body, userId: userId));
 
   // ── 8. File Management ──────────────────────────────────────────────────────
   Future<ApiResult<Map<String, dynamic>>> listFiles({
@@ -205,23 +213,25 @@ class AdminService with ServiceErrorHandler {
 
   // ── 10. Security Center ─────────────────────────────────────────────────────
   Future<ApiResult<Map<String, dynamic>>> getSecuritySummary() =>
-      _dedup.deduplicate('admin_security_summary', () => guard(() => _repo.getSecuritySummary()));
+      _dedup.deduplicate('admin_security_summary',
+          () => guard(() => _repo.getSecuritySummary()));
 
-  Future<ApiResult<void>> revokeSessions(String userId) =>
-      guard(() async {
+  Future<ApiResult<void>> revokeSessions(String userId) => guard(() async {
         await _repo.revokeSessions(userId);
         _dedup.clear();
       });
 
   // ── 11. Analytics ───────────────────────────────────────────────────────────
   Future<ApiResult<Map<String, dynamic>>> getAnalyticsDetails() =>
-      _dedup.deduplicate('admin_analytics_details', () => guard(() => _repo.getAnalyticsDetails()));
+      _dedup.deduplicate('admin_analytics_details',
+          () => guard(() => _repo.getAnalyticsDetails()));
 
   // ── 12. Settings ────────────────────────────────────────────────────────────
-  Future<ApiResult<Map<String, dynamic>>> getSettings() =>
-      _dedup.deduplicate('admin_settings', () => guard(() => _repo.getSettings()));
+  Future<ApiResult<Map<String, dynamic>>> getSettings() => _dedup.deduplicate(
+      'admin_settings', () => guard(() => _repo.getSettings()));
 
-  Future<ApiResult<Map<String, dynamic>>> updateSettings(Map<String, dynamic> settings) =>
+  Future<ApiResult<Map<String, dynamic>>> updateSettings(
+          Map<String, dynamic> settings) =>
       guard(() async {
         final result = await _repo.updateSettings(settings);
         _dedup.clear();
@@ -230,31 +240,33 @@ class AdminService with ServiceErrorHandler {
       });
 
   // ── 13. Compatibility / Legacy Wrappers ─────────────────────────────────────
-  
+
   Future<ApiResult<Map<String, dynamic>>> getReportSummary() =>
       guard(() => _repo.getReportSummary());
 
   Future<ApiResult<List<SecurityAlert>>> listAlerts() async {
     final secResult = await getSecuritySummary();
     if (secResult.isFailure) {
-      return ApiResult.failure(secResult.error ?? 'Error', statusCode: secResult.statusCode);
+      return ApiResult.failure(secResult.error ?? 'Error',
+          statusCode: secResult.statusCode);
     }
     final data = secResult.data ?? {};
     final alertsList = data['alerts'] as List? ?? [];
-    
+
     final List<SecurityAlert> mappedAlerts = alertsList.map((a) {
       final map = a as Map<String, dynamic>;
       return SecurityAlert(
         id: map['id']?.toString() ?? '',
         title: map['type']?.toString() ?? 'Security Anomaly',
         user: map['user_name']?.toString() ?? 'User #${map['user_id']}',
-        description: map['details']?.toString() ?? 'Suspicious activity detected',
+        description:
+            map['details']?.toString() ?? 'Suspicious activity detected',
         risk: map['risk_level']?.toString() ?? 'High',
         status: map['status']?.toString() ?? 'Active',
         time: map['timestamp']?.toString() ?? '',
       );
     }).toList();
-    
+
     return ApiResult.success(mappedAlerts);
   }
 
@@ -268,9 +280,8 @@ class AdminService with ServiceErrorHandler {
         return items.map((raw) {
           final log = raw as Map<String, dynamic>;
           final timestamp = log['timestamp']?.toString() ?? '';
-          final date = timestamp.contains('T')
-              ? timestamp.split('T').first
-              : timestamp;
+          final date =
+              timestamp.contains('T') ? timestamp.split('T').first : timestamp;
           final time = timestamp.contains('T')
               ? timestamp
                   .split('T')
@@ -312,23 +323,50 @@ class AdminService with ServiceErrorHandler {
   Future<ApiResult<Map<String, dynamic>>> getDisputeDetail(String id) =>
       guard(() => _repo.getDisputeDetail(id));
 
-  Future<ApiResult<Map<String, dynamic>>> getAnalyticsTimeSeries({String metric = 'users', int days = 30}) =>
+  Future<ApiResult<Map<String, dynamic>>> getAnalyticsTimeSeries(
+          {String metric = 'users', int days = 30}) =>
       guard(() => _repo.getAnalyticsTimeSeries(metric: metric, days: days));
 
-  Future<ApiResult<Map<String, dynamic>>> listBroadcastHistory({int page = 1}) =>
+  Future<ApiResult<Map<String, dynamic>>> listBroadcastHistory(
+          {int page = 1}) =>
       guard(() => _repo.listBroadcastHistory(page: page));
 
   Future<ApiResult<Map<String, dynamic>>> listRolePermissions() =>
       guard(() => _repo.listRolePermissions());
 
-  Future<ApiResult<void>> updateRolePermissions(String role, Map<String, dynamic> permissions) =>
+  Future<ApiResult<void>> updateRolePermissions(
+          String role, Map<String, dynamic> permissions) =>
       guard(() => _repo.updateRolePermissions(role, permissions));
 
-  Future<ApiResult<Map<String, dynamic>>> getRatingsLeaderboard({int page = 1}) =>
-      guard(() => _repo.getRatingsLeaderboard(page: page));
+  Future<ApiResult<Map<String, dynamic>>> getRatingsLeaderboard({
+    int page = 1,
+    String search = '',
+    String category = 'Overall',
+    String timePeriod = 'All Time',
+    String sortBy = 'Rank',
+  }) =>
+      guard(() => _repo.getRatingsLeaderboard(
+            page: page,
+            search: search,
+            category: category,
+            timePeriod: timePeriod,
+            sortBy: sortBy,
+          ));
 
-  Future<ApiResult<Map<String, dynamic>>> getFeedbackLeaderboard({int page = 1}) =>
-      guard(() => _repo.getFeedbackLeaderboard(page: page));
+  Future<ApiResult<Map<String, dynamic>>> getFeedbackLeaderboard({
+    int page = 1,
+    String search = '',
+    String category = 'Overall',
+    String timePeriod = 'All Time',
+    String sortBy = 'Rank',
+  }) =>
+      guard(() => _repo.getFeedbackLeaderboard(
+            page: page,
+            search: search,
+            category: category,
+            timePeriod: timePeriod,
+            sortBy: sortBy,
+          ));
 
   Future<ApiResult<List<int>>> exportAnalytics(String type) =>
       guard(() => _repo.exportAnalytics(type));
@@ -339,14 +377,70 @@ class AdminService with ServiceErrorHandler {
     String search = '',
     int page = 1,
   }) =>
-      guard(() => _repo.listAuditLogs(action: action, severity: severity, search: search, page: page));
+      guard(() => _repo.listAuditLogs(
+          action: action, severity: severity, search: search, page: page));
 
   Future<ApiResult<List<dynamic>>> getAdminActivity() async {
     final logsResult = await listLogs(perPage: 10);
     if (logsResult.isFailure) {
-      return ApiResult.failure(logsResult.error ?? 'Error', statusCode: logsResult.statusCode);
+      return ApiResult.failure(logsResult.error ?? 'Error',
+          statusCode: logsResult.statusCode);
     }
     final items = logsResult.data?['items'] as List? ?? [];
     return ApiResult.success(items);
   }
+
+  // ── 14. AI Monitor & Limits Wrappers ──────────────────────────────────────
+  Future<ApiResult<Map<String, dynamic>>> getAiUsageOverview() =>
+      guard(() => _repo.getAiUsageOverview());
+
+  Future<ApiResult<Map<String, dynamic>>> getAiPlans() =>
+      guard(() => _repo.getAiPlans());
+
+  Future<ApiResult<void>> updateAiPlanLimits(String planId, Map<String, dynamic> limits) =>
+      guard(() => _repo.updateAiPlanLimits(planId, limits));
+
+  Future<ApiResult<Map<String, dynamic>>> getUserAiUsage({
+    String search = '',
+    String planId = '',
+    String status = '',
+    String sortBy = 'Usage',
+    int page = 1,
+  }) =>
+      guard(() => _repo.getUserAiUsage(search: search, planId: planId, status: status, sortBy: sortBy, page: page));
+
+  Future<ApiResult<Map<String, dynamic>>> getUserAiUsageDetails(String userId) =>
+      guard(() => _repo.getUserAiUsageDetails(userId));
+
+  Future<ApiResult<void>> updateUserAiLimits(String userId, Map<String, dynamic> limits) =>
+      guard(() => _repo.updateUserAiLimits(userId, limits));
+
+  Future<ApiResult<void>> resetUserDailyUsage(String userId) =>
+      guard(() => _repo.resetUserDailyUsage(userId));
+
+  Future<ApiResult<void>> resetUserMonthlyUsage(String userId) =>
+      guard(() => _repo.resetUserMonthlyUsage(userId));
+
+  Future<ApiResult<void>> changeUserPlan(String userId, String planId) =>
+      guard(() => _repo.changeUserPlan(userId, planId));
+
+  Future<ApiResult<void>> suspendUserAiAccess(String userId) =>
+      guard(() => _repo.suspendUserAiAccess(userId));
+
+  Future<ApiResult<void>> restoreUserAiAccess(String userId) =>
+      guard(() => _repo.restoreUserAiAccess(userId));
+
+  Future<ApiResult<Map<String, dynamic>>> getAiRequestLogs({
+    String search = '',
+    String plan = '',
+    String status = '',
+    int page = 1,
+  }) =>
+      guard(() => _repo.getAiRequestLogs(search: search, plan: plan, status: status, page: page));
+
+  Future<ApiResult<Map<String, dynamic>>> getAiUsageAlerts() =>
+      guard(() => _repo.getAiUsageAlerts());
+
+  Future<ApiResult<void>> resolveAiUsageAlert(String alertId) =>
+      guard(() => _repo.resolveAiUsageAlert(alertId));
 }

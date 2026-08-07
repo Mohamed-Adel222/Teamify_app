@@ -3,6 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 
 import 'offline_mutation.dart';
+import '../../config/app_config.dart';
 import '../cache/cache_manager.dart';
 import '../network/api_client.dart';
 import '../observability/app_logger.dart';
@@ -120,6 +121,7 @@ class OfflineManager {
   ///
   /// Guard: returns immediately if already replaying or paused.
   Future<void> replayQueue() async {
+    if (AppConfig.isDemoMode) return;
     if (_isReplaying || _isPaused) return;
     _isReplaying = true;
     AppLogger.log('[Offline] Starting replay');
@@ -171,7 +173,8 @@ class OfflineManager {
               break;
             default:
               // Unknown method — drop permanently
-              AppLogger.error('[Offline] Unknown method ${mutation.method} — dropping');
+              AppLogger.error(
+                  '[Offline] Unknown method ${mutation.method} — dropping');
               AppLogger.recordMetric('offline.queue.permanent_failure', 1,
                   tags: {'id': mutation.id, 'reason': 'unknown_method'});
               continue;
@@ -184,7 +187,8 @@ class OfflineManager {
             'retries': mutation.retryCount.toString(),
             'latency_ms': latency.inMilliseconds.toString(),
           });
-          AppLogger.log('[Offline] ✓ Replayed ${mutation.id} (${mutation.tag})');
+          AppLogger.log(
+              '[Offline] ✓ Replayed ${mutation.id} (${mutation.tag})');
           // Success → do NOT add back to toKeep
         } on DioException catch (e) {
           final isNetworkError = _isDioNetworkError(e);
@@ -201,16 +205,19 @@ class OfflineManager {
                 status: MutationStatus.failedPermanently,
               );
               toKeep.add(failed);
-              AppLogger.recordMetric('offline.queue.permanent_failure', 1, tags: {
-                'id': mutation.id,
-                'tag': mutation.tag ?? mutation.path,
-                'retries': newRetryCount.toString(),
-              });
-              AppLogger.error('[Offline] ✗ Permanent failure ${mutation.id}', e);
+              AppLogger.recordMetric('offline.queue.permanent_failure', 1,
+                  tags: {
+                    'id': mutation.id,
+                    'tag': mutation.tag ?? mutation.path,
+                    'retries': newRetryCount.toString(),
+                  });
+              AppLogger.error(
+                  '[Offline] ✗ Permanent failure ${mutation.id}', e);
             } else {
-              final backoffSec =
-                  _backoffSeconds[newRetryCount.clamp(0, _backoffSeconds.length - 1)];
-              final nextRetry = DateTime.now().add(Duration(seconds: backoffSec));
+              final backoffSec = _backoffSeconds[
+                  newRetryCount.clamp(0, _backoffSeconds.length - 1)];
+              final nextRetry =
+                  DateTime.now().add(Duration(seconds: backoffSec));
               toKeep.add(mutation.copyWith(
                 retryCount: newRetryCount,
                 nextRetryAt: nextRetry,
@@ -238,7 +245,8 @@ class OfflineManager {
               'id': mutation.id,
               'reason': 'api_error_${e.response?.statusCode ?? "unknown"}',
             });
-            AppLogger.error('[Offline] ✗ Non-retriable error ${mutation.id}', e);
+            AppLogger.error(
+                '[Offline] ✗ Non-retriable error ${mutation.id}', e);
           }
         } catch (e) {
           // Unknown error — permanent failure

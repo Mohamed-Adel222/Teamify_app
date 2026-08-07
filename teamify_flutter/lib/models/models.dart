@@ -107,6 +107,7 @@ class ChatMessage {
   final String id, senderId, senderName, senderInitials, message, time;
   final bool isMe;
   final bool isPending;
+
   /// text | image | file
   final String messageType;
   final String? fileId;

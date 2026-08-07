@@ -6,8 +6,8 @@ import 'package:record/record.dart';
 
 import 'speech_blob_reader.dart'
     if (dart.library.html) 'speech_blob_reader_web.dart' as blob_reader;
-import 'mic_permission_web.dart'
-    if (dart.library.io) 'mic_permission_stub.dart' as mic_web;
+import 'mic_permission_web.dart' if (dart.library.io) 'mic_permission_stub.dart'
+    as mic_web;
 
 /// Captures short microphone chunks for Whisper transcription during meetings.
 class MeetingSpeechRecorder {

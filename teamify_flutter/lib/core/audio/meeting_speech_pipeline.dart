@@ -26,7 +26,8 @@ class MeetingSpeechPipeline {
   final MeetingBrowserSpeech _browser = MeetingBrowserSpeech();
   MeetingBackgroundTranscriber _background = MeetingBackgroundTranscriber();
   final MeetingWebChunkRecorder _webChunks = MeetingWebChunkRecorder();
-  final MeetingWebChunkRecorder _whisperRefineRecorder = MeetingWebChunkRecorder();
+  final MeetingWebChunkRecorder _whisperRefineRecorder =
+      MeetingWebChunkRecorder();
 
   MeetingSpeechPipelineMode _mode = MeetingSpeechPipelineMode.idle;
   LiveSpeechHandler? _onLive;

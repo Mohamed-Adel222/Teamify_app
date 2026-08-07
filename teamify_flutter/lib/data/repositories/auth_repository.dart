@@ -145,8 +145,7 @@ class AuthRepository {
   // ── OAuth login ───────────────────────────────────────────────────────────
 
   /// POST /api/auth/google
-  Future<AuthResult> loginWithGoogle(String idToken,
-      {String? userType}) async {
+  Future<AuthResult> loginWithGoogle(String idToken, {String? userType}) async {
     final response = await _client.post<Map<String, dynamic>>(
       '/api/auth/google',
       data: {
@@ -160,8 +159,7 @@ class AuthRepository {
     if (user == null && await hasSavedSession()) {
       user = await me();
     }
-    return AuthResult(
-        user: user, message: asString(response.data?['message']));
+    return AuthResult(user: user, message: asString(response.data?['message']));
   }
 
   /// POST /api/auth/github
@@ -185,8 +183,7 @@ class AuthRepository {
     if (user == null && await hasSavedSession()) {
       user = await me();
     }
-    return AuthResult(
-        user: user, message: asString(response.data?['message']));
+    return AuthResult(user: user, message: asString(response.data?['message']));
   }
 
   // ── Two-Factor Authentication ─────────────────────────────────────────────

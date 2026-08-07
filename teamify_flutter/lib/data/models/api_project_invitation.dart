@@ -62,7 +62,8 @@ class ApiProjectInvitation {
       inviteeDisplayName: asString(
         json['invitee_display_name'] ?? json['inviteeDisplayName'],
       ),
-      inviteeSkills: asStringList(json['invitee_skills'] ?? json['inviteeSkills']),
+      inviteeSkills:
+          asStringList(json['invitee_skills'] ?? json['inviteeSkills']),
       inviterId: asString(json['inviter_id'] ?? json['inviterId']),
       inviterName: asString(json['inviter_name'] ?? json['inviterName']),
       status: asString(json['status'], 'pending'),

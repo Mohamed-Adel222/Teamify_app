@@ -13,10 +13,14 @@ class DisposableRegistry {
   final List<dynamic> _disposables = [];
 
   void register(dynamic item) {
-    if (item is StreamSubscription || item is Timer || item is Disposable || item is ChangeNotifier) {
+    if (item is StreamSubscription ||
+        item is Timer ||
+        item is Disposable ||
+        item is ChangeNotifier) {
       _disposables.add(item);
     } else {
-      debugPrint('[DisposableRegistry] Warning: Tried to register unsupported type: ${item.runtimeType}');
+      debugPrint(
+          '[DisposableRegistry] Warning: Tried to register unsupported type: ${item.runtimeType}');
     }
   }
 
@@ -34,7 +38,8 @@ class DisposableRegistry {
           item.dispose();
         }
       } catch (e) {
-        debugPrint('[DisposableRegistry] Error disposing ${item.runtimeType}: $e');
+        debugPrint(
+            '[DisposableRegistry] Error disposing ${item.runtimeType}: $e');
       }
     }
     _disposables.clear();

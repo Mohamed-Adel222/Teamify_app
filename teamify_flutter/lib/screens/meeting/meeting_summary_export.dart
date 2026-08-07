@@ -35,19 +35,26 @@ Future<Uint8List> buildMeetingSummaryPdf({
         pw.Text(roomName, style: const pw.TextStyle(fontSize: 14)),
         if (meta.isNotEmpty) ...[
           pw.SizedBox(height: 4),
-          pw.Text(meta, style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
+          pw.Text(meta,
+              style:
+                  const pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
         ],
         if (summaryText.trim().isNotEmpty) ...[
           pw.SizedBox(height: 20),
-          pw.Text('Overview', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text('Overview',
+              style:
+                  pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 8),
-          pw.Text(summaryText, style: const pw.TextStyle(fontSize: 11, lineSpacing: 4)),
+          pw.Text(summaryText,
+              style: const pw.TextStyle(fontSize: 11, lineSpacing: 4)),
         ],
         pw.SizedBox(height: 20),
-        pw.Text('Decisions Made', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text('Decisions Made',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 8),
         if (decisions.isEmpty)
-          pw.Text('No decisions captured.', style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700))
+          pw.Text('No decisions captured.',
+              style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700))
         else
           ...decisions.map(
             (d) => pw.Padding(
@@ -56,16 +63,21 @@ Future<Uint8List> buildMeetingSummaryPdf({
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text('• ', style: const pw.TextStyle(fontSize: 11)),
-                  pw.Expanded(child: pw.Text(d, style: const pw.TextStyle(fontSize: 11, lineSpacing: 3))),
+                  pw.Expanded(
+                      child: pw.Text(d,
+                          style: const pw.TextStyle(
+                              fontSize: 11, lineSpacing: 3))),
                 ],
               ),
             ),
           ),
         pw.SizedBox(height: 16),
-        pw.Text('Action Items', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text('Action Items',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 8),
         if (actions.isEmpty)
-          pw.Text('No action items captured.', style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700))
+          pw.Text('No action items captured.',
+              style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700))
         else
           ...actions.map(
             (a) => pw.Container(
@@ -80,16 +92,22 @@ Future<Uint8List> buildMeetingSummaryPdf({
                 children: [
                   pw.Text(
                     a['text'] ?? '',
-                    style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800),
+                    style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue800),
                   ),
                   pw.SizedBox(height: 4),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text(a['owner'] ?? 'Team', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+                      pw.Text(a['owner'] ?? 'Team',
+                          style: const pw.TextStyle(
+                              fontSize: 10, color: PdfColors.grey700)),
                       pw.Text(
                         a['due'] ?? 'TBD',
-                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.orange800),
+                        style: const pw.TextStyle(
+                            fontSize: 10, color: PdfColors.orange800),
                       ),
                     ],
                   ),

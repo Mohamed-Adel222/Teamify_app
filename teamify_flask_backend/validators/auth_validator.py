@@ -12,6 +12,8 @@ class RegisterSchema(Schema):
     # Legacy clients may still send display_name; registration ignores it and
     # assigns a temporary unique handle until the user sets a username in profile.
     display_name = fields.Str(load_default=None, validate=validate.Length(max=80))
+    # Handle chosen on the signup form; used as display_name when still free.
+    username = fields.Str(load_default=None, validate=validate.Length(max=30))
     email = fields.Email(required=True)
     password = fields.Str(required=True)
     full_name = fields.Str(required=True, validate=validate.Length(min=1, max=150))
@@ -31,6 +33,9 @@ class RegisterSchema(Schema):
     major = fields.Str(load_default=None)
     looking_for_team = fields.Bool(load_default=None)
     reason_for_joining = fields.Str(load_default=None)
+    university_id = fields.Str(load_default=None, validate=validate.Length(max=64))
+    university_name = fields.Str(load_default=None, validate=validate.Length(max=200))
+    is_custom_university = fields.Bool(load_default=False)
 
     @pre_load
     def sanitize_strings(self, data, **kwargs):
@@ -70,6 +75,9 @@ class ProfileUpdateSchema(Schema):
     major = fields.Str()
     looking_for_team = fields.Bool()
     reason_for_joining = fields.Str()
+    university_id = fields.Str(validate=validate.Length(max=64))
+    university_name = fields.Str(validate=validate.Length(max=200))
+    is_custom_university = fields.Bool()
 
 
 # Schema singletons

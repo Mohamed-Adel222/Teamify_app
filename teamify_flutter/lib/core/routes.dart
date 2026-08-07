@@ -70,7 +70,7 @@ class R {
   static const ratings = '/ratings';
   static const performance = '/performance';
   static const feedback = '/feedback';
-  static const languageSwitch = '/language-switch';
+  static const emailNotificationSettings = '/settings/email-notifications';
 
   // Resume
   static const resumeCVStart = '/resume-cv-start';
@@ -83,6 +83,9 @@ class R {
   // Admin / Security
   static const adminUsers = '/admin-users';
   static const adminRoles = '/admin-roles';
+  static const adminAnnouncements = '/admin/announcements';
+  static const adminAnnouncementsCreate = '/admin/announcements/create';
+  static const adminAnnouncementsPreview = '/admin/announcements/preview';
   static const securityChecklist = '/security-checklist';
   static const loginLogs = '/login-logs';
   static const securityAlerts = '/security-alerts';
@@ -90,9 +93,7 @@ class R {
   static const securityMonitor = '/security-monitor';
   static const rateLimiting = '/rate-limiting';
   static const encryptionStatus = '/encryption-status';
-  static const twoFAStatus = '/2fa-status';
-  static const twoFAVerify = '/2fa-verify';
-  static const twoFASuccess = '/2fa-success';
+
   static const analyst = '/analyst';
   static const securityFiles = '/security-files';
   static const securityCenter = '/security-center';
@@ -102,13 +103,13 @@ class R {
   static const reviewActivity = '/review-activity';
   static const askAI = '/ask-ai';
   static const notifications = '/notifications';
+  static const notificationDetails = '/notifications/details';
   static const settings = '/settings';
   static const privacyPolicy = '/privacy-policy';
   static const addUser = '/add-user';
   static const adminUserDetails = '/admin-user-details';
   static const editRolePermissions = '/admin-edit-role-permissions';
-  
-  static const adminTwoFaSetup = '/admin-2fa-setup';
+
   static const adminDashboard = '/admin-dashboard';
   static const adminProjects = '/admin-projects';
   static const adminTasks = '/admin-tasks';
@@ -119,6 +120,7 @@ class R {
   static const adminLogs = '/admin-logs';
   static const adminSecurity = '/admin-security';
   static const adminSettings = '/admin-settings';
+  static const adminLeaderboard = '/admin-leaderboard';
   static const mentorMain = '/mentor-main';
   static const addTask = '/add-task';
   static const teamsList = '/teams-list';

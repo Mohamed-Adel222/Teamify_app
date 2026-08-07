@@ -15,8 +15,9 @@ String notificationTypeLabel(String type) {
   if (type.isEmpty) return 'General';
   return type
       .split('_')
-      .map((w) =>
-          w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+      .map((w) => w.isEmpty
+          ? w
+          : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
       .join(' ');
 }
 
@@ -129,7 +130,8 @@ class _ProjectInvitationSheetBody extends StatefulWidget {
       _ProjectInvitationSheetBodyState();
 }
 
-class _ProjectInvitationSheetBodyState extends State<_ProjectInvitationSheetBody> {
+class _ProjectInvitationSheetBodyState
+    extends State<_ProjectInvitationSheetBody> {
   bool _responding = false;
   String? _error;
   AppServices? _services;
@@ -335,7 +337,8 @@ Future<void> _openTaskDetailFromNotification(
           await _showNotificationSheet(context, n, onUpdated: onUpdated);
           return;
         }
-        final projectResult = await services.projects.getProject(task.projectId);
+        final projectResult =
+            await services.projects.getProject(task.projectId);
         if (!context.mounted) return;
         await projectResult.when(
           success: (project) async {

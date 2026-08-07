@@ -24,7 +24,9 @@ class UserService with ServiceErrorHandler {
   static const _ttl = Duration(minutes: 5);
 
   static String _profileKeyFor(String? userId) =>
-      userId != null && userId.isNotEmpty ? 'user_profile_$userId' : 'user_profile';
+      userId != null && userId.isNotEmpty
+          ? 'user_profile_$userId'
+          : 'user_profile';
 
   late final SwrHelper _swr;
 

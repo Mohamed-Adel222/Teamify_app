@@ -78,6 +78,12 @@ class Config:
     GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "Ov23liRUeYFAPsv1xgtd")
     GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
 
+    # Gate the admin panel behind TOTP. Off by default because the client has no
+    # enrolment flow; the 2FA endpoints stay available for when it is added back.
+    ADMIN_2FA_REQUIRED = os.getenv("ADMIN_2FA_REQUIRED", "false").lower() in (
+        "1", "true", "yes",
+    )
+
     # ── AI / ML Model Settings ────────────────────────────────────────────────
     # Base directory where all .pkl model artifacts live.
     # Defaults to the ml_models/ sub-folder inside the backend package.

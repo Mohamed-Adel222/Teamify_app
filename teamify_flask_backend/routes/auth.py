@@ -1,7 +1,7 @@
 import re
 from typing import Any, cast
 
-from flask import Blueprint, request, jsonify, make_response
+from flask import Blueprint, current_app, request, jsonify, make_response
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import (
     create_access_token, create_refresh_token,
@@ -218,14 +218,23 @@ def register():
             "messages": _format_validation_errors(err),
         }), 400
 
-    from utils.user_names import generate_unique_display_name
+    from utils.user_names import generate_unique_display_name, validate_username
 
     full_name = (data.get("full_name") or "").strip()
     email = data.get("email")
     password = data.get("password")
     role = data.get("role")
     user_type = data.get("user_type")
-    display_name = generate_unique_display_name()
+
+    # Honour the handle picked on the signup form when it is valid and free;
+    # otherwise fall back to a generated one the user can change in profile.
+    requested_username = (data.get("username") or "").strip()
+    display_name = None
+    if requested_username and not validate_username(requested_username):
+        if not User.query.filter_by(display_name=requested_username).first():
+            display_name = requested_username
+    if not display_name:
+        display_name = generate_unique_display_name()
 
     # Check if an authenticated admin is making the request
     is_admin_caller = False
@@ -282,6 +291,9 @@ def register():
         major=data.get("major") or None,
         looking_for_team=data.get("looking_for_team"),
         reason_for_joining=data.get("reason_for_joining") or None,
+        university_id=(data.get("university_id") or None),
+        university_name=(data.get("university_name") or None),
+        is_custom_university=bool(data.get("is_custom_university")),
     )
     db.session.add(new_user)
     db.session.flush()  # get new_user.id without committing yet
@@ -486,7 +498,9 @@ def login():
     requires_2fa_setup = False
     requires_2fa_login = False
     token_claims = {}
-    if (user.role or "").lower() == "admin":
+    if (user.role or "").lower() == "admin" and current_app.config.get(
+        "ADMIN_2FA_REQUIRED"
+    ):
         if not user.totp_enabled or not user.totp_secret:
             requires_2fa_setup = True
         else:

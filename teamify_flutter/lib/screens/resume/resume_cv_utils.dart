@@ -34,7 +34,8 @@ Map<String, dynamic> normalizeCvForPreview(Map<String, dynamic> raw) {
       );
     }
   }
-  final sanitized = filterSkillsForCvApi(sanitizeSkillsList(List<String>.from(skills))).kept;
+  final sanitized =
+      filterSkillsForCvApi(sanitizeSkillsList(List<String>.from(skills))).kept;
   skills
     ..clear()
     ..addAll(sanitized);
@@ -69,9 +70,8 @@ Map<String, dynamic> normalizeCvForPreview(Map<String, dynamic> raw) {
   }
 
   final userRaw = raw['user'];
-  final user = userRaw is Map
-      ? Map<String, dynamic>.from(userRaw)
-      : <String, dynamic>{};
+  final user =
+      userRaw is Map ? Map<String, dynamic>.from(userRaw) : <String, dynamic>{};
 
   if (user.isEmpty && raw['personal_info'] is Map) {
     final pi = Map<String, dynamic>.from(raw['personal_info'] as Map);
@@ -97,16 +97,30 @@ Map<String, dynamic> designPrefsFromCv(Map<String, dynamic> raw) {
   final pi = raw['personal_info'];
   if (pi is Map) {
     final m = Map<String, dynamic>.from(pi);
+    final orderRaw = m['section_order'] ?? raw['section_order'];
+    final orderList = orderRaw is List
+        ? orderRaw.map((e) => e.toString()).toList()
+        : defaultSectionOrder();
     return {
       'style': m['resume_style']?.toString() ?? 'Modern',
       'accent': m['accent_color']?.toString() ?? '#2D5FA6',
+      'font_family': m['font_family']?.toString() ?? 'Default',
+      'body_size': (m['body_size'] as num?)?.toDouble() ?? 12.0,
+      'heading_size': (m['heading_size'] as num?)?.toDouble() ?? 18.0,
+      'section_order': orderList,
       'sections': m['section_visibility'] is Map
           ? Map<String, dynamic>.from(m['section_visibility'] as Map)
           : defaultSectionVisibility(),
     };
   }
   if (raw['design'] is Map) {
-    return Map<String, dynamic>.from(raw['design'] as Map);
+    final d = Map<String, dynamic>.from(raw['design'] as Map);
+    d['font_family'] ??= 'Default';
+    d['body_size'] ??= 12.0;
+    d['heading_size'] ??= 18.0;
+    d['section_order'] ??= defaultSectionOrder();
+    d['sections'] ??= defaultSectionVisibility();
+    return d;
   }
   return defaultDesignPrefs();
 }
@@ -114,13 +128,37 @@ Map<String, dynamic> designPrefsFromCv(Map<String, dynamic> raw) {
 Map<String, dynamic> defaultDesignPrefs() => {
       'style': 'Modern',
       'accent': '#2D5FA6',
+      'font_family': 'Default',
+      'body_size': 12.0,
+      'heading_size': 18.0,
+      'section_order': defaultSectionOrder(),
       'sections': defaultSectionVisibility(),
     };
 
+List<String> defaultSectionOrder() => [
+      'Personal Information',
+      'Professional Summary',
+      'Skills',
+      'Experience',
+      'Projects',
+      'Education',
+      'Certifications',
+      'Languages',
+      'Contact Information',
+    ];
+
 Map<String, bool> defaultSectionVisibility() => {
-      'Summary': true,
-      'Experience': true,
+      'Personal Information': true,
+      'Professional Summary': true,
       'Skills': true,
+      'Experience': true,
+      'Projects': true,
+      'Education': true,
+      'Certifications': true,
+      'Languages': true,
+      'Contact Information': true,
+      // Backward compatibility keys
+      'Summary': true,
       'Achievements': true,
     };
 
@@ -207,39 +245,166 @@ List<String> sanitizeSkillsList(List<String> skills) {
 
 /// Skills accepted by POST/PATCH /api/cv (mirrors backend cv_validator.py).
 const Set<String> _allowedCvSkills = {
-  'Python', 'JavaScript', 'TypeScript', 'Java', 'C', 'C++', 'C#', 'Go',
-  'Rust', 'Kotlin', 'Swift', 'Ruby', 'PHP', 'Scala', 'R', 'Dart', 'Lua',
-  'Perl', 'Haskell', 'Elixir', 'Clojure', 'MATLAB', 'Shell', 'Bash',
-  'PowerShell', 'SQL', 'HTML', 'CSS', 'Objective-C', 'Assembly',
-  'React', 'Angular', 'Vue', 'Svelte', 'Next.js', 'Nuxt.js', 'jQuery',
-  'Bootstrap', 'TailwindCSS', 'Sass', 'LESS', 'Redux', 'Zustand',
-  'Webpack', 'Vite', 'Figma', 'Adobe XD',
-  'Flask', 'Django', 'FastAPI', 'Express', 'NestJS', 'Spring Boot',
-  'Ruby on Rails', 'Laravel', 'ASP.NET', 'Node.js', 'Deno', 'Bun',
-  'Flutter', 'React Native', 'SwiftUI', 'Jetpack Compose', 'Xamarin', 'Ionic',
-  'Machine Learning', 'Deep Learning', 'TensorFlow', 'PyTorch', 'Keras',
-  'Scikit-learn', 'Pandas', 'NumPy', 'OpenCV', 'NLP',
-  'Computer Vision', 'Data Analysis', 'Data Science', 'Big Data',
-  'Apache Spark', 'Hadoop', 'Power BI', 'Tableau',
-  'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'Terraform',
-  'Ansible', 'Jenkins', 'GitHub Actions', 'CI/CD', 'Linux', 'Nginx', 'Apache',
-  'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'SQLite', 'Firebase',
-  'Elasticsearch', 'DynamoDB', 'Oracle', 'SQL Server', 'Cassandra',
-  'Neo4j', 'Supabase',
-  'Pytest', 'Jest', 'Selenium', 'Cypress', 'Playwright',
-  'Penetration Testing', 'OWASP', 'Cryptography',
-  'Agile', 'Scrum', 'Git', 'GitHub', 'GitLab', 'Jira', 'REST API',
-  'REST APIs', 'GraphQL', 'gRPC', 'WebSocket', 'Microservices', 'System Design',
-  'Technical Writing', 'UI/UX Design', 'Project Management',
-  'Leadership', 'Communication', 'Problem Solving', 'Team Management',
-  'Reliability & Consistency', 'Teamwork & Synergy',
-  'HTML/CSS', 'Unit Testing', 'Code Review',
-  'Product Thinking', 'Stakeholder Communication', 'Architecture', 'OKRs',
-  'Backend Development', 'Frontend Development', 'Mobile App Development',
-  'Full Stack Development', 'AI Tools', 'DevOps Engineering',
-  'Cloud Engineering', 'Software Engineering', 'Web Development',
-  'Team Leadership', 'Cross-functional Collaboration', 'Time Management',
-  'Efficient Execution', 'Professional Integrity',
+  'Python',
+  'JavaScript',
+  'TypeScript',
+  'Java',
+  'C',
+  'C++',
+  'C#',
+  'Go',
+  'Rust',
+  'Kotlin',
+  'Swift',
+  'Ruby',
+  'PHP',
+  'Scala',
+  'R',
+  'Dart',
+  'Lua',
+  'Perl',
+  'Haskell',
+  'Elixir',
+  'Clojure',
+  'MATLAB',
+  'Shell',
+  'Bash',
+  'PowerShell',
+  'SQL',
+  'HTML',
+  'CSS',
+  'Objective-C',
+  'Assembly',
+  'React',
+  'Angular',
+  'Vue',
+  'Svelte',
+  'Next.js',
+  'Nuxt.js',
+  'jQuery',
+  'Bootstrap',
+  'TailwindCSS',
+  'Sass',
+  'LESS',
+  'Redux',
+  'Zustand',
+  'Webpack',
+  'Vite',
+  'Figma',
+  'Adobe XD',
+  'Flask',
+  'Django',
+  'FastAPI',
+  'Express',
+  'NestJS',
+  'Spring Boot',
+  'Ruby on Rails',
+  'Laravel',
+  'ASP.NET',
+  'Node.js',
+  'Deno',
+  'Bun',
+  'Flutter',
+  'React Native',
+  'SwiftUI',
+  'Jetpack Compose',
+  'Xamarin',
+  'Ionic',
+  'Machine Learning',
+  'Deep Learning',
+  'TensorFlow',
+  'PyTorch',
+  'Keras',
+  'Scikit-learn',
+  'Pandas',
+  'NumPy',
+  'OpenCV',
+  'NLP',
+  'Computer Vision',
+  'Data Analysis',
+  'Data Science',
+  'Big Data',
+  'Apache Spark',
+  'Hadoop',
+  'Power BI',
+  'Tableau',
+  'AWS',
+  'Azure',
+  'GCP',
+  'Docker',
+  'Kubernetes',
+  'Terraform',
+  'Ansible',
+  'Jenkins',
+  'GitHub Actions',
+  'CI/CD',
+  'Linux',
+  'Nginx',
+  'Apache',
+  'PostgreSQL',
+  'MySQL',
+  'MongoDB',
+  'Redis',
+  'SQLite',
+  'Firebase',
+  'Elasticsearch',
+  'DynamoDB',
+  'Oracle',
+  'SQL Server',
+  'Cassandra',
+  'Neo4j',
+  'Supabase',
+  'Pytest',
+  'Jest',
+  'Selenium',
+  'Cypress',
+  'Playwright',
+  'Penetration Testing',
+  'OWASP',
+  'Cryptography',
+  'Agile',
+  'Scrum',
+  'Git',
+  'GitHub',
+  'GitLab',
+  'Jira',
+  'REST API',
+  'REST APIs',
+  'GraphQL',
+  'gRPC',
+  'WebSocket',
+  'Microservices',
+  'System Design',
+  'Technical Writing',
+  'UI/UX Design',
+  'Project Management',
+  'Leadership',
+  'Communication',
+  'Problem Solving',
+  'Team Management',
+  'Reliability & Consistency',
+  'Teamwork & Synergy',
+  'HTML/CSS',
+  'Unit Testing',
+  'Code Review',
+  'Product Thinking',
+  'Stakeholder Communication',
+  'Architecture',
+  'OKRs',
+  'Backend Development',
+  'Frontend Development',
+  'Mobile App Development',
+  'Full Stack Development',
+  'AI Tools',
+  'DevOps Engineering',
+  'Cloud Engineering',
+  'Software Engineering',
+  'Web Development',
+  'Team Leadership',
+  'Cross-functional Collaboration',
+  'Time Management',
+  'Efficient Execution',
+  'Professional Integrity',
   'High Initiative & Engagement',
 };
 

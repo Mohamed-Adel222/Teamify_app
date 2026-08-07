@@ -20,9 +20,13 @@ class NewUserHomeScreen extends StatelessWidget {
     final displayRole = args?['role'] as String? ?? role;
     final displayName = args?['name'] as String? ?? userName;
     final pendingApproval = args?['pendingApproval'] == true;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final border = Theme.of(context).dividerColor;
+    final secColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // Premium Header with Gradient
@@ -83,12 +87,11 @@ class NewUserHomeScreen extends StatelessWidget {
                           : 'Quick Onboarding'),
                   const SizedBox(height: 16),
                   if (pendingApproval)
-                    const TCard(
-                      padding: EdgeInsets.all(16),
+                    TCard(
+                      padding: const EdgeInsets.all(16),
                       child: Text(
                         'An admin must approve your account before you can access protected Teamify features. Please try logging in again after approval.',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, height: 1.4),
+                        style: TextStyle(color: secColor, height: 1.4),
                       ),
                     )
                   else
@@ -141,15 +144,13 @@ class NewUserHomeScreen extends StatelessWidget {
                           title: 'Add your skills',
                           onTap: () => Navigator.pushNamed(context, R.skills),
                         ),
-                        const Divider(
-                            height: 1, indent: 60, color: AppColors.border),
+                        Divider(height: 1, indent: 60, color: border),
                         _StepItem(
                           title: 'Complete your profile',
                           onTap: () =>
                               Navigator.pushNamed(context, R.completeProfile),
                         ),
-                        const Divider(
-                            height: 1, indent: 60, color: AppColors.border),
+                        Divider(height: 1, indent: 60, color: border),
                         _StepItem(
                           title: displayRole == 'Student'
                               ? 'Join a project'
@@ -189,6 +190,11 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return TCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -208,18 +214,15 @@ class _ActionCard extends StatelessWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary),
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.bold, color: onSurface),
           ),
           const SizedBox(height: 2),
           Text(
             subtitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 10, color: AppColors.textSecondary, height: 1.2),
+            style: TextStyle(fontSize: 10, color: secColor, height: 1.2),
           ),
         ],
       ),
@@ -235,22 +238,26 @@ class _StepItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.1), shape: BoxShape.circle),
+            color: AppColors.success.withValues(alpha: 0.1),
+            shape: BoxShape.circle),
         child: const Icon(Icons.check, color: AppColors.success, size: 16),
       ),
       title: Text(title,
-          style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary)),
-      trailing:
-          const Icon(Icons.chevron_right, color: AppColors.textHint, size: 18),
+          style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w500, color: onSurface)),
+      trailing: Icon(Icons.arrow_forward_ios,
+          size: 14,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.darkTextSecondary
+              : AppColors.textSecondary),
     );
   }
 }

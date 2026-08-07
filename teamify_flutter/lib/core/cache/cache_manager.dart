@@ -148,9 +148,8 @@ class CacheManager {
     await box.clear();
     // Also clear all timestamps for this box
     final meta = Hive.box<String>(_metaBoxName);
-    final keysToDelete = meta.keys
-        .where((k) => k.toString().startsWith('${boxName}_'))
-        .toList();
+    final keysToDelete =
+        meta.keys.where((k) => k.toString().startsWith('${boxName}_')).toList();
     for (final key in keysToDelete) {
       await meta.delete(key);
     }
@@ -188,7 +187,7 @@ class CacheManager {
     List<Map<String, dynamic>> items,
   ) async {
     await putList(boxName, '${keyPrefix}_page_$page', items);
-    
+
     // Update the metadata for total pages tracked
     if (!_initialized) return;
     final meta = Hive.box<String>(_metaBoxName);
@@ -231,16 +230,18 @@ class CacheManager {
     if (box.length <= maxItems) return;
 
     final meta = Hive.box<String>(_metaBoxName);
-    
+
     // Build a list of (key, timestamp)
     final entries = <MapEntry<String, DateTime>>[];
     for (final key in box.keys) {
       final tsStr = meta.get('${boxName}_${key}_ts');
       if (tsStr != null) {
-        final ts = DateTime.tryParse(tsStr) ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final ts =
+            DateTime.tryParse(tsStr) ?? DateTime.fromMillisecondsSinceEpoch(0);
         entries.add(MapEntry(key.toString(), ts));
       } else {
-        entries.add(MapEntry(key.toString(), DateTime.fromMillisecondsSinceEpoch(0)));
+        entries.add(
+            MapEntry(key.toString(), DateTime.fromMillisecondsSinceEpoch(0)));
       }
     }
 
@@ -248,7 +249,8 @@ class CacheManager {
     entries.sort((a, b) => a.value.compareTo(b.value));
 
     // Remove oldest entries until we're under the limit
-    final toRemove = entries.take(box.length - maxItems).map((e) => e.key).toList();
+    final toRemove =
+        entries.take(box.length - maxItems).map((e) => e.key).toList();
     for (final key in toRemove) {
       await box.delete(key);
       await meta.delete('${boxName}_${key}_ts');

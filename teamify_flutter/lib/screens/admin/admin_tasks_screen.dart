@@ -47,12 +47,16 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
     setState(() => _loading = true);
 
     try {
-      final res = await context.read<AppServices>().admin.listTasks(
-        search: _searchQuery,
-        priority: _filterPriority,
-        status: _filterStatus,
-        page: _currentPage,
-      ).unwrap();
+      final res = await context
+          .read<AppServices>()
+          .admin
+          .listTasks(
+            search: _searchQuery,
+            priority: _filterPriority,
+            status: _filterStatus,
+            page: _currentPage,
+          )
+          .unwrap();
 
       setState(() {
         _tasks = res['items'] as List? ?? [];
@@ -61,7 +65,9 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load tasks: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Failed to load tasks: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -69,12 +75,19 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
     }
   }
 
-  Future<void> _updateTask(String taskId, {String? status, String? assignedTo}) async {
+  Future<void> _updateTask(String taskId,
+      {String? status, String? assignedTo}) async {
     try {
-      await context.read<AppServices>().admin.updateTask(taskId, status: status, assignedTo: assignedTo).unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .updateTask(taskId, status: status, assignedTo: assignedTo)
+          .unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task updated successfully'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('Task updated successfully'),
+            backgroundColor: AppColors.success),
       );
       _loadTasks();
     } catch (e) {
@@ -90,7 +103,9 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
       await context.read<AppServices>().admin.deleteTask(taskId).unwrap();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task permanently deleted'), backgroundColor: AppColors.success),
+        const SnackBar(
+            content: Text('Task permanently deleted'),
+            backgroundColor: AppColors.success),
       );
       _loadTasks();
     } catch (e) {
@@ -106,7 +121,8 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Task Management', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Task Management',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: Column(
         children: [
@@ -127,7 +143,8 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Search tasks by title...',
                       border: InputBorder.none,
-                      prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+                      prefixIcon:
+                          Icon(Icons.search, color: AppColors.textSecondary),
                     ),
                   ),
                 ),
@@ -148,10 +165,22 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
                           isExpanded: true,
                           underline: const SizedBox(),
                           items: const [
-                            DropdownMenuItem(value: '', child: Text('All Priorities', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'low', child: Text('Low Priority', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'medium', child: Text('Medium Priority', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'high', child: Text('High Priority', style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: '',
+                                child: Text('All Priorities',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'low',
+                                child: Text('Low Priority',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'medium',
+                                child: Text('Medium Priority',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'high',
+                                child: Text('High Priority',
+                                    style: TextStyle(fontSize: 12))),
                           ],
                           onChanged: (val) {
                             setState(() {
@@ -177,10 +206,22 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
                           isExpanded: true,
                           underline: const SizedBox(),
                           items: const [
-                            DropdownMenuItem(value: '', child: Text('All Statuses', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'pending', child: Text('Pending', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'in_progress', child: Text('In Progress', style: TextStyle(fontSize: 12))),
-                            DropdownMenuItem(value: 'done', child: Text('Completed', style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: '',
+                                child: Text('All Statuses',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'pending',
+                                child: Text('Pending',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'in_progress',
+                                child: Text('In Progress',
+                                    style: TextStyle(fontSize: 12))),
+                            DropdownMenuItem(
+                                value: 'done',
+                                child: Text('Completed',
+                                    style: TextStyle(fontSize: 12))),
                           ],
                           onChanged: (val) {
                             setState(() {
@@ -203,7 +244,9 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
             child: _loading && _tasks.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _tasks.isEmpty
-                    ? const Center(child: Text('No tasks found matching filters', style: TextStyle(color: AppColors.textSecondary)))
+                    ? const Center(
+                        child: Text('No tasks found matching filters',
+                            style: TextStyle(color: AppColors.textSecondary)))
                     : RefreshIndicator(
                         onRefresh: _loadTasks,
                         child: ListView.builder(
@@ -222,21 +265,27 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Expanded(
                                           child: Text(
                                             t['title'] ?? 'Task',
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15),
                                           ),
                                         ),
                                         TChip(
                                           label: priority.toUpperCase(),
                                           bg: priority == 'high'
-                                              ? AppColors.error.withValues(alpha: 0.1)
+                                              ? AppColors.error
+                                                  .withValues(alpha: 0.1)
                                               : priority == 'medium'
-                                                  ? AppColors.warning.withValues(alpha: 0.1)
-                                                  : AppColors.success.withValues(alpha: 0.1),
+                                                  ? AppColors.warning
+                                                      .withValues(alpha: 0.1)
+                                                  : AppColors.success
+                                                      .withValues(alpha: 0.1),
                                           textColor: priority == 'high'
                                               ? AppColors.error
                                               : priority == 'medium'
@@ -246,12 +295,23 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 6),
-                                    Text('Project: ${t['project_name'] ?? 'Unknown'}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    Text(
+                                        'Project: ${t['project_name'] ?? 'Unknown'}',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary)),
                                     const SizedBox(height: 4),
-                                    Text('Assigned To: ${t['assigned_user_name'] ?? 'Unassigned'}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                    Text(
+                                        'Assigned To: ${t['assigned_user_name'] ?? 'Unassigned'}',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600)),
                                     if (t['due_date'] != null) ...[
                                       const SizedBox(height: 4),
-                                      Text('Due Date: ${t['due_date']}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                      Text('Due Date: ${t['due_date']}',
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textSecondary)),
                                     ],
                                     const Divider(height: 20),
                                     // Row of Actions
@@ -259,21 +319,34 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
                                         TextButton.icon(
-                                          icon: const Icon(Icons.person_add_alt_1_outlined, size: 16),
-                                          label: const Text('Reassign', style: TextStyle(fontSize: 11)),
-                                          onPressed: () => _showReassignDialog(t['id'].toString()),
+                                          icon: const Icon(
+                                              Icons.person_add_alt_1_outlined,
+                                              size: 16),
+                                          label: const Text('Reassign',
+                                              style: TextStyle(fontSize: 11)),
+                                          onPressed: () => _showReassignDialog(
+                                              t['id'].toString()),
                                         ),
                                         const SizedBox(width: 8),
                                         TextButton.icon(
-                                          icon: const Icon(Icons.rule_outlined, size: 16),
-                                          label: const Text('Status', style: TextStyle(fontSize: 11)),
-                                          onPressed: () => _showStatusDialog(t['id'].toString(), status),
+                                          icon: const Icon(Icons.rule_outlined,
+                                              size: 16),
+                                          label: const Text('Status',
+                                              style: TextStyle(fontSize: 11)),
+                                          onPressed: () => _showStatusDialog(
+                                              t['id'].toString(), status),
                                         ),
                                         const SizedBox(width: 8),
                                         TextButton.icon(
-                                          icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 16),
-                                          label: const Text('Delete', style: TextStyle(fontSize: 11, color: AppColors.error)),
-                                          onPressed: () => _showDeleteConfirmation(t['id'].toString()),
+                                          icon: const Icon(Icons.delete_outline,
+                                              color: AppColors.error, size: 16),
+                                          label: const Text('Delete',
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppColors.error)),
+                                          onPressed: () =>
+                                              _showDeleteConfirmation(
+                                                  t['id'].toString()),
                                         ),
                                       ],
                                     ),
@@ -303,7 +376,8 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
                           }
                         : null,
                   ),
-                  Text('Page $_currentPage of $_totalPages', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Page $_currentPage of $_totalPages',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
                     onPressed: _currentPage < _totalPages
@@ -338,7 +412,8 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
             initialValue: currentStatus,
             items: const [
               DropdownMenuItem(value: 'pending', child: Text('Pending')),
-              DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+              DropdownMenuItem(
+                  value: 'in_progress', child: Text('In Progress')),
               DropdownMenuItem(value: 'done', child: Text('Completed')),
             ],
             onChanged: (val) {
@@ -346,7 +421,9 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
             },
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -366,9 +443,12 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Force Delete Task'),
-          content: const Text('Are you sure you want to permanently delete this task? This cannot be undone.'),
+          content: const Text(
+              'Are you sure you want to permanently delete this task? This cannot be undone.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () {

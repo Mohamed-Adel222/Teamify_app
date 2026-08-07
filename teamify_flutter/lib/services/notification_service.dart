@@ -10,6 +10,7 @@ import '../core/offline/offline_manager.dart';
 import '../core/offline/mutation_id.dart';
 import '../core/offline/offline_mutation.dart';
 import '../data/models/models.dart';
+import '../data/models/notification_preferences_model.dart';
 import '../data/repositories/notification_repository.dart';
 import 'home_service.dart';
 
@@ -27,8 +28,8 @@ class NotificationService with ServiceErrorHandler {
     this._cache, {
     WebSocketManager? ws,
     required OfflineManager offline,
-  }) : _ws = ws,
-       _offline = offline {
+  })  : _ws = ws,
+        _offline = offline {
     _swr = SwrHelper(_cache);
     _subscribeToWebSocket();
   }
@@ -80,30 +81,31 @@ class NotificationService with ServiceErrorHandler {
     bool forceRefresh = false,
     void Function(List<ApiNotification>)? onRefreshed,
   }) =>
-      _dedup.deduplicate('list_notifications', () => guard(() async {
-            if (forceRefresh) {
-              final list = await _repo.listNotifications();
-              await _cache.putList(
-                  _box, 'all', list.map((n) => n.toJson()).toList());
-              return list;
-            }
-
-            return _swr
-                .withSwrList<ApiNotification>(
-                  boxName: _box,
-                  key: 'all',
-                  fetcher: () => _repo.listNotifications(),
-                  fromJson: ApiNotification.fromJson,
-                  toJson: (n) => n.toJson(),
-                  onRefreshed: onRefreshed,
-                )
-                .then((res) =>
-                    res.isSuccess ? res.data! : throw Exception(res.error));
-          }));
-
-  Future<ApiResult<int>> getUnreadCount() =>
       _dedup.deduplicate(
-          'notif_unread', () => guard(() => _repo.getUnreadCount()));
+          'list_notifications',
+          () => guard(() async {
+                if (forceRefresh) {
+                  final list = await _repo.listNotifications();
+                  await _cache.putList(
+                      _box, 'all', list.map((n) => n.toJson()).toList());
+                  return list;
+                }
+
+                return _swr
+                    .withSwrList<ApiNotification>(
+                      boxName: _box,
+                      key: 'all',
+                      fetcher: () => _repo.listNotifications(),
+                      fromJson: ApiNotification.fromJson,
+                      toJson: (n) => n.toJson(),
+                      onRefreshed: onRefreshed,
+                    )
+                    .then((res) =>
+                        res.isSuccess ? res.data! : throw Exception(res.error));
+              }));
+
+  Future<ApiResult<int>> getUnreadCount() => _dedup.deduplicate(
+      'notif_unread', () => guard(() => _repo.getUnreadCount()));
 
   Future<ApiResult<void>> markRead(String id) => guardWithOffline(
         () async {
@@ -135,6 +137,25 @@ class NotificationService with ServiceErrorHandler {
         ),
         offlineManager: _offline,
       );
+
+  /// Server-side email preferences. Falls back to the Hive cache when the
+  /// request fails so the settings screen still works offline.
+  Future<ApiResult<NotificationPreferences>> getPreferences() =>
+      guard(() async {
+        final json = await _repo.getPreferences();
+        final prefs = NotificationPreferences.fromJson(json);
+        await prefs.save();
+        return prefs;
+      });
+
+  Future<ApiResult<NotificationPreferences>> savePreferences(
+          NotificationPreferences prefs) =>
+      guard(() async {
+        final json = await _repo.updatePreferences(prefs.toJson());
+        final saved = NotificationPreferences.fromJson(json);
+        await saved.save();
+        return saved;
+      });
 
   void dispose() {
     _wsSub?.cancel();

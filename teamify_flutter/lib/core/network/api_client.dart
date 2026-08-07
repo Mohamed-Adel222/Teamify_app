@@ -30,7 +30,8 @@ class ApiClient {
               ),
             ),
         tokenStorage = tokenStorage ?? TokenStorage() {
-    this.dio.transformer = BackgroundTransformer()..jsonDecodeCallback = _parseAndDecode;
+    this.dio.transformer = BackgroundTransformer()
+      ..jsonDecodeCallback = _parseAndDecode;
     this.dio.interceptors.add(
           InterceptorsWrapper(
             onRequest: _addAuthHeader,
@@ -154,7 +155,8 @@ class ApiClient {
     final alreadyRetried = error.requestOptions.extra['retried'] == true;
 
     if (statusCode == 401 && !alreadyRetried && !_isRefreshing) {
-      AppLogger.log('401 Unauthorized for ${error.requestOptions.path}. Attempting token refresh...');
+      AppLogger.log(
+          '401 Unauthorized for ${error.requestOptions.path}. Attempting token refresh...');
       final refreshed = await _refreshAccessToken();
       if (refreshed) {
         try {
@@ -164,7 +166,8 @@ class ApiClient {
           if (accessToken != null) {
             retryOptions.headers['Authorization'] = 'Bearer $accessToken';
           }
-          AppLogger.recordMetric('api.retry', 1, tags: {'path': error.requestOptions.path});
+          AppLogger.recordMetric('api.retry', 1,
+              tags: {'path': error.requestOptions.path});
           final response = await dio.fetch<dynamic>(retryOptions);
           handler.resolve(response);
           return;
@@ -190,7 +193,8 @@ class ApiClient {
       return;
     }
 
-    AppLogger.error('API Error [${error.response?.statusCode}]: ${error.message}', error);
+    AppLogger.error(
+        'API Error [${error.response?.statusCode}]: ${error.message}', error);
 
     final apiException = ApiException.fromResponse(
       statusCode,

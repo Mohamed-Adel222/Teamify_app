@@ -9,8 +9,8 @@ Future<void> saveDownloadedBytes({
   required Uint8List bytes,
   String? mimeType,
 }) async {
-  final dir = await getDownloadsDirectory() ??
-      await getApplicationDocumentsDirectory();
+  final dir =
+      await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
   final safeName = filename.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   final file = File('${dir.path}/$safeName');
   await file.writeAsBytes(bytes, flush: true);

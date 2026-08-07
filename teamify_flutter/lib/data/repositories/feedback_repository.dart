@@ -14,8 +14,7 @@ class FeedbackRepository {
 
   /// GET /api/feedback/user/<userId>
   Future<List<Map<String, dynamic>>> getUserFeedback(String userId) async {
-    final response =
-        await _client.get<dynamic>('/api/feedback/user/$userId');
+    final response = await _client.get<dynamic>('/api/feedback/user/$userId');
     return responseList(response.data, ['feedback', 'data'])
         .cast<Map<String, dynamic>>();
   }
@@ -37,8 +36,7 @@ class FeedbackRepository {
   }
 
   /// PUT /api/feedback/<id>
-  Future<void> updateFeedback(
-      String id, Map<String, dynamic> payload) async {
+  Future<void> updateFeedback(String id, Map<String, dynamic> payload) async {
     await _client.put<dynamic>('/api/feedback/$id', data: payload);
   }
 

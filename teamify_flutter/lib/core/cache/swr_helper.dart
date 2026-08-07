@@ -19,9 +19,9 @@ class SwrHelper {
     void Function(T)? onRefreshed,
     Duration staleAge = const Duration(minutes: 10),
   }) async {
-    final cached = await cache.getMap(boxName, key, maxAge: const Duration(days: 30));
-    final isStale =
-        cached != null && cache.isExpired(boxName, key, staleAge);
+    final cached =
+        await cache.getMap(boxName, key, maxAge: const Duration(days: 30));
+    final isStale = cached != null && cache.isExpired(boxName, key, staleAge);
 
     if (cached != null) {
       final data = fromJson(cached);
@@ -57,9 +57,9 @@ class SwrHelper {
     void Function(List<T>)? onRefreshed,
     Duration staleAge = const Duration(minutes: 10),
   }) async {
-    final cached = await cache.getList(boxName, key, maxAge: const Duration(days: 30));
-    final isStale =
-        cached != null && cache.isExpired(boxName, key, staleAge);
+    final cached =
+        await cache.getList(boxName, key, maxAge: const Duration(days: 30));
+    final isStale = cached != null && cache.isExpired(boxName, key, staleAge);
 
     if (cached != null) {
       final data = cached.map(fromJson).toList();

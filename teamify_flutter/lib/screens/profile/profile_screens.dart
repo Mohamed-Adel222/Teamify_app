@@ -3,18 +3,22 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../config/app_config.dart';
 import '../../core/course_link.dart';
 import '../../core/theme.dart';
 import '../../core/routes.dart';
 import '../../core/network/api_result.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/theme_controller.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../services/app_services.dart';
 import '../../models/models.dart';
 import '../../widgets/widgets.dart';
 import '../../data/models/api_user.dart';
 import '../../data/models/api_helpers.dart';
 import '../../data/models/api_project.dart';
+import '../../data/models/university_option_model.dart';
+import '../../widgets/university_selector_widgets.dart';
 
 // ── Profile stats parsing (GET /api/users/<id>/stats) ─────────────────────────
 class ProfileDisplayStats {
@@ -156,7 +160,11 @@ ProfileDisplayStats profileDisplayStats(
 class _ProfileBase extends StatelessWidget {
   final String name, role, initials, email, location, joined;
   final String projects, tasksDone, score;
+  final String? targetUserId;
   final bool isAdmin;
+  final String? universityName;
+  final bool isCustomUniversity;
+
   const _ProfileBase({
     required this.name,
     required this.role,
@@ -167,25 +175,39 @@ class _ProfileBase extends StatelessWidget {
     required this.projects,
     required this.tasksDone,
     required this.score,
+    this.targetUserId,
     this.isAdmin = false,
+    this.universityName,
+    this.isCustomUniversity = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = targetUserId ??
+        (context.read<SessionController>().currentUser?.id ?? 'demo_user_me');
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final surfaceBg = isDark ? const Color(0xFF1E293B) : AppColors.background;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           children: [
-            const Text('Profile',
+            Text('Profile',
                 style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
-            const Text('Manage your account',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                    color: onSurface)),
+            Text('Manage your account',
+                style: TextStyle(
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                    fontSize: 13)),
             const SizedBox(height: 16),
             TCard(
                 child: Column(
@@ -199,14 +221,16 @@ class _ProfileBase extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                           Text(name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
+                                  color: onSurface,
                                   fontSize: 16)),
                           Text(role,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 13,
-                                  color: AppColors.textSecondary)),
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.textSecondary)),
                         ])),
                     GestureDetector(
                       onTap: () => Navigator.pushNamed(context, R.editProfile),
@@ -214,36 +238,86 @@ class _ProfileBase extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                              color: AppColors.background,
+                              color: surfaceBg,
                               borderRadius: BorderRadius.circular(20)),
-                          child: const Text('Edit Profile',
+                          child: Text('Edit Profile',
                               style: TextStyle(
                                   fontSize: 12,
-                                  color: AppColors.textPrimary,
+                                  color: onSurface,
                                   fontWeight: FontWeight.w500))),
                     ),
                   ]),
                   const SizedBox(height: 14),
-                  _infoRow(Icons.email_outlined, email),
-                  const SizedBox(height: 6),
-                  _infoRow(Icons.location_on_outlined, location),
-                  const SizedBox(height: 6),
-                  _infoRow(Icons.calendar_today_outlined, joined),
+                  if (email.trim().isNotEmpty) ...[
+                    _infoRow(context, Icons.email_outlined, email.trim()),
+                    const SizedBox(height: 6),
+                  ],
+                  if (universityName != null &&
+                      universityName!.trim().isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.school_outlined,
+                            size: 14, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          universityName!.trim(),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: onSurface,
+                          ),
+                        ),
+                        if (isCustomUniversity) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Custom',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                  ] else if (location.trim().isNotEmpty &&
+                      location.trim() != 'University') ...[
+                    _infoRow(
+                        context, Icons.location_on_outlined, location.trim()),
+                    const SizedBox(height: 6),
+                  ],
+                  if (joined.trim().isNotEmpty)
+                    _infoRow(
+                        context, Icons.calendar_today_outlined, joined.trim()),
                 ])),
             const SizedBox(height: 12),
             Row(children: [
-              _statBox(projects, 'Projects'),
+              _statBox(context, projects, 'Projects'),
               const SizedBox(width: 10),
-              _statBox(tasksDone, 'Tasks Done'),
+              _statBox(context, tasksDone, 'Tasks Done'),
               const SizedBox(width: 10),
-              _statBox(score, 'Score'),
+              _statBox(context, score, 'Score'),
             ]),
+            const SizedBox(height: 14),
+            _ProfileFeedbackSection(
+              targetUserId: currentUserId,
+              targetUserName: name,
+            ),
             const SizedBox(height: 16),
-            const Text('Account',
+            Text('Account',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
+                    color: onSurface)),
             const SizedBox(height: 10),
             _menuTile(context, Icons.settings_outlined, 'Settings',
                 onTap: () => Navigator.pushNamed(context, R.settings)),
@@ -276,52 +350,64 @@ class _ProfileBase extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(IconData icon, String text) => Row(children: [
-        Icon(icon, size: 14, color: AppColors.textSecondary),
-        const SizedBox(width: 6),
-        Text(text,
-            style:
-                const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-      ]);
+  Widget _infoRow(BuildContext ctx, IconData icon, String text) {
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+    final color =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    return Row(children: [
+      Icon(icon, size: 14, color: color),
+      const SizedBox(width: 6),
+      Text(text, style: TextStyle(fontSize: 13, color: color)),
+    ]);
+  }
 
-  Widget _statBox(String value, String label) => Expanded(
-          child: Container(
+  Widget _statBox(BuildContext ctx, String value, String label) {
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1E293B) : AppColors.background;
+    final onSurface = Theme.of(ctx).colorScheme.onSurface;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
+    return Expanded(
+      child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(12)),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
         child: Column(children: [
           Text(value,
-              style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary)),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.bold, color: onSurface)),
+          Text(label, style: TextStyle(fontSize: 11, color: secondary)),
         ]),
-      ));
+      ),
+    );
+  }
 
   Widget _menuTile(BuildContext ctx, IconData icon, String title,
       {required VoidCallback onTap, Color? color}) {
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1E293B) : AppColors.background;
+    final defaultColor =
+        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    final arrowColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(12)),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
-          Icon(icon, size: 20, color: color ?? AppColors.textPrimary),
+          Icon(icon, size: 20, color: color ?? defaultColor),
           const SizedBox(width: 12),
           Expanded(
               child: Text(title,
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: color ?? AppColors.textPrimary))),
-          Icon(Icons.arrow_forward_ios,
-              size: 14, color: color ?? AppColors.textSecondary),
+                      color: color ?? defaultColor))),
+          Icon(Icons.arrow_forward_ios, size: 14, color: color ?? arrowColor),
         ]),
       ),
     );
@@ -368,6 +454,18 @@ class _ProfileStatsLoaderState extends State<_ProfileStatsLoader> {
 
   Future<void> _load({bool forceRefresh = false}) async {
     if (!mounted) return;
+    if (AppConfig.isDemoMode) {
+      setState(() {
+        _stats = {
+          'summary': {'projects_count': 5, 'tasks_done': 18, 'score': 4.8},
+          'location': 'San Francisco, CA',
+        };
+        _loading = false;
+        _refreshing = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       if (_stats == null) {
         _loading = true;
@@ -453,7 +551,17 @@ class FreelancerProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
-    final user = session.currentUser;
+    final user = session.currentUser ??
+        (AppConfig.isDemoMode
+            ? const ApiUser(
+                id: 'demo_user_me',
+                displayName: 'alex_dev',
+                fullName: 'Alex Chen',
+                email: 'alex.chen@example.com',
+                role: 'member',
+                userType: 'freelancer',
+              )
+            : null);
     final name = user?.fullName ?? user?.displayName ?? 'Freelancer';
     final initials = name.length >= 2
         ? '${name.split(' ').first[0]}${name.split(' ').length > 1 ? name.split(' ')[1][0] : name[1]}'
@@ -491,7 +599,19 @@ class StudentProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
-    final user = session.currentUser;
+    final user = session.currentUser ??
+        (AppConfig.isDemoMode
+            ? const ApiUser(
+                id: 'demo_user_me',
+                displayName: 'alex_dev',
+                fullName: 'Alex Chen',
+                email: 'alex.chen@example.com',
+                role: 'member',
+                userType: 'student',
+                universityId: 'uni_cairo',
+                universityName: 'Cairo University',
+              )
+            : null);
     final name = user?.fullName ?? user?.displayName ?? 'Student';
     final initials = name.length >= 2
         ? '${name.split(' ').first[0]}${name.split(' ').length > 1 ? name.split(' ')[1][0] : name[1]}'
@@ -512,6 +632,8 @@ class StudentProfileScreen extends StatelessWidget {
             initials: initials.toUpperCase(),
             email: user.email,
             location: d.location,
+            universityName: user.universityName,
+            isCustomUniversity: user.isCustomUniversity,
             joined: d.joined,
             projects: d.projects,
             tasksDone: d.tasksDone,
@@ -529,7 +651,17 @@ class AdminProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
-    final user = session.currentUser;
+    final user = session.currentUser ??
+        (AppConfig.isDemoMode
+            ? const ApiUser(
+                id: 'demo_user_me',
+                displayName: 'alex_dev',
+                fullName: 'Alex Chen',
+                email: 'alex.chen@example.com',
+                role: 'admin',
+                userType: 'admin',
+              )
+            : null);
     final name = user?.fullName ?? user?.displayName ?? 'Admin';
     final initials = name.length >= 2
         ? '${name.split(' ').first[0]}${name.split(' ').length > 1 ? name.split(' ')[1][0] : name[1]}'
@@ -576,6 +708,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _email;
   final _phone = TextEditingController();
   final _bio = TextEditingController();
+  UniversityOption? _selectedUniversity;
+  final _customUniCtrl = TextEditingController();
 
   String? _avatarFileId;
   Uint8List? _avatarBytes;
@@ -590,8 +724,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _name = TextEditingController(text: user?.fullName ?? '');
     _username = TextEditingController(text: user?.displayName ?? '');
     _email = TextEditingController(text: user?.email ?? '');
+    _initUniversity(user);
     // Phone/bio/avatar come from the server for this user only (not session cache).
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
+  }
+
+  void _initUniversity(ApiUser? user) {
+    if (user == null || user.universityName.isEmpty) return;
+    if (user.isCustomUniversity) {
+      _selectedUniversity =
+          UniversityOption.create(id: 'uni_other', name: 'Other', isCustom: true);
+      _customUniCtrl.text = user.universityName;
+    } else {
+      _selectedUniversity = UniversityOption.create(
+        id: user.universityId.isNotEmpty ? user.universityId : 'uni_custom',
+        name: user.universityName,
+      );
+    }
   }
 
   @override
@@ -601,11 +750,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _email.dispose();
     _phone.dispose();
     _bio.dispose();
+    _customUniCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadProfile() async {
     final session = context.read<SessionController>();
+    if (AppConfig.isDemoMode) {
+      final user = session.currentUser;
+      if (user != null) {
+        _name.text = user.fullName;
+        _username.text = user.displayName;
+        _email.text = user.email;
+        _phone.text = user.phone;
+        _bio.text = user.bio;
+        _avatarFileId =
+            user.avatarFileId.isNotEmpty ? user.avatarFileId : null;
+        _initUniversity(user);
+      }
+      setState(() => _loadingProfile = false);
+      return;
+    }
     final svc = context.read<AppServices>().users;
     final sessionUserId = session.currentUser?.id;
 
@@ -632,8 +797,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _email.text = user.email;
         _phone.text = user.phone;
         _bio.text = user.bio;
-        _avatarFileId =
-            user.avatarFileId.isNotEmpty ? user.avatarFileId : null;
+        _avatarFileId = user.avatarFileId.isNotEmpty ? user.avatarFileId : null;
         _avatarBytes = null;
         setState(() => _loadingProfile = false);
         _loadAvatarBytes(_avatarFileId);
@@ -644,8 +808,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _loadAvatarBytes(String? fileId) async {
     if (fileId == null || fileId.isEmpty) return;
-    final res =
-        await context.read<AppServices>().files.downloadFile(fileId);
+    final res = await context.read<AppServices>().files.downloadFile(fileId);
     if (!mounted) return;
     res.when(
       success: (bytes) {
@@ -733,10 +896,50 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
+    UniversityOption? uniToSend = _selectedUniversity;
+    if (_selectedUniversity?.id == 'uni_other') {
+      final customErr =
+          UniversityOption.validateCustomUniversityName(_customUniCtrl.text);
+      if (customErr != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(customErr)),
+        );
+        return;
+      }
+      uniToSend = UniversityOption.custom(_customUniCtrl.text);
+    }
+
     setState(() => _saving = true);
 
     final svc = context.read<AppServices>().users;
     final session = context.read<SessionController>();
+
+    if (AppConfig.isDemoMode) {
+      final current = session.currentUser;
+      if (current != null) {
+        final updated = current.copyWith(
+          displayName: username,
+          fullName: _name.text.trim(),
+          email: _email.text.trim(),
+          phone: _phone.text.trim(),
+          bio: _bio.text.trim(),
+          avatarFileId: _avatarFileId ?? current.avatarFileId,
+          universityId: uniToSend?.id ?? current.universityId,
+          universityName: uniToSend?.name ?? current.universityName,
+          isCustomUniversity: uniToSend?.isCustom ?? current.isCustomUniversity,
+        );
+        session.setCurrentUser(updated);
+      }
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile saved'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      Navigator.pop(context);
+      return;
+    }
 
     final payload = <String, dynamic>{
       'full_name': _name.text.trim(),
@@ -780,8 +983,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final initials =
-        _name.text.isNotEmpty ? _name.text[0].toUpperCase() : '?';
+    final initials = _name.text.isNotEmpty ? _name.text[0].toUpperCase() : '?';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -840,66 +1042,92 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                TCard(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      const Text('Full Name',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 8),
-                      TextField(
-                          controller: _name,
-                          decoration: _inputDec('Your full name')),
-                      const SizedBox(height: 12),
-                      const Text('Username',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Unique handle — letters, numbers, and underscores only',
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                          controller: _username,
-                          decoration: _inputDec('e.g. mohamed_dev'),
-                          autocorrect: false,
-                          enableSuggestions: false),
-                      const SizedBox(height: 12),
-                      const Text('Email',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 8),
-                      TextField(
-                          controller: _email,
-                          decoration: _inputDec('Your email'),
-                          keyboardType: TextInputType.emailAddress),
-                      const SizedBox(height: 12),
-                      const Text('Phone',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 8),
-                      TextField(
-                          controller: _phone,
-                          decoration: _inputDec('Your phone'),
-                          keyboardType: TextInputType.phone),
-                      const SizedBox(height: 12),
-                      const Text('Bio',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 8),
-                      TextField(
-                          controller: _bio,
-                          maxLines: 3,
-                          decoration: _inputDec('About you')),
-                    ])),
+                TCard(child: Builder(builder: (ctx) {
+                  final onSurface = Theme.of(ctx).colorScheme.onSurface;
+                  final secColor = Theme.of(ctx).brightness == Brightness.dark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary;
+
+                  return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Full Name',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, color: onSurface)),
+                        const SizedBox(height: 8),
+                        TextField(
+                            controller: _name,
+                            style: TextStyle(color: onSurface),
+                            decoration: _inputDec('Your full name')),
+                        const SizedBox(height: 12),
+                        Text('Username',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, color: onSurface)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Unique handle — letters, numbers, and underscores only',
+                          style: TextStyle(fontSize: 12, color: secColor),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                            controller: _username,
+                            style: TextStyle(color: onSurface),
+                            decoration: _inputDec('e.g. mohamed_dev'),
+                            autocorrect: false,
+                            enableSuggestions: false),
+                        const SizedBox(height: 12),
+                        Text('Email',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, color: onSurface)),
+                        const SizedBox(height: 8),
+                        TextField(
+                            controller: _email,
+                            style: TextStyle(color: onSurface),
+                            decoration: _inputDec('Your email'),
+                            keyboardType: TextInputType.emailAddress),
+                        if (context
+                                .read<SessionController>()
+                                .currentUser
+                                ?.isStudent ==
+                            true) ...[
+                          const SizedBox(height: 12),
+                          UniversitySelectorField(
+                            selectedOption: _selectedUniversity,
+                            onSelected: (opt) {
+                              setState(() {
+                                _selectedUniversity = opt;
+                              });
+                            },
+                          ),
+                          if (_selectedUniversity?.id == 'uni_other') ...[
+                            const SizedBox(height: 12),
+                            CustomUniversityField(
+                              controller: _customUniCtrl,
+                            ),
+                          ],
+                        ],
+                        const SizedBox(height: 12),
+                        Text('Phone',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, color: onSurface)),
+                        const SizedBox(height: 8),
+                        TextField(
+                            controller: _phone,
+                            style: TextStyle(color: onSurface),
+                            decoration: _inputDec('Your phone'),
+                            keyboardType: TextInputType.phone),
+                        const SizedBox(height: 12),
+                        Text('Bio',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, color: onSurface)),
+                        const SizedBox(height: 8),
+                        TextField(
+                            controller: _bio,
+                            style: TextStyle(color: onSurface),
+                            maxLines: 3,
+                            decoration: _inputDec('About you')),
+                      ]);
+                })),
                 const SizedBox(height: 16),
                 TButton(
                   label: _saving ? 'Saving…' : 'Save Changes',
@@ -1257,7 +1485,8 @@ class _CoursesTab extends StatelessWidget {
     return RepositoryLoader<List<Map<String, dynamic>>>(
       load: () => _loadCourses(context),
       isEmpty: (courses) => courses.isEmpty,
-      emptyMessage: 'No AI course recommendations yet. Complete more projects to unlock suggestions.',
+      emptyMessage:
+          'No AI course recommendations yet. Complete more projects to unlock suggestions.',
       builder: (context, courses) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -1290,22 +1519,24 @@ class _CoursesTab extends StatelessWidget {
                             fontSize: 13, color: AppColors.textSecondary))),
               ])),
           const SizedBox(height: 20),
-          const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Recommended for You',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
-            Icon(Icons.auto_awesome, color: AppColors.primary, size: 18),
-          ]),
+          const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Recommended for You',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                Icon(Icons.auto_awesome, color: AppColors.primary, size: 18),
+              ]),
           const SizedBox(height: 10),
           ...courses.map((c) {
-            final title = c['title']?.toString() ??
-                c['name']?.toString() ??
-                'Course';
+            final title =
+                c['title']?.toString() ?? c['name']?.toString() ?? 'Course';
             final level = c['level']?.toString() ?? 'General';
-            final platform =
-                c['platform']?.toString() ?? c['provider']?.toString() ?? 'Online';
+            final platform = c['platform']?.toString() ??
+                c['provider']?.toString() ??
+                'Online';
             final duration = c['duration']?.toString() ?? '';
             final rating = c['rating']?.toString() ?? '';
             return TCard(
@@ -1324,7 +1555,8 @@ class _CoursesTab extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.12),
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20)),
                             child: Text(level,
                                 style: const TextStyle(
@@ -1344,8 +1576,7 @@ class _CoursesTab extends StatelessWidget {
                       if (rating.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Row(children: [
-                          const Icon(Icons.star,
-                              color: Colors.amber, size: 14),
+                          const Icon(Icons.star, color: Colors.amber, size: 14),
                           const SizedBox(width: 4),
                           Text(rating,
                               style: const TextStyle(
@@ -1659,8 +1890,7 @@ class _FeedbackTabState extends State<_FeedbackTab> {
                 items: _projects
                     .map((p) => DropdownMenuItem<String>(
                           value: p.id,
-                          child: Text(p.name,
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(p.name, overflow: TextOverflow.ellipsis),
                         ))
                     .toList(),
                 onChanged: (v) => setState(() => _selectedProjectId = v),
@@ -1745,8 +1975,7 @@ class _FeedbackTabState extends State<_FeedbackTab> {
                             }
                             final feedback =
                                 context.read<AppServices>().feedback;
-                            final messenger =
-                                ScaffoldMessenger.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
                             setState(() => _submitting = true);
                             try {
                               await feedback
@@ -1797,8 +2026,7 @@ class _FeedbackTabState extends State<_FeedbackTab> {
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary,
                               fontSize: 13)),
-                      Text(
-                          _aiSuggestion,
+                      Text(_aiSuggestion,
                           style: const TextStyle(
                               fontSize: 12, color: AppColors.textSecondary)),
                     ])),
@@ -1832,9 +2060,12 @@ class _FeedbackTabState extends State<_FeedbackTab> {
                             children: List.generate(
                                 5,
                                 (i) => Icon(
-                                    i < ((f['avg_rating'] as num?)?.toInt() ??
-                                        (f['rating'] as num?)?.toInt() ??
-                                        0)
+                                    i <
+                                            ((f['avg_rating'] as num?)
+                                                    ?.toInt() ??
+                                                (f['rating'] as num?)
+                                                    ?.toInt() ??
+                                                0)
                                         ? Icons.star
                                         : Icons.star_border,
                                     size: 14,
@@ -1912,8 +2143,7 @@ Future<void> showFileDisputeSheet(BuildContext context) async {
                 TextField(
                   controller: descCtrl,
                   maxLines: 4,
-                  decoration:
-                      const InputDecoration(labelText: 'Description'),
+                  decoration: const InputDecoration(labelText: 'Description'),
                 ),
                 const SizedBox(height: 16),
                 TButton(
@@ -1994,8 +2224,7 @@ class MyActivityScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: RepositoryLoader<List<Map<String, dynamic>>>(
-        load: () =>
-            context.read<AppServices>().logs.getMyActivity().unwrap(),
+        load: () => context.read<AppServices>().logs.getMyActivity().unwrap(),
         isEmpty: (items) => items.isEmpty,
         emptyMessage: 'No recent activity yet.',
         builder: (context, items) => ListView.separated(
@@ -2004,8 +2233,9 @@ class MyActivityScreen extends StatelessWidget {
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final item = items[i];
-            final action =
-                item['action']?.toString() ?? item['type']?.toString() ?? 'Event';
+            final action = item['action']?.toString() ??
+                item['type']?.toString() ??
+                'Event';
             final details = item['details']?.toString() ??
                 item['description']?.toString() ??
                 '';
@@ -2038,135 +2268,7 @@ class MyActivityScreen extends StatelessWidget {
   }
 }
 
-// ── Language Switch ───────────────────────────────────────────────────────────
-class LanguageSwitchScreen extends StatefulWidget {
-  const LanguageSwitchScreen({super.key});
-  @override
-  State<LanguageSwitchScreen> createState() => _LanguageSwitchScreenState();
-}
 
-class _LanguageSwitchScreenState extends State<LanguageSwitchScreen> {
-  static const _langCodes = {
-    'English': 'en',
-    'Arabic': 'ar',
-    'French': 'fr',
-    'Spanish': 'es',
-    'German': 'de',
-  };
-  static const _codeToName = {
-    'en': 'English',
-    'ar': 'Arabic',
-    'fr': 'French',
-    'es': 'Spanish',
-    'de': 'German',
-  };
-
-  String _selected = 'English';
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final code =
-        context.read<SessionController>().currentUser?.preferredLanguage ?? 'en';
-    _selected = _codeToName[code] ?? 'English';
-  }
-
-  final List<Map<String, dynamic>> _langs = [
-    {'name': 'English', 'flag': '🇺🇸', 'native': 'English'},
-    {'name': 'Arabic', 'flag': '🇪🇬', 'native': 'العربية'},
-    {'name': 'French', 'flag': '🇫🇷', 'native': 'Français'},
-    {'name': 'Spanish', 'flag': '🇪🇸', 'native': 'Español'},
-    {'name': 'German', 'flag': '🇩🇪', 'native': 'Deutsch'},
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, size: 18),
-              onPressed: () => Navigator.pop(context)),
-          title: const Text('Language Settings',
-              style: TextStyle(fontWeight: FontWeight.bold))),
-      body: Column(children: [
-        Expanded(
-            child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _langs.length,
-          itemBuilder: (_, i) {
-            final l = _langs[i];
-            final sel = _selected == l['name'];
-            return GestureDetector(
-              onTap: () => setState(() => _selected = l['name'] as String),
-              child: TCard(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Row(children: [
-                    Text(l['flag'] as String,
-                        style: const TextStyle(fontSize: 24)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text(l['name'] as String,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary)),
-                          Text(l['native'] as String,
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary)),
-                        ])),
-                    if (sel)
-                      const Icon(Icons.check_circle,
-                          color: AppColors.primary, size: 22),
-                  ])),
-            );
-          },
-        )),
-        Padding(
-            padding: const EdgeInsets.all(16),
-            child: TButton(
-                label: _saving ? 'Saving…' : 'Apply Language',
-                onTap: _saving
-                    ? null
-                    : () async {
-                        final code = _langCodes[_selected] ?? 'en';
-                        setState(() => _saving = true);
-                        final result = await context
-                            .read<AppServices>()
-                            .users
-                            .updateProfile({'preferred_language': code});
-                        if (!mounted) return;
-                        setState(() => _saving = false);
-                        result.when(
-                          success: (user) {
-                            if (user != null) {
-                              context
-                                  .read<SessionController>()
-                                  .setCurrentUser(user);
-                            }
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Language set to $_selected'),
-                                backgroundColor: AppColors.success,
-                              ),
-                            );
-                          },
-                          failure: (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(e)),
-                            );
-                          },
-                        );
-                      })),
-      ]),
-    );
-  }
-}
 
 // ── Settings Screen ───────────────────────────────────────────────────────────
 class SettingsScreen extends StatelessWidget {
@@ -2174,6 +2276,7 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final isAdmin =
         context.watch<SessionController>().currentUser?.isAdmin == true;
@@ -2185,24 +2288,26 @@ class SettingsScreen extends StatelessWidget {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios, size: 18),
             onPressed: () => Navigator.pop(context)),
-        title: const Text('Settings',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(loc?.translate('settings') ?? 'Settings',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const TSectionHeader(title: 'Preferences'),
+          TSectionHeader(title: loc?.translate('settings') ?? 'Preferences'),
           const SizedBox(height: 12),
           TCard(
               child: Column(children: [
-            _tile(context, Icons.language_outlined, 'Language', 'English',
-                onTap: () => Navigator.pushNamed(context, R.languageSwitch)),
+            _tile(context, Icons.mail_outline,
+                loc?.translate('email_notifications') ?? 'Email Notifications', '',
+                onTap: () =>
+                    Navigator.pushNamed(context, R.emailNotificationSettings)),
             Divider(height: 1, color: theme.dividerColor),
             ListTile(
               onTap: () => darkMode.toggle(),
               leading: Icon(Icons.dark_mode_outlined,
                   color: theme.colorScheme.onSurface, size: 22),
-              title: Text('Dark Mode',
+              title: Text(loc?.translate('dark_mode') ?? 'Dark Mode',
                   style: TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
@@ -2213,7 +2318,8 @@ class SettingsScreen extends StatelessWidget {
                   Text(
                     darkMode.isDark ? 'On' : 'Off',
                     style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         fontSize: 13),
                   ),
                   const SizedBox(width: 8),
@@ -2226,35 +2332,37 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ])),
-          const SizedBox(height: 24),
-          const TSectionHeader(title: 'Security & Privacy'),
+          TSectionHeader(
+              title: loc?.translate('security_privacy') ?? 'Security & Privacy'),
           const SizedBox(height: 12),
           TCard(
               child: Column(children: [
-            _tile(context, Icons.lock_outline, 'Privacy Policy', '',
+            _tile(context, Icons.lock_outline,
+                loc?.translate('privacy_policy') ?? 'Privacy Policy', '',
                 onTap: () => Navigator.pushNamed(context, R.privacyPolicy)),
             if (isAdmin) ...[
               Divider(height: 1, color: theme.dividerColor),
-              _tile(context, Icons.security_outlined, 'Security Center', '',
+              _tile(context, Icons.security_outlined,
+                  loc?.translate('security_center') ?? 'Security Center', '',
                   onTap: () => Navigator.pushNamed(context, R.securityCenter)),
             ],
           ])),
           const SizedBox(height: 24),
-          const TSectionHeader(title: 'Account'),
+          TSectionHeader(title: loc?.translate('account') ?? 'Account'),
           const SizedBox(height: 12),
           TCard(
             onTap: () => _showLogoutDialog(context),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.logout, color: AppColors.error, size: 22),
-                SizedBox(width: 12),
-                Text('Log out',
-                    style: TextStyle(
+                const Icon(Icons.logout, color: AppColors.error, size: 22),
+                const SizedBox(width: 12),
+                Text(loc?.translate('logout') ?? 'Log out',
+                    style: const TextStyle(
                         color: AppColors.error,
                         fontWeight: FontWeight.bold,
                         fontSize: 14)),
-                Spacer(),
-                Icon(Icons.arrow_forward_ios,
+                const Spacer(),
+                const Icon(Icons.arrow_forward_ios,
                     size: 14, color: AppColors.textHint),
               ],
             ),
@@ -2284,10 +2392,7 @@ class SettingsScreen extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              await context.read<SessionController>().logout();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(
-                  context, R.login, (route) => false);
+              await SessionController.performAppLogout(context);
             },
             child: const Text('Log out',
                 style: TextStyle(
@@ -2300,24 +2405,25 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _tile(BuildContext context, IconData icon, String title, String value,
       {required VoidCallback onTap}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final onSurface = theme.colorScheme.onSurface;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: AppColors.textPrimary, size: 22),
+      leading: Icon(icon, color: onSurface, size: 22),
       title: Text(title,
-          style: const TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-              color: AppColors.textPrimary)),
+          style: TextStyle(
+              fontWeight: FontWeight.w500, fontSize: 14, color: onSurface)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (value.isNotEmpty)
-            Text(value,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13)),
+            Text(value, style: TextStyle(color: secondary, fontSize: 13)),
           const SizedBox(width: 8),
-          const Icon(Icons.arrow_forward_ios,
-              size: 14, color: AppColors.textHint),
+          Icon(Icons.arrow_forward_ios, size: 14, color: secondary),
         ],
       ),
     );
@@ -2420,6 +2526,803 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 ),
               )),
         ],
+      ),
+    );
+  }
+}
+
+// ── Demo Feedback Models & Shared Store ──────────────────────────────────────
+class DemoUserFeedback {
+  final String id;
+  final String targetUserId;
+  final String reviewerId;
+  final String reviewerName;
+  final String reviewerRole;
+  final double rating;
+  final Map<String, int> categoryRatings;
+  final String reviewText;
+  final bool recommended;
+  final DateTime createdAt;
+
+  const DemoUserFeedback({
+    required this.id,
+    required this.targetUserId,
+    required this.reviewerId,
+    required this.reviewerName,
+    required this.reviewerRole,
+    required this.rating,
+    required this.categoryRatings,
+    required this.reviewText,
+    required this.recommended,
+    required this.createdAt,
+  });
+}
+
+final List<DemoUserFeedback> globalDemoFeedbackStore = [
+  DemoUserFeedback(
+    id: 'fb_1',
+    targetUserId: 'demo_user_me',
+    reviewerId: 'user_client_1',
+    reviewerName: 'Sarah Jenkins',
+    reviewerRole: 'Project Owner',
+    rating: 5.0,
+    categoryRatings: const {
+      'Communication': 5,
+      'Technical Skills': 5,
+      'Teamwork': 5,
+      'Problem Solving': 4,
+      'Professionalism': 5,
+    },
+    reviewText:
+        'Alex delivered top-tier Flutter code ahead of deadline. Exceptional attention to detail and clear daily async updates!',
+    recommended: true,
+    createdAt: DateTime.now().subtract(const Duration(days: 3)),
+  ),
+  DemoUserFeedback(
+    id: 'fb_2',
+    targetUserId: 'demo_user_me',
+    reviewerId: 'user_manager_1',
+    reviewerName: 'Michael Chang',
+    reviewerRole: 'Engineering Manager',
+    rating: 4.8,
+    categoryRatings: const {
+      'Communication': 5,
+      'Technical Skills': 5,
+      'Teamwork': 4,
+      'Problem Solving': 5,
+      'Professionalism': 5,
+    },
+    reviewText:
+        'Great architecture design and proactive communication during sprint planning. Highly recommended team member.',
+    recommended: true,
+    createdAt: DateTime.now().subtract(const Duration(days: 12)),
+  ),
+];
+
+class ProfileFeedbackStats {
+  final double avgRating;
+  final int totalReviews;
+  final int performanceScore;
+  final String reputationBadge;
+  final Color reputationColor;
+  final double recommendationPct;
+  final Map<String, double> categoryAverages;
+
+  const ProfileFeedbackStats({
+    required this.avgRating,
+    required this.totalReviews,
+    required this.performanceScore,
+    required this.reputationBadge,
+    required this.reputationColor,
+    required this.recommendationPct,
+    required this.categoryAverages,
+  });
+
+  factory ProfileFeedbackStats.fromList(List<DemoUserFeedback> reviews) {
+    if (reviews.isEmpty) {
+      return const ProfileFeedbackStats(
+        avgRating: 0.0,
+        totalReviews: 0,
+        performanceScore: 0,
+        reputationBadge: 'No Reputation',
+        reputationColor: AppColors.textSecondary,
+        recommendationPct: 0.0,
+        categoryAverages: {
+          'Communication': 0.0,
+          'Technical Skills': 0.0,
+          'Teamwork': 0.0,
+          'Problem Solving': 0.0,
+          'Professionalism': 0.0,
+        },
+      );
+    }
+
+    final total = reviews.length;
+    final sumRating = reviews.fold<double>(0.0, (acc, r) => acc + r.rating);
+    final avg = sumRating / total;
+
+    final recCount = reviews.where((r) => r.recommended).length;
+    final recPct = (recCount / total) * 100.0;
+
+    final score = (avg / 5.0 * 100.0).round().clamp(0, 100);
+
+    String badge = 'Good';
+    Color badgeColor = Colors.orange;
+    if (score >= 90) {
+      badge = 'Outstanding';
+      badgeColor = AppColors.success;
+    } else if (score >= 80) {
+      badge = 'Excellent';
+      badgeColor = AppColors.primary;
+    } else if (score >= 70) {
+      badge = 'Very Good';
+      badgeColor = const Color(0xFF0D9488);
+    } else if (score >= 60) {
+      badge = 'Good';
+      badgeColor = Colors.orange;
+    } else {
+      badge = 'Needs Improvement';
+      badgeColor = Colors.redAccent;
+    }
+
+    final categories = [
+      'Communication',
+      'Technical Skills',
+      'Teamwork',
+      'Problem Solving',
+      'Professionalism',
+    ];
+
+    final Map<String, double> catAvgs = {};
+    for (final cat in categories) {
+      int catSum = 0;
+      int count = 0;
+      for (final r in reviews) {
+        if (r.categoryRatings.containsKey(cat) && r.categoryRatings[cat]! > 0) {
+          catSum += r.categoryRatings[cat]!;
+          count++;
+        }
+      }
+      catAvgs[cat] = count > 0 ? (catSum / count) : 0.0;
+    }
+
+    return ProfileFeedbackStats(
+      avgRating: avg,
+      totalReviews: total,
+      performanceScore: score,
+      reputationBadge: badge,
+      reputationColor: badgeColor,
+      recommendationPct: recPct,
+      categoryAverages: catAvgs,
+    );
+  }
+}
+
+class _FeedbackDialog extends StatefulWidget {
+  final String targetUserId;
+  final String targetUserName;
+  final VoidCallback onSubmitted;
+
+  const _FeedbackDialog({
+    required this.targetUserId,
+    required this.targetUserName,
+    required this.onSubmitted,
+  });
+
+  @override
+  State<_FeedbackDialog> createState() => _FeedbackDialogState();
+}
+
+class _FeedbackDialogState extends State<_FeedbackDialog> {
+  int _overallRating = 5;
+  final Map<String, int> _categoryRatings = {
+    'Communication': 5,
+    'Technical Skills': 5,
+    'Teamwork': 5,
+    'Problem Solving': 5,
+    'Professionalism': 5,
+  };
+  final _reviewCtrl = TextEditingController();
+  bool _recommended = true;
+
+  @override
+  void dispose() {
+    _reviewCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _reviewCtrl.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please write a review text.')),
+      );
+      return;
+    }
+    if (_overallRating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an overall rating.')),
+      );
+      return;
+    }
+
+    final session = context.read<SessionController>();
+    final me = session.currentUser;
+    final myId = me?.id ?? 'demo_user_me';
+    final myName = me?.fullName ?? me?.displayName ?? 'Alex Chen';
+    final myRole = me?.userType == 'client'
+        ? 'Client'
+        : (me?.role == 'admin' ? 'Manager' : 'Team Member');
+
+    final existingIndex = globalDemoFeedbackStore.indexWhere(
+      (r) => r.reviewerId == myId && r.targetUserId == widget.targetUserId,
+    );
+
+    final newFeedback = DemoUserFeedback(
+      id: 'fb_${DateTime.now().millisecondsSinceEpoch}',
+      targetUserId: widget.targetUserId,
+      reviewerId: myId,
+      reviewerName: myName,
+      reviewerRole: myRole,
+      rating: _overallRating.toDouble(),
+      categoryRatings: Map.from(_categoryRatings),
+      reviewText: text,
+      recommended: _recommended,
+      createdAt: DateTime.now(),
+    );
+
+    if (existingIndex >= 0) {
+      globalDemoFeedbackStore[existingIndex] = newFeedback;
+    } else {
+      globalDemoFeedbackStore.insert(0, newFeedback);
+    }
+
+    widget.onSubmitted();
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Feedback submitted successfully!'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.rate_review, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Leave Feedback for ${widget.targetUserName}',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Rate performance & teamwork quality',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Overall Rating *',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 6),
+            Row(
+              children: List.generate(5, (i) {
+                final starIndex = i + 1;
+                return IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    starIndex <= _overallRating
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    color: Colors.amber,
+                    size: 32,
+                  ),
+                  onPressed: () => setState(() => _overallRating = starIndex),
+                );
+              }),
+            ),
+            const SizedBox(height: 16),
+            const Text('Category Ratings',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 8),
+            ..._categoryRatings.keys.map((cat) {
+              final val = _categoryRatings[cat]!;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(cat, style: const TextStyle(fontSize: 12)),
+                    Row(
+                      children: List.generate(5, (i) {
+                        final starIndex = i + 1;
+                        return InkWell(
+                          onTap: () =>
+                              setState(() => _categoryRatings[cat] = starIndex),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Icon(
+                              starIndex <= val ? Icons.star : Icons.star_border,
+                              color: Colors.amber,
+                              size: 20,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+            const Text('Review Text (Max 500 chars) *',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _reviewCtrl,
+              maxLength: 500,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText:
+                    'Share details about communication, quality of work, and reliability...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text('Recommend this user?',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const Spacer(),
+                Switch(
+                  value: _recommended,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: (v) => setState(() => _recommended = v),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Submit Feedback'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileFeedbackSection extends StatefulWidget {
+  final String targetUserId;
+  final String targetUserName;
+
+  const _ProfileFeedbackSection({
+    required this.targetUserId,
+    required this.targetUserName,
+  });
+
+  @override
+  State<_ProfileFeedbackSection> createState() =>
+      _ProfileFeedbackSectionState();
+}
+
+class _ProfileFeedbackSectionState extends State<_ProfileFeedbackSection> {
+  void _refresh() {
+    setState(() {});
+  }
+
+  String _initials(String name) {
+    final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'U';
+    return parts.take(2).map((p) => p[0].toUpperCase()).join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    final border = Theme.of(context).dividerColor;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final sectionBg = isDark ? const Color(0xFF0F172A) : AppColors.background;
+
+    final session = context.watch<SessionController>();
+    final me = session.currentUser;
+    final myId = me?.id ?? 'demo_user_me';
+    final isSelf = myId == widget.targetUserId;
+
+    final userReviews = globalDemoFeedbackStore
+        .where((r) => r.targetUserId == widget.targetUserId)
+        .toList();
+
+    final stats = ProfileFeedbackStats.fromList(userReviews);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: sectionBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.workspace_premium,
+                      color: AppColors.primary, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Feedback & Performance',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: onSurface),
+                  ),
+                ],
+              ),
+              if (!isSelf)
+                ElevatedButton.icon(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (ctx) => _FeedbackDialog(
+                      targetUserId: widget.targetUserId,
+                      targetUserName: widget.targetUserName,
+                      onSubmitted: _refresh,
+                    ),
+                  ),
+                  icon: const Icon(Icons.star, size: 16),
+                  label: const Text('Leave Feedback'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                  ),
+                ),
+            ],
+          ),
+          if (isSelf) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: isDark ? 0.15 : 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text(
+                    'You cannot review your own profile.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+
+          // Overview Grid Stats
+          Row(
+            children: [
+              Expanded(
+                child: _feedbackStatCard(
+                  context: context,
+                  title: 'Overall Rating',
+                  value: '${stats.avgRating.toStringAsFixed(1)} ★',
+                  subtitle: '${stats.totalReviews} reviews',
+                  color: Colors.amber,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _feedbackStatCard(
+                  context: context,
+                  title: 'Performance',
+                  value: '${stats.performanceScore} / 100',
+                  subtitle: 'Calculated score',
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _feedbackStatCard(
+                  context: context,
+                  title: 'Reputation',
+                  value: stats.reputationBadge,
+                  subtitle:
+                      '${stats.recommendationPct.toStringAsFixed(0)}% recommend',
+                  color: stats.reputationColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Category Breakdown
+          Text('Category Breakdown',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 13, color: onSurface)),
+          const SizedBox(height: 8),
+          ...stats.categoryAverages.entries.map((entry) {
+            final catName = entry.key;
+            final catVal = entry.value;
+            final pct = catVal / 5.0;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 120,
+                    child: Text(catName,
+                        style: TextStyle(fontSize: 12, color: secondary)),
+                  ),
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: pct,
+                      backgroundColor: border,
+                      color: AppColors.primary,
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${catVal.toStringAsFixed(1)} ★',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: onSurface),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+
+          // Recent Reviews List / Empty state
+          Text('Recent Reviews',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 13, color: onSurface)),
+          const SizedBox(height: 8),
+          if (userReviews.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: border),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.rate_review_outlined, size: 40, color: secondary),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No feedback has been submitted yet.',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: secondary,
+                        fontSize: 13),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...userReviews.take(5).map((rev) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        TAvatar(
+                            initials: _initials(rev.reviewerName), radius: 16),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(rev.reviewerName,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: onSurface)),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      rev.reviewerRole,
+                                      style: const TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: List.generate(
+                                  5,
+                                  (i) => Icon(
+                                    i < rev.rating.round()
+                                        ? Icons.star
+                                        : Icons.star_border,
+                                    color: Colors.amber,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${rev.createdAt.year}-${rev.createdAt.month}-${rev.createdAt.day}',
+                          style: TextStyle(fontSize: 11, color: secondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(rev.reviewText,
+                        style: TextStyle(fontSize: 12.5, color: onSurface)),
+                    if (rev.recommended) ...[
+                      const SizedBox(height: 6),
+                      const Row(
+                        children: [
+                          Icon(Icons.thumb_up_alt_outlined,
+                              size: 12, color: AppColors.success),
+                          SizedBox(width: 4),
+                          Text('Recommends this user',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _feedbackStatCard({
+    required BuildContext context,
+    required String title,
+    required String value,
+    required String subtitle,
+    required Color color,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final border = Theme.of(context).dividerColor;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(fontSize: 10, color: secondary)),
+          const SizedBox(height: 4),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 2),
+          Text(subtitle, style: TextStyle(fontSize: 9, color: secondary)),
+        ],
+      ),
+    );
+  }
+}
+
+class UserProfileDetailScreen extends StatelessWidget {
+  final ApiUser user;
+  const UserProfileDetailScreen({super.key, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = user.fullName.isNotEmpty ? user.fullName : user.displayName;
+    final initials = name.length >= 2
+        ? '${name.split(' ').first[0]}${name.split(' ').length > 1 ? name.split(' ')[1][0] : name[1]}'
+        : name[0];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(name),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: _ProfileStatsLoader(
+        user: user,
+        defaultRole: user.displayRole,
+        defaultLocation: 'Remote',
+        builder: (context, d, refresh, _) {
+          return RefreshIndicator(
+            onRefresh: () async => refresh(),
+            child: _ProfileBase(
+              name: name,
+              role: d.roleTitle,
+              initials: initials.toUpperCase(),
+              email: user.email,
+              location: d.location,
+              joined: d.joined,
+              projects: d.projects,
+              tasksDone: d.tasksDone,
+              score: d.score,
+              targetUserId: user.id,
+            ),
+          );
+        },
       ),
     );
   }

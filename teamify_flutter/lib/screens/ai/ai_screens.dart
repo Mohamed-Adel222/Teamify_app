@@ -17,15 +17,13 @@ Future<List<Map<String, dynamic>>> _fetchTeammateRecommendationMaps(
     BuildContext context) async {
   final services = context.read<AppServices>();
   final user = context.read<SessionController>().currentUser;
-  final result = await services.ai
-      .recommendTeammates(
-        {
-          'user_id': user?.id,
-          'skills': user?.skills ?? const <String>[],
-        },
-        topN: 8,
-      )
-      .unwrap();
+  final result = await services.ai.recommendTeammates(
+    {
+      'user_id': user?.id,
+      'skills': user?.skills ?? const <String>[],
+    },
+    topN: 8,
+  ).unwrap();
   final raw = result['recommendations'] ??
       result['teammates'] ??
       result['users'] ??
@@ -271,7 +269,12 @@ class _SmartTodoScreenState extends State<SmartTodoScreen> {
   final List<Map<String, dynamic>> _todos = [];
   final Set<String> _done = {};
 
-  static const _priorityOrder = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3};
+  static const _priorityOrder = {
+    'critical': 0,
+    'high': 1,
+    'medium': 2,
+    'low': 3
+  };
 
   @override
   void initState() {
@@ -280,7 +283,10 @@ class _SmartTodoScreenState extends State<SmartTodoScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final svc = context.read<AppServices>();
       final accessible = await svc.tasks.listAccessibleTasks(limit: 100);
@@ -292,15 +298,15 @@ class _SmartTodoScreenState extends State<SmartTodoScreen> {
           .map((t) => {
                 'id': t['id']?.toString() ?? '',
                 'title': t['title']?.toString() ?? 'Task',
-                'priority': (t['priority']?.toString() ?? 'medium').toLowerCase(),
+                'priority':
+                    (t['priority']?.toString() ?? 'medium').toLowerCase(),
                 'project': t['project_name']?.toString() ?? 'Project',
                 'status': t['status']?.toString() ?? 'pending',
               })
           .where((t) => (t['id']?.toString() ?? '').isNotEmpty)
           .toList();
-      todos.sort((a, b) =>
-          (_priorityOrder[a['priority']] ?? 3)
-              .compareTo(_priorityOrder[b['priority']] ?? 3));
+      todos.sort((a, b) => (_priorityOrder[a['priority']] ?? 3)
+          .compareTo(_priorityOrder[b['priority']] ?? 3));
       if (!mounted) return;
       setState(() {
         _todos.clear();
@@ -309,33 +315,42 @@ class _SmartTodoScreenState extends State<SmartTodoScreen> {
           ..clear()
           ..addAll(
             todos
-                .where((t) =>
-                    t['status']?.toString().toLowerCase() == 'done')
+                .where((t) => t['status']?.toString().toLowerCase() == 'done')
                 .map((t) => t['id'].toString()),
           );
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = e.toString().replaceFirst('Exception: ', ''); _loading = false; });
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _loading = false;
+      });
     }
   }
 
   Color _priorityBg(String p) {
     switch (p) {
-      case 'critical': return AppColors.error.withValues(alpha: 0.12);
-      case 'high': return AppColors.error.withValues(alpha: 0.1);
-      case 'medium': return AppColors.warning.withValues(alpha: 0.1);
-      default: return AppColors.border;
+      case 'critical':
+        return AppColors.error.withValues(alpha: 0.12);
+      case 'high':
+        return AppColors.error.withValues(alpha: 0.1);
+      case 'medium':
+        return AppColors.warning.withValues(alpha: 0.1);
+      default:
+        return AppColors.border;
     }
   }
 
   Color _priorityFg(String p) {
     switch (p) {
       case 'critical':
-      case 'high': return AppColors.error;
-      case 'medium': return AppColors.warning;
-      default: return AppColors.textSecondary;
+      case 'high':
+        return AppColors.error;
+      case 'medium':
+        return AppColors.warning;
+      default:
+        return AppColors.textSecondary;
     }
   }
 
@@ -359,10 +374,10 @@ class _SmartTodoScreenState extends State<SmartTodoScreen> {
           : _error != null
               ? Center(
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(_error!, style: const TextStyle(color: AppColors.error)),
-                    const SizedBox(height: 12),
-                    TButton(label: 'Retry', onTap: _load),
-                  ]))
+                  Text(_error!, style: const TextStyle(color: AppColors.error)),
+                  const SizedBox(height: 12),
+                  TButton(label: 'Retry', onTap: _load),
+                ]))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _todos.length + 1,
@@ -391,17 +406,20 @@ class _SmartTodoScreenState extends State<SmartTodoScreen> {
                                 _done.remove(id);
                               }
                             });
-                            await context.read<AppServices>().tasks
+                            await context
+                                .read<AppServices>()
+                                .tasks
                                 .updateStatus(
-                              id,
-                              newDone ? 'done' : 'in_progress',
-                            );
+                                  id,
+                                  newDone ? 'done' : 'in_progress',
+                                );
                           },
                           child: Icon(
                               done
                                   ? Icons.check_circle
                                   : Icons.radio_button_unchecked,
-                              color: done ? AppColors.success : AppColors.border,
+                              color:
+                                  done ? AppColors.success : AppColors.border,
                               size: 24),
                         ),
                         const SizedBox(width: 12),
@@ -415,8 +433,9 @@ class _SmartTodoScreenState extends State<SmartTodoScreen> {
                                       color: done
                                           ? AppColors.textSecondary
                                           : AppColors.textPrimary,
-                                      decoration:
-                                          done ? TextDecoration.lineThrough : null,
+                                      decoration: done
+                                          ? TextDecoration.lineThrough
+                                          : null,
                                       fontSize: 13)),
                               Text(t['project'] as String,
                                   style: const TextStyle(
@@ -464,7 +483,8 @@ class _AITaskAllocationScreenState extends State<AITaskAllocationScreen> {
     });
     try {
       final services = context.read<AppServices>();
-      final rows = await services.tasks.listAccessibleTasks(limit: 100).unwrap();
+      final rows =
+          await services.tasks.listAccessibleTasks(limit: 100).unwrap();
       final tasks = rows
           .map((t) => <String, dynamic>{
                 'id': t['id']?.toString(),
@@ -475,8 +495,7 @@ class _AITaskAllocationScreenState extends State<AITaskAllocationScreen> {
               t['id'] != null && (t['title']?.toString() ?? '').isNotEmpty)
           .toList();
       if (!mounted) return;
-      final firstId =
-          tasks.isNotEmpty ? tasks.first['id']?.toString() : null;
+      final firstId = tasks.isNotEmpty ? tasks.first['id']?.toString() : null;
       setState(() {
         _tasks = tasks;
         _selectedTaskId = firstId;
@@ -615,71 +634,79 @@ class _AITaskAllocationScreenState extends State<AITaskAllocationScreen> {
                           TextButton(
                             onPressed: _selectedTaskId == null
                                 ? null
-                                : () => _classify(_taskTextForId(_selectedTaskId!)),
+                                : () =>
+                                    _classify(_taskTextForId(_selectedTaskId!)),
                             child: const Text('Retry'),
                           ),
                         ],
                       ),
                     )
                   else if (_data != null) ...[
-                  const AIBanner(
-                      title: 'AI Allocation Engine',
-                      subtitle: 'Matching tasks to the best team members'),
-                  const SizedBox(height: 16),
-                  TCard(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        const Text('Model Details',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                                fontSize: 16)),
-                        const SizedBox(height: 12),
-                        _row('Category', _data?['category']?.toString() ?? 'N/A'),
-                        _row('Complexity', _data?['complexity']?.toString() ?? 'N/A'),
-                        _row('Confidence', '${((_data?['confidence'] as num?)?.toDouble() ?? 0) * 100}%'),
-                      ])),
-                  const SizedBox(height: 12),
-                  TCard(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        const Text('Recommended Assignment',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                                fontSize: 16)),
-                        const SizedBox(height: 12),
-                        Row(children: [
-                          const TAvatar(initials: 'AI', radius: 28),
-                          const SizedBox(width: 14),
-                          Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                Text(_data?['suggested_assignee']?.toString() ?? 'Auto Assigned',
-                                    style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary)),
-                                const Text('Best match for this task',
-                                    style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 13)),
-                              ])),
-                          TChip(
-                              label: 'Optimal',
-                              bg: AppColors.success.withValues(alpha: 0.1),
-                              textColor: AppColors.success,
-                              fontSize: 12),
-                        ]),
-                      ])),
-                  const SizedBox(height: 16),
-                  TButton(
-                      label: 'View Full Result',
-                      onTap: () =>
-                          Navigator.pushNamed(context, R.aiSuggestedResult)),
+                    const AIBanner(
+                        title: 'AI Allocation Engine',
+                        subtitle: 'Matching tasks to the best team members'),
+                    const SizedBox(height: 16),
+                    TCard(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          const Text('Model Details',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16)),
+                          const SizedBox(height: 12),
+                          _row('Category',
+                              _data?['category']?.toString() ?? 'N/A'),
+                          _row('Complexity',
+                              _data?['complexity']?.toString() ?? 'N/A'),
+                          _row('Confidence',
+                              '${((_data?['confidence'] as num?)?.toDouble() ?? 0) * 100}%'),
+                        ])),
+                    const SizedBox(height: 12),
+                    TCard(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          const Text('Recommended Assignment',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16)),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            const TAvatar(initials: 'AI', radius: 28),
+                            const SizedBox(width: 14),
+                            Expanded(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                  Text(
+                                      _data?['suggested_assignee']
+                                              ?.toString() ??
+                                          'Auto Assigned',
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textPrimary)),
+                                  const Text('Best match for this task',
+                                      style: TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 13)),
+                                ])),
+                            TChip(
+                                label: 'Optimal',
+                                bg: AppColors.success.withValues(alpha: 0.1),
+                                textColor: AppColors.success,
+                                fontSize: 12),
+                          ]),
+                        ])),
+                    const SizedBox(height: 16),
+                    TButton(
+                        label: 'View Full Result',
+                        onTap: () =>
+                            Navigator.pushNamed(context, R.aiSuggestedResult)),
                   ],
                 ]),
     );
@@ -716,7 +743,8 @@ class AISuggestedResultScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(context)),
           title: const Text('AI Result',
               style: TextStyle(fontWeight: FontWeight.bold))),
-      body: RepositoryLoader<List<({UserModel user, Map<String, dynamic> raw})>>(
+      body:
+          RepositoryLoader<List<({UserModel user, Map<String, dynamic> raw})>>(
         load: () => _fetchTeammateRecommendationItems(context),
         isEmpty: (items) => items.isEmpty,
         emptyMessage: 'No suggested teammates found',
@@ -792,14 +820,12 @@ class AIExplanationScreen extends StatelessWidget {
         (rec.containsKey('match_percent') ? 100 : 1);
     final skills = (rec['skills'] as List?)?.cast<String>() ?? const [];
     final experience = rec['experience_level']?.toString() ?? '';
-    final skillMatch = ((rec['skill_match_score'] as num?)?.toDouble() ??
-            match)
+    final skillMatch = ((rec['skill_match_score'] as num?)?.toDouble() ?? match)
         .clamp(0.0, 1.0);
-    final avgRating =
-        ((rec['avg_rating'] as num?)?.toDouble() ?? 0) / 5.0;
-    final availability = ((rec['availability_score'] as num?)?.toDouble() ??
-            match)
-        .clamp(0.0, 1.0);
+    final avgRating = ((rec['avg_rating'] as num?)?.toDouble() ?? 0) / 5.0;
+    final availability =
+        ((rec['availability_score'] as num?)?.toDouble() ?? match)
+            .clamp(0.0, 1.0);
     final currentTasks = (rec['current_tasks'] as num?)?.toDouble() ?? 0;
     final workload =
         (1.0 - (currentTasks / 10).clamp(0.0, 1.0)).clamp(0.0, 1.0);
@@ -821,7 +847,8 @@ class AIExplanationScreen extends StatelessWidget {
       {
         'label': 'Compatibility',
         'value': match.clamp(0.0, 1.0),
-        'desc': 'Overall ML similarity score from teammate recommendation model',
+        'desc':
+            'Overall ML similarity score from teammate recommendation model',
       },
       {
         'label': 'Availability',
@@ -878,8 +905,7 @@ class AIExplanationScreen extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary)),
                       const Spacer(),
-                      Text(
-                          '${(((f['value'] as double) * 100).toInt())}%',
+                      Text('${(((f['value'] as double) * 100).toInt())}%',
                           style: const TextStyle(
                               color: AppColors.primary,
                               fontWeight: FontWeight.bold))
@@ -960,20 +986,26 @@ class _AIPriorityScreenState extends State<AIPriorityScreen> {
 
   Future<void> _suggest() async {
     if (_projectId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No project found. Create a project first.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No project found. Create a project first.')));
       return;
     }
-    setState(() { _suggesting = true; _reasons = []; });
+    setState(() {
+      _suggesting = true;
+      _reasons = [];
+    });
     try {
       final svc = context.read<AppServices>();
-      final result = await svc.ai.suggestPriority(
-        projectId: _projectId!,
-        title: _titleCtrl.text.trim(),
-        description: _descCtrl.text.trim(),
-      ).unwrap();
+      final result = await svc.ai
+          .suggestPriority(
+            projectId: _projectId!,
+            title: _titleCtrl.text.trim(),
+            description: _descCtrl.text.trim(),
+          )
+          .unwrap();
       if (!mounted) return;
-      final rawPriority = (result['priority'] ?? 'medium').toString().toLowerCase();
+      final rawPriority =
+          (result['priority'] ?? 'medium').toString().toLowerCase();
       final rawReasons = result['reasons'];
       setState(() {
         _priority = rawPriority;
@@ -985,17 +1017,20 @@ class _AIPriorityScreenState extends State<AIPriorityScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _suggesting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', ''))));
     }
   }
 
   Color _colorFor(String p) {
     switch (p) {
       case 'critical':
-      case 'high': return AppColors.error;
-      case 'medium': return AppColors.warning;
-      default: return AppColors.success;
+      case 'high':
+        return AppColors.error;
+      case 'medium':
+        return AppColors.warning;
+      default:
+        return AppColors.success;
     }
   }
 
@@ -1027,7 +1062,8 @@ class _AIPriorityScreenState extends State<AIPriorityScreen> {
                   decoration: const InputDecoration(
                     hintText: 'Task title',
                     border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1037,7 +1073,8 @@ class _AIPriorityScreenState extends State<AIPriorityScreen> {
                   decoration: const InputDecoration(
                     hintText: 'Brief description (optional)',
                     border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1046,9 +1083,14 @@ class _AIPriorityScreenState extends State<AIPriorityScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _suggesting ? null : _suggest,
                     icon: _suggesting
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.auto_awesome, size: 18),
-                    label: Text(_suggesting ? 'Analysing…' : 'Get AI Suggestion'),
+                    label:
+                        Text(_suggesting ? 'Analysing…' : 'Get AI Suggestion'),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white),
@@ -1104,17 +1146,19 @@ class _AIPriorityScreenState extends State<AIPriorityScreen> {
                   const SizedBox(height: 4),
                   ..._reasons.map((r) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          const Text('• ',
-                              style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.bold)),
-                          Expanded(
-                              child: Text(r,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary))),
-                        ]),
+                        child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('• ',
+                                  style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold)),
+                              Expanded(
+                                  child: Text(r,
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary))),
+                            ]),
                       )),
                 ],
               ])),
@@ -1160,8 +1204,7 @@ class _AIDeadlineScreenState extends State<AIDeadlineScreen> {
   String _description = '';
   bool _saving = false;
 
-  String _isoDate(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}-'
+  String _isoDate(DateTime date) => '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
 
@@ -1226,7 +1269,9 @@ class _AIDeadlineScreenState extends State<AIDeadlineScreen> {
       final svc = context.read<AppServices>();
       final result = await svc.projects.listProjects();
       result.when(
-        success: (list) { if (list.isNotEmpty) projectId = list.first.id.toString(); },
+        success: (list) {
+          if (list.isNotEmpty) projectId = list.first.id.toString();
+        },
         failure: (_) {},
       );
     }
@@ -1239,10 +1284,12 @@ class _AIDeadlineScreenState extends State<AIDeadlineScreen> {
     }
     try {
       final svc = context.read<AppServices>();
-      final result = await svc.ai.suggestDeadline(
-        projectId: projectId!,
-        priority: priority,
-      ).unwrap();
+      final result = await svc.ai
+          .suggestDeadline(
+            projectId: projectId!,
+            priority: priority,
+          )
+          .unwrap();
       if (!mounted) return;
       final dateStr = result['suggested_date']?.toString() ?? '';
       final rawReasons = result['reasons'];
@@ -1280,58 +1327,59 @@ class _AIDeadlineScreenState extends State<AIDeadlineScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(children: [
-          AIBanner(
-              title: 'AI Suggestion',
-              subtitle: _bannerSubtitle),
-          const SizedBox(height: 16),
-          TCard(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                const Text('Suggested Deadline',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        fontSize: 16)),
+              padding: const EdgeInsets.all(16),
+              child: Column(children: [
+                AIBanner(title: 'AI Suggestion', subtitle: _bannerSubtitle),
                 const SizedBox(height: 16),
-                CalendarDatePicker(
-                    initialDate: _date,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                    onDateChanged: (d) => setState(() => _date = d)),
-                if (_reasons.length > 1) ...[
-                  const Divider(),
-                  const Text('AI Reasoning:',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary)),
-                  const SizedBox(height: 4),
-                  ..._reasons.skip(1).map((r) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('• ',
-                                  style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.bold)),
-                              Expanded(
-                                  child: Text(r,
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary))),
-                            ]),
-                      )),
-                ],
-              ])),
-          const Spacer(),
-          TButton(
-              label: _saving ? 'Saving…' : 'Confirm Deadline',
-              onTap: _saving ? null : _confirmDeadline),
-        ]),
-      ),
+                TCard(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      const Text('Suggested Deadline',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                              fontSize: 16)),
+                      const SizedBox(height: 16),
+                      CalendarDatePicker(
+                          initialDate: _date,
+                          firstDate: DateTime.now(),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
+                          onDateChanged: (d) => setState(() => _date = d)),
+                      if (_reasons.length > 1) ...[
+                        const Divider(),
+                        const Text('AI Reasoning:',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        ..._reasons.skip(1).map((r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('• ',
+                                        style: TextStyle(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.bold)),
+                                    Expanded(
+                                        child: Text(r,
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                color:
+                                                    AppColors.textSecondary))),
+                                  ]),
+                            )),
+                      ],
+                    ])),
+                const Spacer(),
+                TButton(
+                    label: _saving ? 'Saving…' : 'Confirm Deadline',
+                    onTap: _saving ? null : _confirmDeadline),
+              ]),
+            ),
     );
   }
 }
@@ -1524,7 +1572,8 @@ class _AIInsightsScreenState extends State<AIInsightsScreen> {
     try {
       final svc = context.read<AppServices>();
 
-      final projectsResult = await svc.projects.listProjects(forceRefresh: true);
+      final projectsResult =
+          await svc.projects.listProjects(forceRefresh: true);
       if (!mounted) return;
 
       var projects = <api.ApiProject>[];
@@ -1543,8 +1592,7 @@ class _AIInsightsScreenState extends State<AIInsightsScreen> {
         return;
       }
 
-      final selected =
-          projectId ?? _selectedProjectId ?? projects.first.id;
+      final selected = projectId ?? _selectedProjectId ?? projects.first.id;
 
       Map<String, dynamic>? modelStatus;
       final modelResult = await svc.ai.getDelayModelStatus();
@@ -1748,16 +1796,15 @@ class _AIInsightsScreenState extends State<AIInsightsScreen> {
           .compareTo(_delayPercentValue(a['delay_probability'] as num?)));
 
     final highRiskTasks = taskRisks
-        .where((t) =>
-            _delayPercentValue(t['delay_probability'] as num?) >= 20)
+        .where((t) => _delayPercentValue(t['delay_probability'] as num?) >= 20)
         .toList();
 
     final mlSummary = _data?['ml_summary'] as Map<String, dynamic>?;
     final modelAvailable = _modelStatus?['model_available'] == true ||
         mlSummary?['model_available'] == true;
     final mlTasks = (mlSummary?['tasks_scored_with_ml'] as num?)?.toInt() ?? 0;
-    final activeTasks = (mlSummary?['active_tasks'] as num?)?.toInt() ??
-        taskRisks.length;
+    final activeTasks =
+        (mlSummary?['active_tasks'] as num?)?.toInt() ?? taskRisks.length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -1858,9 +1905,9 @@ class _AIInsightsScreenState extends State<AIInsightsScreen> {
                               child: Text(
                                 modelAvailable
                                     ? 'Delay_Predictor.pkl is active — '
-                                      'scoring uses live task & member data from the database.'
+                                        'scoring uses live task & member data from the database.'
                                     : 'ML model file not found — using rule-based '
-                                      'fallback until Delay_Predictor.pkl is installed.',
+                                        'fallback until Delay_Predictor.pkl is installed.',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,
@@ -1972,7 +2019,12 @@ class _AIMentorScreenState extends State<AIMentorScreen> {
   List<String> _nextSteps = [];
   double _careerProgress = 0;
 
-  static const _icons = [Icons.school_outlined, Icons.code, Icons.people_outline, Icons.trending_up];
+  static const _icons = [
+    Icons.school_outlined,
+    Icons.code,
+    Icons.people_outline,
+    Icons.trending_up
+  ];
 
   @override
   void initState() {
@@ -1981,10 +2033,14 @@ class _AIMentorScreenState extends State<AIMentorScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final svc = context.read<AppServices>();
-      final userId = context.read<SessionController>().currentUser?.id.toString() ?? '';
+      final userId =
+          context.read<SessionController>().currentUser?.id.toString() ?? '';
       if (userId.isEmpty) throw Exception('Not logged in');
       final result = await svc.ai.mentorRecommendations(userId).unwrap();
       if (!mounted) return;
@@ -1992,7 +2048,8 @@ class _AIMentorScreenState extends State<AIMentorScreen> {
         _summary = result['career_summary']?.toString() ?? '';
         final raw = result['next_steps'];
         _nextSteps = raw is List ? raw.map((e) => e.toString()).toList() : [];
-        _careerProgress = (result['career_path_percentage'] as num?)?.toDouble() ?? 0;
+        _careerProgress =
+            (result['career_path_percentage'] as num?)?.toDouble() ?? 0;
         _loading = false;
       });
     } catch (e) {
@@ -2015,17 +2072,19 @@ class _AIMentorScreenState extends State<AIMentorScreen> {
           title: const Text('AI Mentor',
               style: TextStyle(fontWeight: FontWeight.bold)),
           actions: [
-            IconButton(icon: const Icon(Icons.refresh, size: 20), onPressed: _loading ? null : _load)
+            IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                onPressed: _loading ? null : _load)
           ]),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(_error!, style: const TextStyle(color: AppColors.error)),
-                    const SizedBox(height: 12),
-                    TButton(label: 'Retry', onTap: _load),
-                  ]))
+                  Text(_error!, style: const TextStyle(color: AppColors.error)),
+                  const SizedBox(height: 12),
+                  TButton(label: 'Retry', onTap: _load),
+                ]))
               : ListView(padding: const EdgeInsets.all(16), children: [
                   const AIBanner(
                       title: 'Your AI Mentor',
@@ -2034,71 +2093,80 @@ class _AIMentorScreenState extends State<AIMentorScreen> {
                   if (_summary.isNotEmpty)
                     TCard(
                         margin: const EdgeInsets.only(bottom: 12),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          const Text('Career Summary',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                  fontSize: 15)),
-                          const SizedBox(height: 8),
-                          Text(_summary,
-                              style: const TextStyle(
-                                  fontSize: 13, color: AppColors.textSecondary)),
-                          if (_careerProgress > 0) ...[
-                            const SizedBox(height: 10),
-                            Row(children: [
-                              const Text('Career Progress',
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Career Summary',
                                   style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary)),
-                              const Spacer(),
-                              Text('${_careerProgress.toInt()}%',
-                                  style: const TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                      fontSize: 13)),
-                            ]),
-                            const SizedBox(height: 4),
-                            TBar(value: _careerProgress / 100, color: AppColors.primary),
-                          ],
-                        ])),
+                                      color: AppColors.textPrimary,
+                                      fontSize: 15)),
+                              const SizedBox(height: 8),
+                              Text(_summary,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.textSecondary)),
+                              if (_careerProgress > 0) ...[
+                                const SizedBox(height: 10),
+                                Row(children: [
+                                  const Text('Career Progress',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary)),
+                                  const Spacer(),
+                                  Text('${_careerProgress.toInt()}%',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primary,
+                                          fontSize: 13)),
+                                ]),
+                                const SizedBox(height: 4),
+                                TBar(
+                                    value: _careerProgress / 100,
+                                    color: AppColors.primary),
+                              ],
+                            ])),
                   TCard(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Recommended Next Steps',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                            fontSize: 16)),
-                    const SizedBox(height: 12),
-                    if (_nextSteps.isEmpty)
-                      const Text('No recommendations yet. Complete more tasks to unlock insights.',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13))
-                    else
-                      ..._nextSteps.asMap().entries.map((e) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(children: [
-                            Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8)),
-                                child: Icon(
-                                    _icons[e.key % _icons.length],
-                                    color: AppColors.primary,
-                                    size: 20)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: Text(e.value,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13))),
-                          ]))),
-                  ])),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        const Text('Recommended Next Steps',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                                fontSize: 16)),
+                        const SizedBox(height: 12),
+                        if (_nextSteps.isEmpty)
+                          const Text(
+                              'No recommendations yet. Complete more tasks to unlock insights.',
+                              style: TextStyle(
+                                  color: AppColors.textSecondary, fontSize: 13))
+                        else
+                          ..._nextSteps.asMap().entries.map((e) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(children: [
+                                Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                        color: AppColors.primary
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8)),
+                                    child: Icon(_icons[e.key % _icons.length],
+                                        color: AppColors.primary, size: 20)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child: Text(e.value,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                            fontSize: 13))),
+                              ]))),
+                      ])),
                   const SizedBox(height: 12),
                   TButton(
                       label: 'Open AI Mentor Chat',
-                      onTap: () => Navigator.pushNamed(context, R.aiMentorChat)),
+                      onTap: () =>
+                          Navigator.pushNamed(context, R.aiMentorChat)),
                 ]),
     );
   }
@@ -2117,10 +2185,12 @@ class TeamRecommendationScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(context)),
           title: const Text('Team Recommendation',
               style: TextStyle(fontWeight: FontWeight.bold))),
-      body: RepositoryLoader<List<({UserModel user, Map<String, dynamic> raw})>>(
+      body:
+          RepositoryLoader<List<({UserModel user, Map<String, dynamic> raw})>>(
         load: () => _fetchTeammateRecommendationItems(context),
         isEmpty: (items) => items.isEmpty,
-        emptyMessage: 'No teammate matches yet. Add skills to your profile and complete tasks to improve recommendations.',
+        emptyMessage:
+            'No teammate matches yet. Add skills to your profile and complete tasks to improve recommendations.',
         builder: (context, items) =>
             ListView(padding: const EdgeInsets.all(16), children: [
           const AIBanner(
@@ -2252,10 +2322,14 @@ class _SkillsScreenState extends State<SkillsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final svc = context.read<AppServices>();
-      final userId = context.read<SessionController>().currentUser?.id.toString() ?? '';
+      final userId =
+          context.read<SessionController>().currentUser?.id.toString() ?? '';
       if (userId.isEmpty) throw Exception('Not logged in');
       final insights = await svc.ai.getMentorInsights(userId).unwrap();
       if (!mounted) return;
@@ -2272,7 +2346,8 @@ class _SkillsScreenState extends State<SkillsScreen> {
     }
   }
 
-  List<({String title, double score, bool owned})> _skillRows(MentorInsights insights) {
+  List<({String title, double score, bool owned})> _skillRows(
+      MentorInsights insights) {
     final seen = <String>{};
     final rows = <({String title, double score, bool owned})>[];
 
@@ -2325,17 +2400,19 @@ class _SkillsScreenState extends State<SkillsScreen> {
           title: const Text('Skills',
               style: TextStyle(fontWeight: FontWeight.bold)),
           actions: [
-            IconButton(icon: const Icon(Icons.refresh, size: 20), onPressed: _loading ? null : _load)
+            IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                onPressed: _loading ? null : _load)
           ]),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(_error!, style: const TextStyle(color: AppColors.error)),
-                    const SizedBox(height: 12),
-                    TButton(label: 'Retry', onTap: _load),
-                  ]))
+                  Text(_error!, style: const TextStyle(color: AppColors.error)),
+                  const SizedBox(height: 12),
+                  TButton(label: 'Retry', onTap: _load),
+                ]))
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                   children: [
@@ -2345,7 +2422,8 @@ class _SkillsScreenState extends State<SkillsScreen> {
                         child: Text(
                           'Complete projects and add skills to your profile to unlock personalized recommendations.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                          style: TextStyle(
+                              color: AppColors.textSecondary, fontSize: 14),
                         ),
                       )
                     else
@@ -2353,7 +2431,8 @@ class _SkillsScreenState extends State<SkillsScreen> {
                         (r) => MentorSkillCard(
                           title: r.title,
                           score: r.score,
-                          levelLabel: MentorSkillCard.levelForScore(r.score, owned: r.owned),
+                          levelLabel: MentorSkillCard.levelForScore(r.score,
+                              owned: r.owned),
                           onExplore: () => MentorSkillCard.openExploreChat(
                             context,
                             skillName: r.title,
@@ -2370,4 +2449,3 @@ class _SkillsScreenState extends State<SkillsScreen> {
     );
   }
 }
-

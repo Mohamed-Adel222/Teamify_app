@@ -8,8 +8,7 @@ class CommentRepository {
 
   /// GET /api/tasks/<taskId>/comments
   Future<List<Map<String, dynamic>>> getTaskComments(String taskId) async {
-    final response =
-        await _client.get<dynamic>('/api/tasks/$taskId/comments');
+    final response = await _client.get<dynamic>('/api/tasks/$taskId/comments');
     return responseList(response.data, ['comments', 'data'])
         .cast<Map<String, dynamic>>();
   }

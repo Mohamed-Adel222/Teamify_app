@@ -5,6 +5,9 @@ export 'admin_tasks_screen.dart';
 export 'admin_ai_screen.dart';
 export 'admin_disputes_screen.dart';
 export 'admin_notifications_screen.dart';
+export 'admin_announcements_screen.dart';
+export 'create_announcement_screen.dart';
+export 'announcement_preview_screen.dart';
 export 'admin_files_screen.dart';
 export 'admin_logs_screen.dart';
 export 'admin_security_screen.dart';
@@ -33,19 +36,33 @@ import '../../widgets/widgets.dart';
 import '../../widgets/admin_user_picker.dart';
 
 // ── Admin Bottom Nav ──────────────────────────────────────────────────────────
-class _AdminBottomNav extends StatelessWidget {
+class AdminBottomNav extends StatelessWidget {
   final int current;
-  final BuildContext ctx;
-  const _AdminBottomNav({required this.current, required this.ctx});
+  final ValueChanged<int>? onTap;
+  final BuildContext? ctx;
+
+  const AdminBottomNav({
+    super.key,
+    required this.current,
+    this.onTap,
+    this.ctx,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final navContext = ctx ?? context;
     final List<Map<String, dynamic>> items = [
       {
         'icon': Icons.home_outlined,
         'activeIcon': Icons.home,
         'label': 'Home',
         'route': R.adminHome
+      },
+      {
+        'icon': Icons.people_outline,
+        'activeIcon': Icons.people,
+        'label': 'Users',
+        'route': R.adminUsers
       },
       {
         'icon': Icons.analytics_outlined,
@@ -57,15 +74,16 @@ class _AdminBottomNav extends StatelessWidget {
         'icon': Icons.security_outlined,
         'activeIcon': Icons.security,
         'label': 'Security',
-        'route': R.securityAlerts
+        'route': R.securityMonitor
       },
       {
-        'icon': Icons.people_outline,
-        'activeIcon': Icons.people,
-        'label': 'Users',
-        'route': R.adminUsers
+        'icon': Icons.more_horiz_outlined,
+        'activeIcon': Icons.more_horiz,
+        'label': 'More',
+        'route': null
       },
     ];
+
     return Container(
       decoration: BoxDecoration(color: Colors.white, boxShadow: [
         BoxShadow(
@@ -80,41 +98,265 @@ class _AdminBottomNav extends StatelessWidget {
             children: List.generate(items.length, (i) {
               final sel = current == i;
               return Expanded(
-                  child: GestureDetector(
-                onTap: () {
-                  if (!sel) {
-                    Navigator.pushReplacementNamed(
-                        ctx, items[i]['route'] as String);
-                  }
-                },
-                behavior: HitTestBehavior.opaque,
-                child: Column(
+                child: GestureDetector(
+                  onTap: () {
+                    if (onTap != null) {
+                      onTap!(i);
+                      return;
+                    }
+                    if (i == 4) {
+                      showAdminMoreMenu(navContext);
+                      return;
+                    }
+                    final targetRoute = items[i]['route'] as String?;
+                    if (!sel && targetRoute != null) {
+                      Navigator.pushReplacementNamed(navContext, targetRoute);
+                    }
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                          sel
-                              ? items[i]['activeIcon'] as IconData
-                              : items[i]['icon'] as IconData,
+                        sel
+                            ? items[i]['activeIcon'] as IconData
+                            : items[i]['icon'] as IconData,
+                        color:
+                            sel ? AppColors.primary : AppColors.textSecondary,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        items[i]['label'] as String,
+                        style: TextStyle(
+                          fontSize: 11,
                           color:
                               sel ? AppColors.primary : AppColors.textSecondary,
-                          size: 24),
-                      const SizedBox(height: 2),
-                      Text(items[i]['label'] as String,
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: sel
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
-                              fontWeight:
-                                  sel ? FontWeight.w600 : FontWeight.normal)),
-                    ]),
-              ));
+                          fontWeight:
+                              sel ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             }),
           ),
         ),
       ),
     );
   }
+}
+
+void showAdminMoreMenu(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Admin Features',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryDark,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.folder_outlined,
+                      title: 'Projects Management',
+                      subtitle: 'Review and assign platform projects',
+                      route: R.adminProjects,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.check_box_outlined,
+                      title: 'Tasks Management',
+                      subtitle: 'Monitor system-wide task progress',
+                      route: R.adminTasks,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.campaign_outlined,
+                      title: 'Admin Announcements',
+                      subtitle: 'Create, preview, schedule, and broadcast',
+                      route: R.adminAnnouncements,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.notifications_outlined,
+                      title: 'Notifications Center',
+                      subtitle: 'Send direct broadcasts and view history',
+                      route: R.adminNotifications,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.gavel_outlined,
+                      title: 'Disputes',
+                      subtitle: 'Review and resolve platform disputes',
+                      route: R.adminDisputes,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.description_outlined,
+                      title: 'Files Management',
+                      subtitle: 'Inspect and manage uploaded assets',
+                      route: R.adminFiles,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.history,
+                      title: 'Audit & Activity Logs',
+                      subtitle: 'Track system actions and audit events',
+                      route: R.adminLogs,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.auto_awesome_outlined,
+                      title: 'AI Monitor & Assistant',
+                      subtitle: 'Analyze model performance and ask AI',
+                      route: R.adminAi,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.leaderboard_outlined,
+                      title: 'Leaderboard',
+                      subtitle: 'Top-rated freelancers and feedback',
+                      route: R.adminLeaderboard,
+                    ),
+                    _adminMoreTile(
+                      ctx,
+                      parentContext: context,
+                      icon: Icons.settings_outlined,
+                      title: 'Admin Settings',
+                      subtitle: 'System configurations and controls',
+                      route: R.adminSettings,
+                    ),
+                    const Divider(height: 24),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.logout, color: Colors.red, size: 20),
+                      ),
+                      title: const Text(
+                        'Log Out',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                      onTap: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (c) => AlertDialog(
+                            title: const Text('Confirm Logout'),
+                            content: const Text('Are you sure you want to log out of the Admin panel?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(c, true),
+                                child: const Text('Log Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          if (context.mounted) Navigator.pop(ctx);
+                          if (context.mounted) {
+                            SessionController.performAppLogout(context);
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _adminMoreTile(
+  BuildContext context, {
+  required BuildContext parentContext,
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required String route,
+}) {
+  return ListTile(
+    contentPadding: const EdgeInsets.symmetric(vertical: 4),
+    leading: Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, color: AppColors.primary, size: 20),
+    ),
+    title: Text(
+      title,
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        color: AppColors.textPrimary,
+        fontSize: 14,
+      ),
+    ),
+    subtitle: Text(
+      subtitle,
+      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+    ),
+    trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+    onTap: () {
+      Navigator.pop(context);
+      if (parentContext.mounted) {
+        Navigator.pushNamed(parentContext, route);
+      }
+    },
+  );
 }
 
 // ── Admin Roles ───────────────────────────────────────────────────────────────
@@ -152,7 +394,10 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() { _future = _load(); });
+      if (mounted)
+        setState(() {
+          _future = _load();
+        });
     });
   }
 
@@ -162,7 +407,7 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
           leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -172,7 +417,9 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh, color: AppColors.primary),
-              onPressed: () => setState(() { _future = _load(); }),
+              onPressed: () => setState(() {
+                _future = _load();
+              }),
             ),
           ]),
       body: FutureBuilder<Map<String, dynamic>>(
@@ -190,7 +437,9 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
                         style: const TextStyle(color: AppColors.textSecondary)),
                     const SizedBox(height: 16),
                     TextButton(
-                      onPressed: () => setState(() { _future = _load(); }),
+                      onPressed: () => setState(() {
+                        _future = _load();
+                      }),
                       child: const Text('Retry'),
                     ),
                   ],
@@ -218,65 +467,65 @@ class _AdminRolesScreenState extends State<AdminRolesScreen> {
               final color = r['color'] as Color;
               final perms = r['perms'] as List<String>;
               final memberCount = _roleMemberCount(key, byRole, byType);
-              final count =
-                  memberCount < 0 ? '…' : memberCount.toString();
+              final count = memberCount < 0 ? '…' : memberCount.toString();
               return TCard(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: SizedBox(
                   width: double.infinity,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Row(children: [
-                    Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10)),
-                        child: Icon(Icons.shield_outlined,
-                            color: color, size: 22)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text(r['name'] as String,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                  fontSize: 16)),
-                          Text('$count members',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary)),
-                        ])),
-                    IconButton(
-                        icon: const Icon(Icons.edit_outlined,
-                            size: 18, color: AppColors.primary),
-                        onPressed: () => Navigator.pushNamed(
-                            context, R.editRolePermissions,
-                            arguments: {
-                              ...r,
-                              'count': memberCount < 0 ? 0 : memberCount,
-                            })),
-                  ]),
-                  const SizedBox(height: 10),
-                  const Text('Permissions:',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: perms
-                          .map((p) => TChip(
-                              label: p,
-                              bg: color.withValues(alpha: 0.1),
-                              textColor: color))
-                          .toList()),
-                ]),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10)),
+                              child: Icon(Icons.shield_outlined,
+                                  color: color, size: 22)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(r['name'] as String,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
+                                        fontSize: 16)),
+                                Text('$count members',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary)),
+                              ])),
+                          IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  size: 18, color: AppColors.primary),
+                              onPressed: () => Navigator.pushNamed(
+                                      context, R.editRolePermissions,
+                                      arguments: {
+                                        ...r,
+                                        'count':
+                                            memberCount < 0 ? 0 : memberCount,
+                                      })),
+                        ]),
+                        const SizedBox(height: 10),
+                        const Text('Permissions:',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: perms
+                                .map((p) => TChip(
+                                    label: p,
+                                    bg: color.withValues(alpha: 0.1),
+                                    textColor: color))
+                                .toList()),
+                      ]),
                 ),
               );
             },
@@ -340,7 +589,8 @@ class _SecurityChecklistScreenState extends State<SecurityChecklistScreen> {
       setState(() {
         _items[0]['done'] = settings['mfa_required'] == true;
         _items[1]['done'] = ((summary['open_alerts'] as num?) ?? 1) == 0;
-        _items[4]['done'] = (summary['recent_logins'] as List?)?.isNotEmpty == true;
+        _items[4]['done'] =
+            (summary['recent_logins'] as List?)?.isNotEmpty == true;
         _items[5]['done'] = settings['rate_limiting_enabled'] == true;
       });
     } catch (_) {}
@@ -350,7 +600,7 @@ class _SecurityChecklistScreenState extends State<SecurityChecklistScreen> {
   Widget build(BuildContext context) {
     final done = _items.where((i) => i['done'] == true).length;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
           leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -518,7 +768,8 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
         ),
         Expanded(
           child: RepositoryLoader<List<LoginLog>>(
-            load: () => context.read<AppServices>().admin.listLoginLogs().unwrap(),
+            load: () =>
+                context.read<AppServices>().admin.listLoginLogs().unwrap(),
             isEmpty: (logs) => logs.isEmpty,
             emptyMessage: 'No login logs found',
             builder: (context, logs) {
@@ -540,8 +791,7 @@ class _LoginLogsScreenState extends State<LoginLogsScreen> {
                       _query.isNotEmpty
                           ? 'No results for "$_query"'
                           : 'No login logs found',
-                      style:
-                          const TextStyle(color: AppColors.textSecondary)),
+                      style: const TextStyle(color: AppColors.textSecondary)),
                 );
               }
               return ListView.builder(
@@ -1017,463 +1267,6 @@ class _AlertDetailsScreenState extends State<AlertDetailsScreen> {
   }
 }
 
-// ── Security Monitor ──────────────────────────────────────────────────────────
-class SecurityMonitorScreen extends StatefulWidget {
-  const SecurityMonitorScreen({super.key});
-
-  @override
-  State<SecurityMonitorScreen> createState() => _SecurityMonitorScreenState();
-}
-
-class _SecurityMonitorScreenState extends State<SecurityMonitorScreen> {
-  Future<_SecurityMonitorData>? _future;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() { _future = _load(); });
-    });
-  }
-
-  Future<_SecurityMonitorData> _load() async {
-    final admin = context.read<AppServices>().admin;
-    final ai = context.read<AppServices>().ai;
-    final alerts = await admin.listAlerts().unwrap();
-    final activity = await admin.getAdminActivity().unwrap();
-    
-    AnomalyReport? anomalyReport;
-    try {
-      anomalyReport = await ai.detectAnomaly({}).unwrap();
-    } catch (e) {
-      // Ignore AI failure and proceed with other data
-    }
-    
-    return _SecurityMonitorData(
-      alerts: alerts, 
-      activity: activity.cast<Map<String, dynamic>>(), 
-      anomalyReport: anomalyReport,
-    );
-  }
-
-  void _refresh() { setState(() { _future = _load(); }); }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios,
-                size: 18, color: AppColors.textPrimary),
-            onPressed: () => Navigator.pop(context)),
-        title: const Text('Security Monitor',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _refresh,
-          )
-        ],
-      ),
-      body: FutureBuilder<_SecurityMonitorData>(
-        future: _future,
-        builder: (context, snap) {
-          if (_future == null ||
-              snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.cloud_off,
-                      color: AppColors.textSecondary, size: 40),
-                  const SizedBox(height: 8),
-                  Text('${snap.error}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary)),
-                  TextButton(onPressed: _refresh, child: const Text('Retry')),
-                ],
-              ),
-            );
-          }
-
-          final data = snap.data ?? const _SecurityMonitorData(alerts: [], activity: []);
-          final unresolvedAlerts =
-              data.alerts.where((a) => a.status != 'Resolved').toList();
-          final recentActivity = data.activity.take(5).toList();
-          final anomalies = data.anomalyReport?.anomalies ?? [];
-
-          return RefreshIndicator(
-            onRefresh: () async { _refresh(); },
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text('AI powered threat detection',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13)),
-                const SizedBox(height: 16),
-                
-                // ── AI Anomaly Detection ────────────────────────────────────
-                if (anomalies.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.2)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.auto_awesome, color: AppColors.error, size: 20),
-                            SizedBox(width: 8),
-                            Text('AI Anomaly Detected',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: AppColors.error)),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        ...anomalies.take(3).map((anomaly) {
-                          final Color color = anomaly.severity == 'critical' 
-                              ? AppColors.error 
-                              : anomaly.severity == 'high' 
-                                  ? Colors.orange 
-                                  : AppColors.warning;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: color.withValues(alpha: 0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.warning_amber_outlined, color: color, size: 16),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(anomaly.type,
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.textPrimary)),
-                                      Text(anomaly.description,
-                                          style: const TextStyle(
-                                              fontSize: 12,
-                                              color: AppColors.textSecondary)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // ── High-risk alert summary card ──────────────────────────
-                if (unresolvedAlerts.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                            color: AppColors.error.withValues(alpha: 0.05),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8))
-                      ],
-                    ),
-                    child: Column(children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                            color: AppColors.error.withValues(alpha: 0.1),
-                            shape: BoxShape.circle),
-                        child: const Icon(Icons.warning_amber_outlined,
-                            color: AppColors.error, size: 28),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                          '${unresolvedAlerts.length} Unresolved Alert${unresolvedAlerts.length != 1 ? 's' : ''}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColors.textPrimary)),
-                      Text(unresolvedAlerts.first.title,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12)),
-                      const SizedBox(height: 12),
-                      TButton(
-                        label: 'View All Alerts',
-                        outline: true,
-                        onTap: () =>
-                            Navigator.pushNamed(context, R.securityAlerts),
-                      ),
-                    ]),
-                  ),
-                ] else ...[
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: AppColors.success.withValues(alpha: 0.2)),
-                    ),
-                    child: const Column(children: [
-                      Icon(Icons.check_circle_outline,
-                          color: AppColors.success, size: 36),
-                      SizedBox(height: 8),
-                      Text('No Active Threats',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColors.textPrimary)),
-                      Text('All systems are operating normally.',
-                          style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12)),
-                    ]),
-                  ),
-                ],
-
-                // ── Live Activity ──────────────────────────────────────────
-                const SizedBox(height: 24),
-                const Text('Recent Activity',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 12),
-                if (recentActivity.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('No recent activity',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  )
-                else
-                  ...recentActivity.map((item) {
-                    final action = item['action']?.toString() ?? '';
-                    final entity = item['entity']?.toString() ?? '';
-                    final details = item['details']?.toString() ?? '';
-                    final createdAt = item['created_at']?.toString() ?? '';
-                    return _liveItem(
-                      _iconForAction(action),
-                      '$action — $entity',
-                      details.isNotEmpty ? details : entity,
-                      _formatAgo(createdAt),
-                    );
-                  }),
-
-                // ── Active alerts list ─────────────────────────────────────
-                if (unresolvedAlerts.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Row(children: [
-                    const Icon(Icons.warning_amber_rounded,
-                        color: Colors.orange, size: 18),
-                    const SizedBox(width: 8),
-                    const Text('Active Alerts',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16)),
-                    const Spacer(),
-                    Text('${unresolvedAlerts.length}',
-                        style: const TextStyle(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.bold)),
-                  ]),
-                  const SizedBox(height: 12),
-                  ...unresolvedAlerts.take(3).map(
-                        (a) => _alertItem(a.title),
-                      ),
-                ],
-
-                // ── Suggested actions ──────────────────────────────────────
-                const SizedBox(height: 24),
-                const Text('Suggested Actions',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 12),
-                _suggestedAction(context, 'Manage 2FA', R.twoFAStatus),
-                _suggestedAction(context, 'View Security Alerts',
-                    R.securityAlerts),
-                _suggestedAction(
-                    context, 'Review Activity Logs', R.loginLogs),
-
-                // ── AI assistant prompt ────────────────────────────────────
-                const SizedBox(height: 24),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, R.askAI),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEEF2FF),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color:
-                              AppColors.primary.withValues(alpha: 0.1)),
-                    ),
-                    child: Row(children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(12)),
-                        child: const Icon(Icons.chat_bubble_outline,
-                            color: Colors.white, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('AI Security Assistant',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary)),
-                              Text('Ask AI about this activity',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary)),
-                            ]),
-                      ),
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          );
-        },
-      ),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
-    );
-  }
-
-  static IconData _iconForAction(String action) {
-    switch (action.toUpperCase()) {
-      case 'LOGIN':
-        return Icons.login;
-      case 'LOGOUT':
-        return Icons.logout;
-      case 'CREATE':
-        return Icons.add_circle_outline;
-      case 'DELETE':
-      case 'DELETE_TASK':
-        return Icons.delete_outline;
-      case 'UPDATE':
-      case 'UPDATE_STATUS':
-        return Icons.edit_outlined;
-      default:
-        return Icons.history;
-    }
-  }
-
-  static String _formatAgo(String isoString) =>
-      formatRelativeTime(isoString).toLowerCase();
-
-  Widget _liveItem(
-          IconData icon, String title, String sub, String time) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(children: [
-          Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                  color: AppColors.background, shape: BoxShape.circle),
-              child: Icon(icon, size: 18, color: AppColors.primary)),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                Text(sub,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ])),
-          Text(time,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 11)),
-        ]),
-      );
-
-  Widget _alertItem(String text) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border)),
-        child: Row(children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: AppColors.textSecondary, size: 18),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Text(text,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textPrimary))),
-        ]),
-      );
-
-  Widget _suggestedAction(BuildContext context, String label,
-          String route,
-          {Color color = AppColors.primary}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: OutlinedButton(
-          onPressed: () => Navigator.pushNamed(context, route),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: color.withValues(alpha: 0.3)),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            minimumSize: const Size(double.infinity, 48),
-          ),
-          child: Text(label,
-              style:
-                  TextStyle(color: color, fontWeight: FontWeight.bold)),
-        ),
-      );
-}
-
-class _SecurityMonitorData {
-  final List<SecurityAlert> alerts;
-  final List<Map<String, dynamic>> activity;
-  final AnomalyReport? anomalyReport;
-  const _SecurityMonitorData({
-    required this.alerts, 
-    required this.activity,
-    this.anomalyReport,
-  });
-}
-
-
-
-
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
 class RateLimitingScreen extends StatefulWidget {
   const RateLimitingScreen({super.key});
@@ -1495,12 +1288,15 @@ class _RateLimitingScreenState extends State<RateLimitingScreen> {
 
   Future<void> _load() async {
     try {
-      final settings = await context.read<AppServices>().admin.getSettings().unwrap();
+      final settings =
+          await context.read<AppServices>().admin.getSettings().unwrap();
       if (mounted) {
         setState(() {
           _enabled = settings['rate_limiting_enabled'] as bool? ?? true;
-          _apiLimit = (settings['api_requests_per_minute'] as num?)?.toDouble() ?? 100;
-          _loginLimit = (settings['login_attempts_per_hour'] as num?)?.toDouble() ?? 5;
+          _apiLimit =
+              (settings['api_requests_per_minute'] as num?)?.toDouble() ?? 100;
+          _loginLimit =
+              (settings['login_attempts_per_hour'] as num?)?.toDouble() ?? 5;
         });
       }
     } catch (_) {
@@ -1518,13 +1314,17 @@ class _RateLimitingScreenState extends State<RateLimitingScreen> {
       }).unwrap();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rate limiting settings saved'), backgroundColor: AppColors.success),
+          const SnackBar(
+              content: Text('Rate limiting settings saved'),
+              backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Save failed: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     }
@@ -1536,7 +1336,7 @@ class _RateLimitingScreenState extends State<RateLimitingScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
           leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -1628,7 +1428,8 @@ class _EncryptionStatusScreenState extends State<EncryptionStatusScreen> {
 
   Future<void> _load() async {
     try {
-      final settings = await context.read<AppServices>().admin.getSettings().unwrap();
+      final settings =
+          await context.read<AppServices>().admin.getSettings().unwrap();
       if (mounted) {
         setState(() {
           _atRest = settings['encryption_at_rest'] as bool? ?? true;
@@ -1648,7 +1449,7 @@ class _EncryptionStatusScreenState extends State<EncryptionStatusScreen> {
     }
     final allSecure = _atRest && _inTransit;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
           leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -1673,7 +1474,9 @@ class _EncryptionStatusScreenState extends State<EncryptionStatusScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                 Text(
-                    allSecure ? 'All Data Encrypted' : 'Encryption review needed',
+                    allSecure
+                        ? 'All Data Encrypted'
+                        : 'Encryption review needed',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -1711,126 +1514,31 @@ class _EncryptionStatusScreenState extends State<EncryptionStatusScreen> {
         ].map((e) {
           final active = e['status'] == 'Active';
           return TCard(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: Row(children: [
-              Icon(Icons.lock_outline,
-                  color: active ? AppColors.success : AppColors.error, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(e['label']!,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary)),
-                    Text(e['alg']!,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
-                  ])),
-              TChip(
-                  label: e['status']!,
-                  bg: (active ? AppColors.success : AppColors.error)
-                      .withValues(alpha: 0.1),
-                  textColor: active ? AppColors.success : AppColors.error),
-            ]));
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Row(children: [
+                Icon(Icons.lock_outline,
+                    color: active ? AppColors.success : AppColors.error,
+                    size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(e['label']!,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
+                      Text(e['alg']!,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary)),
+                    ])),
+                TChip(
+                    label: e['status']!,
+                    bg: (active ? AppColors.success : AppColors.error)
+                        .withValues(alpha: 0.1),
+                    textColor: active ? AppColors.success : AppColors.error),
+              ]));
         }),
-      ]),
-    );
-  }
-}
-
-// ── 2FA Status ────────────────────────────────────────────────────────────────
-class TwoFAStatusScreen extends StatefulWidget {
-  const TwoFAStatusScreen({super.key});
-  @override
-  State<TwoFAStatusScreen> createState() => _TwoFAStatusScreenState();
-}
-
-class _TwoFAStatusScreenState extends State<TwoFAStatusScreen> {
-  bool _enabled = false;
-  String _method = 'Authenticator App';
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final settings = await context.read<AppServices>().admin.getSettings().unwrap();
-      if (mounted) {
-        setState(() {
-          _enabled = settings['mfa_required'] == true;
-          _loading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, size: 18),
-              onPressed: () => Navigator.pop(context)),
-          title: const Text('Two-Factor Authentication',
-              style: TextStyle(fontWeight: FontWeight.bold))),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        TCard(
-            child: Row(children: [
-          const Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text('2FA Enabled',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        fontSize: 16)),
-                Text('Extra layer of security for your account',
-                    style: TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary)),
-              ])),
-          Switch(
-              value: _enabled,
-              onChanged: (v) => setState(() => _enabled = v),
-              activeThumbColor: AppColors.primary),
-        ])),
-        const SizedBox(height: 12),
-        const Text('Authentication Method',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-        const SizedBox(height: 8),
-        ...['Authenticator App', 'SMS', 'Email'].map((m) => GestureDetector(
-              onTap: () => setState(() => _method = m),
-              child: TCard(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Row(children: [
-                    Icon(
-                        _method == m
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
-                        color: AppColors.primary,
-                        size: 20),
-                    const SizedBox(width: 12),
-                    Text(m,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary)),
-                  ])),
-            )),
-        const SizedBox(height: 16),
-        TButton(label: 'Save Settings', onTap: () {}),
       ]),
     );
   }
@@ -1851,7 +1559,9 @@ class _AnalystScreenState extends State<AnalystScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        setState(() { _future = _load(); });
+        setState(() {
+          _future = _load();
+        });
       }
     });
   }
@@ -1859,7 +1569,11 @@ class _AnalystScreenState extends State<AnalystScreen> {
   Future<Map<String, dynamic>> _load() =>
       context.read<AppServices>().admin.getAnalyticsOverview().unwrap();
 
-  void _refresh() { setState(() { _future = _load(); }); }
+  void _refresh() {
+    setState(() {
+      _future = _load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1942,8 +1656,7 @@ class _AnalystScreenState extends State<AnalystScreen> {
                             style: const TextStyle(
                                 color: AppColors.textSecondary, fontSize: 13)),
                         TextButton(
-                            onPressed: _refresh,
-                            child: const Text('Retry')),
+                            onPressed: _refresh, child: const Text('Retry')),
                       ]),
                     ),
 
@@ -1986,7 +1699,7 @@ class _AnalystScreenState extends State<AnalystScreen> {
                           'Overdue',
                           totalTasks > 0
                               ? (((tasks['overdue'] as num?)?.toInt() ?? 0) /
-                                  totalTasks)
+                                      totalTasks)
                                   .clamp(0.0, 1.0)
                                   .toDouble()
                               : 0.0,
@@ -2008,8 +1721,7 @@ class _AnalystScreenState extends State<AnalystScreen> {
                           final count = (e.value as num?)?.toInt() ?? 0;
                           final total = byStatus.values.fold<int>(
                               0, (s, v) => s + ((v as num?)?.toInt() ?? 0));
-                          final ratio =
-                              total > 0 ? count / total : 0.0;
+                          final ratio = total > 0 ? count / total : 0.0;
                           final color = e.key == 'active'
                               ? AppColors.success
                               : e.key == 'completed'
@@ -2017,9 +1729,8 @@ class _AnalystScreenState extends State<AnalystScreen> {
                                   : AppColors.warning;
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _statusRow(
-                                e.key, count.toString(), ratio.toDouble(),
-                                color),
+                            child: _statusRow(e.key, count.toString(),
+                                ratio.toDouble(), color),
                           );
                         }).toList(),
                       ),
@@ -2033,12 +1744,12 @@ class _AnalystScreenState extends State<AnalystScreen> {
           },
         ),
       ),
-      bottomNavigationBar: _AdminBottomNav(current: 1, ctx: context),
+      bottomNavigationBar: AdminBottomNav(current: 2, ctx: context),
     );
   }
 
-  Widget _analyticStat(IconData icon, String label, String value, String sub,
-      Color color) {
+  Widget _analyticStat(
+      IconData icon, String label, String value, String sub, Color color) {
     return TCard(
         padding: const EdgeInsets.all(16),
         child: Row(children: [
@@ -2074,8 +1785,7 @@ class _AnalystScreenState extends State<AnalystScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text(label,
-            style:
-                const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
         Text('${(val * 100).toStringAsFixed(1)}%',
             style: const TextStyle(
                 fontSize: 13,
@@ -2108,8 +1818,6 @@ class _AnalystScreenState extends State<AnalystScreen> {
     ]);
   }
 }
-
-
 
 // ── Secure Files ──────────────────────────────────────────────────────────────
 class SecurityFilesScreen extends StatefulWidget {
@@ -2248,8 +1956,8 @@ class _SecurityFilesScreenState extends State<SecurityFilesScreen> {
               child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete',
-                style: TextStyle(color: AppColors.error)),
+            child:
+                const Text('Delete', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -2371,7 +2079,8 @@ class _SecurityFilesScreenState extends State<SecurityFilesScreen> {
                           Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  color:
+                                      AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8)),
                               child: const Icon(Icons.description_outlined,
                                   color: AppColors.primary, size: 22)),
@@ -2401,7 +2110,8 @@ class _SecurityFilesScreenState extends State<SecurityFilesScreen> {
                               ? const SizedBox(
                                   width: 24,
                                   height: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2))
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : IconButton(
                                   icon: const Icon(Icons.close,
                                       size: 18, color: AppColors.textSecondary),
@@ -2417,7 +2127,9 @@ class _SecurityFilesScreenState extends State<SecurityFilesScreen> {
                               fontSize: 11),
                           const SizedBox(width: 6),
                           TChip(
-                              label: f.hasIntegrityHash ? '✓ Verified' : '⚠ No Hash',
+                              label: f.hasIntegrityHash
+                                  ? '✓ Verified'
+                                  : '⚠ No Hash',
                               bg: f.hasIntegrityHash
                                   ? AppColors.success.withValues(alpha: 0.1)
                                   : AppColors.warning.withValues(alpha: 0.1),
@@ -2428,8 +2140,7 @@ class _SecurityFilesScreenState extends State<SecurityFilesScreen> {
                         ]),
                         const SizedBox(height: 8),
                         Row(children: [
-                          Text(
-                              _formatUploadedAt(f.createdAt),
+                          Text(_formatUploadedAt(f.createdAt),
                               style: const TextStyle(
                                   fontSize: 11,
                                   color: AppColors.textSecondary)),
@@ -2441,14 +2152,14 @@ class _SecurityFilesScreenState extends State<SecurityFilesScreen> {
                                   const SizedBox(
                                     width: 14,
                                     height: 14,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 else
                                   const Icon(Icons.download_outlined,
                                       size: 16, color: AppColors.primary),
                                 const SizedBox(width: 4),
-                                Text(
-                                    busy ? 'Please wait…' : 'Download',
+                                Text(busy ? 'Please wait…' : 'Download',
                                     style: const TextStyle(
                                         fontSize: 12,
                                         color: AppColors.primary,
@@ -2774,56 +2485,54 @@ class _SecurityCenterBanner extends StatelessWidget {
           color: const Color(0xFFFFF3E0),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.orange.withValues(alpha: 0.3))),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              const Icon(Icons.shield_outlined, color: Colors.orange, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(alert.title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                        fontSize: 13)),
-              ),
-            ]),
-            const SizedBox(height: 4),
-            Text(alert.description,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          const Icon(Icons.shield_outlined, color: Colors.orange, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(alert.title,
                 style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            GestureDetector(
-                onTap: onViewDetails,
-                child: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(20)),
-                    child: const Text('View Details',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)))),
-            const SizedBox(height: 8),
-            GestureDetector(
-                onTap: onDismiss,
-                child: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                    fontSize: 13)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Text(alert.description,
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        const SizedBox(height: 12),
+        GestureDetector(
+            onTap: onViewDetails,
+            child: Container(
+                alignment: Alignment.center,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(20)),
+                child: const Text('View Details',
+                    style: TextStyle(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.border)),
-                    child: const Text('Dismiss',
-                        style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)))),
-          ]),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)))),
+        const SizedBox(height: 8),
+        GestureDetector(
+            onTap: onDismiss,
+            child: Container(
+                alignment: Alignment.center,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.border)),
+                child: const Text('Dismiss',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)))),
+      ]),
     );
   }
 }
@@ -2928,160 +2637,165 @@ class _SecurityOverviewScreenState extends State<SecurityOverviewScreen> {
           final recentLogins = snapshot.data?['logins'] as List? ?? [];
 
           return ListView(padding: const EdgeInsets.all(16), children: [
-        Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-                color: const Color(0xFFEEF2FF),
-                borderRadius: BorderRadius.circular(16)),
-            child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Your Data is Protected',
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary)),
-                  SizedBox(height: 6),
-                  Text(
-                      'We use industry-standard security measures to keep your information safe.',
-                      style: TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary)),
-                ])),
-        const SizedBox(height: 20),
-        const Text('Hashing vs Encryption',
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary)),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-              child: TCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                const Icon(Icons.key_outlined,
-                    color: AppColors.primary, size: 28),
-                const SizedBox(height: 8),
-                const Text('Hashing',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        fontSize: 15)),
-                const Text(
-                    'One-way conversion of data into a fixed-size string. Cannot be reversed.',
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: const Text('Used for:\nPasswords, checksums',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary))),
-              ]))),
-          const SizedBox(width: 10),
-          Expanded(
-              child: TCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                const Icon(Icons.lock_outline,
-                    color: AppColors.primary, size: 28),
-                const SizedBox(height: 8),
-                const Text('Encryption',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        fontSize: 15)),
-                const Text(
-                    'Two-way conversion that can be decrypted with the correct key.',
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: const Text('Used for:\nFiles, messages, data',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary))),
-              ]))),
-        ]),
-        const SizedBox(height: 16),
-        if (snapshot.hasError)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              'Could not load live metrics: ${snapshot.error}',
-              style: const TextStyle(color: AppColors.error, fontSize: 13),
-            ),
-          ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 520;
-            final steps = _securityStepsCard(context);
-            final status = _liveStatusCard(
-              loading: loading,
-              metrics: metrics,
-              recentLoginCount: recentLogins.length,
-            );
-            if (wide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: steps),
-                  const SizedBox(width: 12),
-                  Expanded(flex: 2, child: status),
-                ],
-              );
-            }
-            return Column(
-              children: [
-                status,
-                const SizedBox(height: 12),
-                steps,
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        TCard(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.shield_outlined, color: AppColors.success, size: 20),
-            SizedBox(width: 8),
-            Text('Best Practices',
+            Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(16)),
+                child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Your Data is Protected',
+                          style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary)),
+                      SizedBox(height: 6),
+                      Text(
+                          'We use industry-standard security measures to keep your information safe.',
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textSecondary)),
+                    ])),
+            const SizedBox(height: 20),
+            const Text('Hashing vs Encryption',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.textPrimary))
-          ]),
-          const Text('Keep your account secure',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          const SizedBox(height: 10),
-          ...[
-            'Use strong, unique passwords',
-            'Enable two-factor authentication',
-            'Review login activity regularly',
-            'Report suspicious activity immediately',
-            'Keep your devices updated'
-          ].map((t) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(children: [
-                Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                        color: AppColors.primary, shape: BoxShape.circle)),
-                const SizedBox(width: 8),
-                Text(t,
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textPrimary))
-              ]))),
-        ])),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                  child: TCard(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                    const Icon(Icons.key_outlined,
+                        color: AppColors.primary, size: 28),
+                    const SizedBox(height: 8),
+                    const Text('Hashing',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                            fontSize: 15)),
+                    const Text(
+                        'One-way conversion of data into a fixed-size string. Cannot be reversed.',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
+                    const SizedBox(height: 8),
+                    Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: const Text('Used for:\nPasswords, checksums',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary))),
+                  ]))),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: TCard(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                    const Icon(Icons.lock_outline,
+                        color: AppColors.primary, size: 28),
+                    const SizedBox(height: 8),
+                    const Text('Encryption',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                            fontSize: 15)),
+                    const Text(
+                        'Two-way conversion that can be decrypted with the correct key.',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
+                    const SizedBox(height: 8),
+                    Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: const Text('Used for:\nFiles, messages, data',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary))),
+                  ]))),
+            ]),
+            const SizedBox(height: 16),
+            if (snapshot.hasError)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Could not load live metrics: ${snapshot.error}',
+                  style: const TextStyle(color: AppColors.error, fontSize: 13),
+                ),
+              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 520;
+                final steps = _securityStepsCard(context);
+                final status = _liveStatusCard(
+                  loading: loading,
+                  metrics: metrics,
+                  recentLoginCount: recentLogins.length,
+                );
+                if (wide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: steps),
+                      const SizedBox(width: 12),
+                      Expanded(flex: 2, child: status),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    status,
+                    const SizedBox(height: 12),
+                    steps,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            TCard(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  const Row(children: [
+                    Icon(Icons.shield_outlined,
+                        color: AppColors.success, size: 20),
+                    SizedBox(width: 8),
+                    Text('Best Practices',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary))
+                  ]),
+                  const Text('Keep your account secure',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                  const SizedBox(height: 10),
+                  ...[
+                    'Use strong, unique passwords',
+                    'Enable two-factor authentication',
+                    'Review login activity regularly',
+                    'Report suspicious activity immediately',
+                    'Keep your devices updated'
+                  ].map((t) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(children: [
+                        Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle)),
+                        const SizedBox(width: 8),
+                        Text(t,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.textPrimary))
+                      ]))),
+                ])),
           ]);
         },
       ),
@@ -3297,7 +3011,8 @@ class SecurityMentorScreen extends StatelessWidget {
             decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.error.withValues(alpha: 0.3))),
+                border:
+                    Border.all(color: AppColors.error.withValues(alpha: 0.3))),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -3437,7 +3152,8 @@ class SecurityMentorScreen extends StatelessWidget {
             decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.error.withValues(alpha: 0.2))),
+                border:
+                    Border.all(color: AppColors.error.withValues(alpha: 0.2))),
             child: const Row(children: [
               Icon(Icons.warning_amber_outlined,
                   color: AppColors.error, size: 18),
@@ -3451,7 +3167,8 @@ class SecurityMentorScreen extends StatelessWidget {
             decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.2))),
+                border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.2))),
             child: const Row(children: [
               Icon(Icons.warning_amber_outlined,
                   color: AppColors.warning, size: 18),
@@ -3466,11 +3183,6 @@ class SecurityMentorScreen extends StatelessWidget {
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary)),
         const SizedBox(height: 10),
-        TButton(
-            label: 'Enable 2FA',
-            outline: true,
-            onTap: () => Navigator.pushNamed(context, R.twoFAStatus)),
-        const SizedBox(height: 8),
         OutlinedButton(
             onPressed: () => Navigator.pushNamed(context, R.forceLogout),
             style: OutlinedButton.styleFrom(
@@ -3538,7 +3250,11 @@ class _ForceLogoutScreenState extends State<ForceLogoutScreen> {
 
   Future<void> _revokeUser(BuildContext context, int userId) async {
     try {
-      await context.read<AppServices>().admin.revokeSessions('$userId').unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .revokeSessions('$userId')
+          .unwrap();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3554,7 +3270,9 @@ class _ForceLogoutScreenState extends State<ForceLogoutScreen> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Revoke failed: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Revoke failed: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     }
@@ -3589,7 +3307,8 @@ class _ForceLogoutScreenState extends State<ForceLogoutScreen> {
                   padding: EdgeInsets.only(left: 16, bottom: 6),
                   child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('Recent login sessions from the admin security API',
+                      child: Text(
+                          'Recent login sessions from the admin security API',
                           style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary)))))),
@@ -3708,7 +3427,7 @@ class _ForceLogoutScreenState extends State<ForceLogoutScreen> {
               TButton(
                   label: 'Logout This Session',
                   outline: true,
-                  onTap: () => Navigator.pop(context)),
+                  onTap: () => SessionController.performAppLogout(context)),
               const SizedBox(height: 8),
               TButton(
                   label: 'Logout All Devices',
@@ -3720,7 +3439,7 @@ class _ForceLogoutScreenState extends State<ForceLogoutScreen> {
                   onTap: () => _revokeUserPicker(context)),
             ])),
       ]),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
+      bottomNavigationBar: AdminBottomNav(current: 2, ctx: context),
     );
   }
 }
@@ -3759,7 +3478,8 @@ class LogoutAllDevicesScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06), blurRadius: 20)
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 20)
                   ]),
               child: Column(children: [
                 Container(
@@ -3786,8 +3506,8 @@ class LogoutAllDevicesScreen extends StatelessWidget {
                 SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                        onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                            context, R.login, (_) => false),
+                        onPressed: () =>
+                            SessionController.performAppLogout(context),
                         style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
                             shape: RoundedRectangleBorder(
@@ -3815,7 +3535,7 @@ class LogoutAllDevicesScreen extends StatelessWidget {
           ]),
         ),
       ),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
+      bottomNavigationBar: AdminBottomNav(current: 2, ctx: context),
     );
   }
 }
@@ -3965,14 +3685,14 @@ class _ReviewActivityScreenState extends State<ReviewActivityScreen> {
 
     final loginLogs = loginLogsResult.data ?? const <LoginLog>[];
     final activityList = activityResult.data ?? [];
-    final List<Map<String, dynamic>> activity = activityList.cast<Map<String, dynamic>>();
+    final List<Map<String, dynamic>> activity =
+        activityList.cast<Map<String, dynamic>>();
     final alerts = alertsResult.data ?? const <SecurityAlert>[];
 
     AnomalyReport? anomaly;
     try {
-      final anomalyResult = await ai
-          .detectAnomaly({})
-          .timeout(const Duration(seconds: 12));
+      final anomalyResult =
+          await ai.detectAnomaly({}).timeout(const Duration(seconds: 12));
       anomaly = anomalyResult.data;
     } catch (_) {}
 
@@ -4065,8 +3785,7 @@ class _ReviewActivityScreenState extends State<ReviewActivityScreen> {
             );
           }
 
-          final data = snapshot.data ??
-              const _ReviewActivityData(entries: []);
+          final data = snapshot.data ?? const _ReviewActivityData(entries: []);
           final items = _filtered(data.entries);
           final insight = data.anomaly?.summary.isNotEmpty == true
               ? data.anomaly!.summary
@@ -4093,7 +3812,8 @@ class _ReviewActivityScreenState extends State<ReviewActivityScreen> {
                   ),
                 )),
             Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -4153,8 +3873,8 @@ class _ReviewActivityScreenState extends State<ReviewActivityScreen> {
                                     decoration: BoxDecoration(
                                         color: a.color.withValues(alpha: 0.1),
                                         shape: BoxShape.circle),
-                                    child: Icon(a.icon,
-                                        color: a.color, size: 18)),
+                                    child:
+                                        Icon(a.icon, color: a.color, size: 18)),
                                 const SizedBox(width: 10),
                                 Expanded(
                                     child: Column(
@@ -4273,7 +3993,7 @@ class _ReviewActivityScreenState extends State<ReviewActivityScreen> {
           ]);
         },
       ),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
+      bottomNavigationBar: AdminBottomNav(current: 2, ctx: context),
     );
   }
 }
@@ -4314,8 +4034,7 @@ class _AskAIScreenState extends State<AskAIScreen> {
 
   Future<void> _load() async {
     final args = ModalRoute.of(context)?.settings.arguments;
-    final seedContext =
-        args is Map ? args['context']?.toString() : null;
+    final seedContext = args is Map ? args['context']?.toString() : null;
 
     try {
       final admin = context.read<AppServices>().admin;
@@ -4347,8 +4066,7 @@ class _AskAIScreenState extends State<AskAIScreen> {
 
   Future<String> _answer(String question) async {
     final q = question.toLowerCase();
-  final openAlerts =
-        _alerts.where((a) => !a.isResolved).toList();
+    final openAlerts = _alerts.where((a) => !a.isResolved).toList();
 
     if (q.contains('risk')) {
       final score = _anomaly?.riskScore ?? 0;
@@ -4356,7 +4074,9 @@ class _AskAIScreenState extends State<AskAIScreen> {
           '${openAlerts.length} unresolved alert(s). '
           '${_anomaly?.isAnomalous == true ? "Anomaly detected." : "No critical anomaly."}';
     }
-    if (q.contains('suspicious') || q.contains('flagged') || q.contains('why')) {
+    if (q.contains('suspicious') ||
+        q.contains('flagged') ||
+        q.contains('why')) {
       if (_anomaly != null && _anomaly!.anomalies.isNotEmpty) {
         return _anomaly!.anomalies
             .map((a) => '${a.type}: ${a.description}')
@@ -4382,10 +4102,14 @@ class _AskAIScreenState extends State<AskAIScreen> {
     final userId = context.read<SessionController>().currentUser?.id;
     if (userId != null && userId.isNotEmpty) {
       try {
-        final reply = await context.read<AppServices>().ai.mentorChat(
+        final reply = await context
+            .read<AppServices>()
+            .ai
+            .mentorChat(
               question:
                   'Security analyst question about platform activity: $question\nContext: $_insight',
-            ).unwrap();
+            )
+            .unwrap();
         if (reply.reply.trim().isNotEmpty) return reply.reply;
       } catch (_) {}
     }
@@ -4570,8 +4294,8 @@ class _AskAIScreenState extends State<AskAIScreen> {
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
                 onSubmitted: (_) => _send(),
               )),
@@ -4590,253 +4314,7 @@ class _AskAIScreenState extends State<AskAIScreen> {
                           color: Colors.white, size: 18))),
             ])),
       ]),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
-    );
-  }
-}
-
-// ── 2FA Enable Screen ─────────────────────────────────────────────────────────
-class TwoFAEnableScreen extends StatelessWidget {
-  const TwoFAEnableScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, size: 18),
-              onPressed: () => Navigator.pop(context)),
-          title: const Text('Back',
-              style: TextStyle(fontWeight: FontWeight.w500))),
-      body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            const SizedBox(height: 20),
-            Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.shield_outlined,
-                    color: AppColors.primary, size: 36)),
-            const SizedBox(height: 16),
-            const Text('Enable 2FA',
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
-            const Text('Add an extra layer of security to your account',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 28),
-            const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Phone Number',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        fontSize: 15))),
-            const SizedBox(height: 8),
-            TextField(
-                decoration: InputDecoration(
-                    hintText: '+1 (555) 000-0000',
-                    hintStyle: const TextStyle(color: AppColors.textHint),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border)),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border)),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: AppColors.primary)))),
-            const Spacer(),
-            TButton(
-                label: 'Send Code',
-                onTap: () => Navigator.pushNamed(context, R.twoFAVerify)),
-          ])),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
-    );
-  }
-}
-
-// ── 2FA Verify Screen ─────────────────────────────────────────────────────────
-class TwoFAVerifyScreen extends StatefulWidget {
-  const TwoFAVerifyScreen({super.key});
-  @override
-  State<TwoFAVerifyScreen> createState() => _TwoFAVerifyScreenState();
-}
-
-class _TwoFAVerifyScreenState extends State<TwoFAVerifyScreen> {
-  int _countdown = 0;
-
-  void _resendCode() {
-    if (_countdown > 0) return;
-    setState(() => _countdown = 60);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Code resent to your phone!'),
-      backgroundColor: AppColors.primary,
-    ));
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return false;
-      setState(() => _countdown--);
-      return _countdown > 0;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, size: 18),
-              onPressed: () => Navigator.pop(context)),
-          title: const Text('Back',
-              style: TextStyle(fontWeight: FontWeight.w500))),
-      body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            const SizedBox(height: 20),
-            Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.shield_outlined,
-                    color: AppColors.primary, size: 36)),
-            const SizedBox(height: 16),
-            const Text('Enable 2FA',
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
-            const Text('Add an extra layer of security to your account',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 28),
-            Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                    6,
-                    (index) => Container(
-                          width: 40,
-                          height: 48,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                              border: Border.all(color: AppColors.border),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: TextField(
-                            autofocus: index == 0,
-                            onChanged: (v) {
-                              if (v.length == 1 && index < 5) {
-                                FocusScope.of(context).nextFocus();
-                              }
-                            },
-                            textAlign: TextAlign.center,
-                            keyboardType: TextInputType.number,
-                            maxLength: 1,
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold),
-                            decoration: const InputDecoration(
-                                border: InputBorder.none, counterText: ''),
-                          ),
-                        ))),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: _countdown == 0 ? _resendCode : null,
-              child: RichText(
-                  text: TextSpan(
-                text: "Didn't receive the code? ",
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 14),
-                children: [
-                  TextSpan(
-                    text:
-                        _countdown > 0 ? 'Resend in ${_countdown}s' : 'Resend',
-                    style: TextStyle(
-                      color: _countdown > 0
-                          ? AppColors.textHint
-                          : AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                ],
-              )),
-            ),
-            const Spacer(),
-            TButton(
-                label: 'Verify Code',
-                onTap: () => Navigator.pushNamed(context, R.twoFASuccess)),
-          ])),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
-    );
-  }
-}
-
-// ── 2FA Success Screen ────────────────────────────────────────────────────────
-class TwoFASuccessScreen extends StatelessWidget {
-  const TwoFASuccessScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, size: 18),
-              onPressed: () => Navigator.pop(context)),
-          title: const Text('Back',
-              style: TextStyle(fontWeight: FontWeight.w500))),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.shield_outlined,
-                    color: AppColors.primary, size: 36)),
-            const SizedBox(height: 16),
-            const Text('Enable 2FA',
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
-            const Text('Add an extra layer of security to your account',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                textAlign: TextAlign.center),
-            const Spacer(),
-            Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                    color: AppColors.success, shape: BoxShape.circle),
-                child: const Icon(Icons.check, color: Colors.white, size: 36)),
-            const SizedBox(height: 16),
-            const Text('2FA Enabled Successfully',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary)),
-            const Text('Your account is now more secure',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-            const Spacer(),
-            TButton(
-                label: 'Done',
-                onTap: () => Navigator.pushNamedAndRemoveUntil(
-                    context, R.adminHome, (_) => false)),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _AdminBottomNav(current: 2, ctx: context),
+      bottomNavigationBar: AdminBottomNav(current: 2, ctx: context),
     );
   }
 }
@@ -4907,7 +4385,7 @@ class _AddUserScreenState extends State<AddUserScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -4960,7 +4438,8 @@ class _AddUserScreenState extends State<AddUserScreen> {
                     items: ['Admin', 'Freelancer', 'Student']
                         .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                         .toList(),
-                    onChanged: _saving ? null : (v) => setState(() => _role = v!),
+                    onChanged:
+                        _saving ? null : (v) => setState(() => _role = v!),
                   )),
                 ),
                 const SizedBox(height: 16),
@@ -4972,8 +4451,8 @@ class _AddUserScreenState extends State<AddUserScreen> {
                 TextField(
                     controller: _passwordCtrl,
                     obscureText: true,
-                    decoration:
-                        _dec('Min 8 chars, 1 uppercase, 1 digit', Icons.lock_outline)),
+                    decoration: _dec('Min 8 chars, 1 uppercase, 1 digit',
+                        Icons.lock_outline)),
               ])),
           const SizedBox(height: 24),
           TButton(
@@ -5111,7 +4590,11 @@ class _UserDetailsAdminScreenState extends State<UserDetailsAdminScreen> {
   Future<void> _changeRole(String role) async {
     final u = _user!;
     await _run(() async {
-      await context.read<AppServices>().admin.changeUserRole(u.id, role).unwrap();
+      await context
+          .read<AppServices>()
+          .admin
+          .changeUserRole(u.id, role)
+          .unwrap();
       setState(() => _user = api.ApiUser(
             id: u.id,
             displayName: u.displayName,
@@ -5217,7 +4700,8 @@ class _UserDetailsAdminScreenState extends State<UserDetailsAdminScreen> {
                       p.bio.isNotEmpty ? p.bio : '—'),
                   _infoRow(Icons.work_outline, 'Type', p.displayRole),
                   if (p.skills.isNotEmpty)
-                    _infoRow(Icons.lightbulb_outline, 'Skills', p.skillsSummary),
+                    _infoRow(
+                        Icons.lightbulb_outline, 'Skills', p.skillsSummary),
                 ],
               ],
             );
@@ -5383,7 +4867,7 @@ class _UserDetailsAdminScreenState extends State<UserDetailsAdminScreen> {
     final user = _user;
     if (user == null) {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -5420,7 +4904,7 @@ class _UserDetailsAdminScreenState extends State<UserDetailsAdminScreen> {
             ? AppColors.warning
             : AppColors.error;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -5431,103 +4915,103 @@ class _UserDetailsAdminScreenState extends State<UserDetailsAdminScreen> {
       body: Stack(
         children: [
           ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TCard(
-            child: Column(children: [
-              TAvatar(initials: u.initials, radius: 40),
-              const SizedBox(height: 12),
-              Text(u.primaryName,
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary)),
-              Text('@${u.displayName}',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13)),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TChip(
-                      label: u.accountStatusLabel,
-                      bg: statusColor.withValues(alpha: 0.1),
-                      textColor: statusColor),
-                  const SizedBox(width: 8),
-                  TChip(
-                      label: u.displayRole,
-                      bg: AppColors.primary.withValues(alpha: 0.1),
-                      textColor: AppColors.primary),
-                ],
+            padding: const EdgeInsets.all(16),
+            children: [
+              TCard(
+                child: Column(children: [
+                  TAvatar(initials: u.initials, radius: 40),
+                  const SizedBox(height: 12),
+                  Text(u.primaryName,
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary)),
+                  Text('@${u.displayName}',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 13)),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TChip(
+                          label: u.accountStatusLabel,
+                          bg: statusColor.withValues(alpha: 0.1),
+                          textColor: statusColor),
+                      const SizedBox(width: 8),
+                      TChip(
+                          label: u.displayRole,
+                          bg: AppColors.primary.withValues(alpha: 0.1),
+                          textColor: AppColors.primary),
+                    ],
+                  ),
+                ]),
               ),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          const TSectionHeader(title: 'Account Information'),
-          const SizedBox(height: 12),
-          TCard(
-              child: Column(children: [
-            _infoRow(Icons.email_outlined, 'Email Address',
-                u.email.isNotEmpty ? u.email : '—'),
-            const Divider(height: 1, color: AppColors.border),
-            _infoRow(Icons.phone_outlined, 'Phone',
-                u.phone.isNotEmpty ? u.phone : '—'),
-            const Divider(height: 1, color: AppColors.border),
-            _infoRow(Icons.info_outline, 'Bio',
-                u.bio.isNotEmpty ? u.bio : '—'),
-            const Divider(height: 1, color: AppColors.border),
-            _infoRow(Icons.work_outline, 'Professional field',
-                u.professionalField.isNotEmpty ? u.professionalField : '—'),
-            const Divider(height: 1, color: AppColors.border),
-            _infoRow(Icons.calendar_today_outlined, 'Joined',
-                u.joinedAt.isNotEmpty ? u.joinedAt.split('T').first : '—'),
-            if (u.skills.isNotEmpty) ...[
-              const Divider(height: 1, color: AppColors.border),
-              _infoRow(Icons.lightbulb_outline, 'Skills', u.skillsSummary),
-            ],
-          ])),
-          const SizedBox(height: 24),
-          const TSectionHeader(title: 'Admin Actions'),
-          const SizedBox(height: 12),
-          TCard(
-              padding: EdgeInsets.zero,
-              child: Column(children: [
-                _actionTile(
-                  Icons.person_outline,
-                  'View User Profile',
-                  _busy ? () {} : _showViewProfile,
-                ),
-                _actionTile(
-                  Icons.swap_horiz,
-                  'Change User Role',
-                  _busy ? () {} : _showRoleDialog,
-                ),
-                _actionTile(
-                  Icons.block,
-                  u.accountStatus.toLowerCase() == 'suspended' ||
-                          u.accountStatus.toLowerCase() == 'locked'
-                      ? 'Unlock User'
-                      : 'Suspend User',
-                  _busy ? () {} : _showSuspendDialog,
-                  isDestructive:
-                      u.accountStatus.toLowerCase() != 'suspended' &&
-                          u.accountStatus.toLowerCase() != 'locked',
-                ),
-                _actionTile(
-                  Icons.lock_reset,
-                  'Reset Password',
-                  _busy ? () {} : _showResetPasswordDialog,
-                ),
-                _actionTile(
-                  Icons.delete_outline,
-                  'Delete User',
-                  _busy ? () {} : _confirmDelete,
-                  isDestructive: true,
-                ),
+              const SizedBox(height: 16),
+              const TSectionHeader(title: 'Account Information'),
+              const SizedBox(height: 12),
+              TCard(
+                  child: Column(children: [
+                _infoRow(Icons.email_outlined, 'Email Address',
+                    u.email.isNotEmpty ? u.email : '—'),
+                const Divider(height: 1, color: AppColors.border),
+                _infoRow(Icons.phone_outlined, 'Phone',
+                    u.phone.isNotEmpty ? u.phone : '—'),
+                const Divider(height: 1, color: AppColors.border),
+                _infoRow(
+                    Icons.info_outline, 'Bio', u.bio.isNotEmpty ? u.bio : '—'),
+                const Divider(height: 1, color: AppColors.border),
+                _infoRow(Icons.work_outline, 'Professional field',
+                    u.professionalField.isNotEmpty ? u.professionalField : '—'),
+                const Divider(height: 1, color: AppColors.border),
+                _infoRow(Icons.calendar_today_outlined, 'Joined',
+                    u.joinedAt.isNotEmpty ? u.joinedAt.split('T').first : '—'),
+                if (u.skills.isNotEmpty) ...[
+                  const Divider(height: 1, color: AppColors.border),
+                  _infoRow(Icons.lightbulb_outline, 'Skills', u.skillsSummary),
+                ],
               ])),
-          const SizedBox(height: 32),
-        ],
-      ),
+              const SizedBox(height: 24),
+              const TSectionHeader(title: 'Admin Actions'),
+              const SizedBox(height: 12),
+              TCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(children: [
+                    _actionTile(
+                      Icons.person_outline,
+                      'View User Profile',
+                      _busy ? () {} : _showViewProfile,
+                    ),
+                    _actionTile(
+                      Icons.swap_horiz,
+                      'Change User Role',
+                      _busy ? () {} : _showRoleDialog,
+                    ),
+                    _actionTile(
+                      Icons.block,
+                      u.accountStatus.toLowerCase() == 'suspended' ||
+                              u.accountStatus.toLowerCase() == 'locked'
+                          ? 'Unlock User'
+                          : 'Suspend User',
+                      _busy ? () {} : _showSuspendDialog,
+                      isDestructive:
+                          u.accountStatus.toLowerCase() != 'suspended' &&
+                              u.accountStatus.toLowerCase() != 'locked',
+                    ),
+                    _actionTile(
+                      Icons.lock_reset,
+                      'Reset Password',
+                      _busy ? () {} : _showResetPasswordDialog,
+                    ),
+                    _actionTile(
+                      Icons.delete_outline,
+                      'Delete User',
+                      _busy ? () {} : _confirmDelete,
+                      isDestructive: true,
+                    ),
+                  ])),
+              const SizedBox(height: 32),
+            ],
+          ),
           if (_busy)
             const Positioned.fill(
               child: ColoredBox(
@@ -5608,7 +5092,7 @@ class _EditRolePermissionsScreenState extends State<EditRolePermissionsScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios, size: 18),
@@ -5627,7 +5111,8 @@ class _EditRolePermissionsScreenState extends State<EditRolePermissionsScreen> {
                   Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                          color: (_role!['color'] as Color).withValues(alpha: 0.1),
+                          color:
+                              (_role!['color'] as Color).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10)),
                       child: Icon(Icons.shield_outlined,
                           color: _role!['color'] as Color, size: 24)),

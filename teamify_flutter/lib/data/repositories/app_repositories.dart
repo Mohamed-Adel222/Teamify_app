@@ -18,6 +18,7 @@ import 'reminder_repository.dart';
 import 'search_repository.dart';
 import 'stats_repository.dart';
 import 'task_repository.dart';
+import 'university_repository.dart';
 import 'user_repository.dart';
 
 class AppRepositories {
@@ -45,6 +46,7 @@ class AppRepositories {
   late final LogRepository logs;
   late final StatsRepository stats;
   late final ReminderRepository reminders;
+  late final UniversityRepository universities;
 
   AppRepositories._({
     required this.tokenStorage,
@@ -71,6 +73,7 @@ class AppRepositories {
     logs = LogRepository(apiClient);
     stats = StatsRepository(apiClient);
     reminders = ReminderRepository(apiClient);
+    universities = UniversityRepository(apiClient);
   }
 
   factory AppRepositories({

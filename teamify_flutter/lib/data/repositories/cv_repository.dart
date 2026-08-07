@@ -31,8 +31,7 @@ class CVRepository {
 
   // GET /api/cv/<id> — single CV by ID
   Future<ApiCV> getCV(String id) async {
-    final response =
-        await _client.get<Map<String, dynamic>>('/api/cv/$id');
+    final response = await _client.get<Map<String, dynamic>>('/api/cv/$id');
     final data = responseMap(response.data);
     final cv = responseMap(data['cv']);
     return ApiCV.fromJson(cv.isNotEmpty ? cv : data);

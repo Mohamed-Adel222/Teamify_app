@@ -31,7 +31,9 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
     setState(() => _loading = true);
     try {
       final admin = context.read<AppServices>().admin;
-      final ts = await admin.getAnalyticsTimeSeries(metric: _metric, days: _days).unwrap();
+      final ts = await admin
+          .getAnalyticsTimeSeries(metric: _metric, days: _days)
+          .unwrap();
       final overview = await admin.getAnalyticsOverview().unwrap();
       if (mounted) {
         setState(() {
@@ -42,7 +44,9 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load analytics: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Failed to load analytics: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -73,7 +77,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
           );
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Analytics exported as analytics.csv')),
+            const SnackBar(
+                content: Text('Analytics exported as analytics.csv')),
           );
         },
         failure: (error) {
@@ -103,9 +108,11 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Platform Analytics', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Platform Analytics',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          IconButton(icon: const Icon(Icons.download), onPressed: _exportAnalytics),
+          IconButton(
+              icon: const Icon(Icons.download), onPressed: _exportAnalytics),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
@@ -118,17 +125,25 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                   children: [
                     Expanded(
                       child: InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Metric', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                            labelText: 'Metric', border: OutlineInputBorder()),
                         child: DropdownButton<String>(
                           value: _metric,
                           isExpanded: true,
                           underline: const SizedBox(),
                           items: const [
-                            DropdownMenuItem(value: 'users', child: Text('Total Users')),
-                            DropdownMenuItem(value: 'new_users', child: Text('New Users')),
-                            DropdownMenuItem(value: 'projects', child: Text('Projects')),
-                            DropdownMenuItem(value: 'tasks_completed', child: Text('Tasks Completed')),
-                            DropdownMenuItem(value: 'ai_requests', child: Text('AI Requests')),
+                            DropdownMenuItem(
+                                value: 'users', child: Text('Total Users')),
+                            DropdownMenuItem(
+                                value: 'new_users', child: Text('New Users')),
+                            DropdownMenuItem(
+                                value: 'projects', child: Text('Projects')),
+                            DropdownMenuItem(
+                                value: 'tasks_completed',
+                                child: Text('Tasks Completed')),
+                            DropdownMenuItem(
+                                value: 'ai_requests',
+                                child: Text('AI Requests')),
                           ],
                           onChanged: (v) {
                             if (v == null) return;
@@ -141,7 +156,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Range', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                            labelText: 'Range', border: OutlineInputBorder()),
                         child: DropdownButton<int>(
                           value: _days,
                           isExpanded: true,
@@ -168,7 +184,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                   children: [
                     _kpiCard('Users', '${users['total'] ?? '—'}'),
                     _kpiCard('Active', '${users['active'] ?? '—'}'),
-                    _kpiCard('Task completion', '${tasks['completion_rate'] ?? '—'}%'),
+                    _kpiCard('Task completion',
+                        '${tasks['completion_rate'] ?? '—'}%'),
                     _kpiCard('Overdue tasks', '${tasks['overdue'] ?? '—'}'),
                   ],
                 ),
@@ -176,7 +193,11 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                 TSectionHeader(title: 'Daily trend (${_series.length} points)'),
                 const SizedBox(height: 8),
                 if (_series.isEmpty)
-                  const TCard(child: Padding(padding: EdgeInsets.all(24), child: Text('No snapshot data yet. Daily job will populate this chart.')))
+                  const TCard(
+                      child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                              'No snapshot data yet. Daily job will populate this chart.')))
                 else
                   TCard(
                     child: SizedBox(
@@ -188,19 +209,27 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
                           final pt = _series[i] as Map<String, dynamic>;
                           final val = (pt['value'] as num?)?.toDouble() ?? 0;
                           final maxVal = _series.fold<double>(0, (m, e) {
-                            final v = ((e as Map)['value'] as num?)?.toDouble() ?? 0;
+                            final v =
+                                ((e as Map)['value'] as num?)?.toDouble() ?? 0;
                             return v > m ? v : m;
                           }).clamp(1, double.infinity);
                           final h = (val / maxVal * 160).clamp(4.0, 160.0);
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 12),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                Text('${val.toInt()}', style: const TextStyle(fontSize: 10)),
-                                Container(width: 18, height: h, color: AppColors.primary.withValues(alpha: 0.85)),
+                                Text('${val.toInt()}',
+                                    style: const TextStyle(fontSize: 10)),
+                                Container(
+                                    width: 18,
+                                    height: h,
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.85)),
                                 const SizedBox(height: 4),
-                                Text((pt['date'] ?? '').toString().substring(5), style: const TextStyle(fontSize: 9)),
+                                Text((pt['date'] ?? '').toString().substring(5),
+                                    style: const TextStyle(fontSize: 9)),
                               ],
                             ),
                           );
@@ -222,9 +251,13 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
               const SizedBox(height: 6),
-              Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.bold)),
             ],
           ),
         ),

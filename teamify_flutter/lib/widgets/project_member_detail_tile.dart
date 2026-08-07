@@ -47,19 +47,27 @@ class ProjectMemberDetailTile extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (role.isNotEmpty) _roleBadge(role),
+                      ],
                     ),
                   ),
                   if (trailing != null) trailing!,
                 ],
               ),
-              if (user.displayName.isNotEmpty &&
-                  user.displayName != name)
+              if (user.displayName.isNotEmpty && user.displayName != name)
                 Text(
                   '@${user.displayName}',
                   style: const TextStyle(
@@ -94,7 +102,7 @@ class ProjectMemberDetailTile extends StatelessWidget {
               if (showSkills)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: _skillsSection(user.skills),
+                  child: _skillsSection(context, user.skills),
                 ),
               if (showJoinedAt && user.joinedAt.isNotEmpty)
                 Padding(
@@ -114,23 +122,61 @@ class ProjectMemberDetailTile extends StatelessWidget {
     );
   }
 
+  Widget _roleBadge(String roleLabel) {
+    final l = roleLabel.toLowerCase();
+    String text = '👤 Member';
+    Color bg = const Color(0xFFF1F5F9);
+    Color fg = const Color(0xFF475569);
+
+    if (l.contains('owner')) {
+      text = '👑 Owner';
+      bg = const Color(0xFFFEF3C7);
+      fg = const Color(0xFFD97706);
+    } else if (l.contains('admin')) {
+      text = '🛡 Admin';
+      bg = const Color(0xFFE0E7FF);
+      fg = const Color(0xFF4F46E5);
+    } else if (l.contains('viewer')) {
+      text = '👁 Viewer';
+      bg = const Color(0xFFCCFBF1);
+      fg = const Color(0xFF0D9488);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: fg,
+        ),
+      ),
+    );
+  }
+
   static String _formatJoined(String iso) {
     final d = DateTime.tryParse(iso);
     if (d == null) return iso;
     return '${d.day}/${d.month}/${d.year}';
   }
 
-  Widget _skillsSection(List<String> skills) {
+  Widget _skillsSection(BuildContext context, List<String> skills) {
     final visible = skills.where((s) => s.trim().isNotEmpty).take(8).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Skills',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 4),

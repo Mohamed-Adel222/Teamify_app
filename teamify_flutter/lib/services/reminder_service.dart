@@ -42,8 +42,7 @@ class ReminderService with ServiceErrorHandler {
       // Background revalidation so next call gets fresh data
       _dedup.deduplicate('$_key-bg', () async {
         final fresh = await _repo.getReminders();
-        await _cache.putList(
-            _box, _key, fresh.cast<Map<String, dynamic>>());
+        await _cache.putList(_box, _key, fresh.cast<Map<String, dynamic>>());
         return ApiResult.success(fresh);
       });
       return ApiResult.success(cached.cast<Map<String, dynamic>>());

@@ -7,6 +7,8 @@ import '../../core/theme.dart';
 import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
 
+import '../../data/registration_options.dart';
+
 /// Collects profile fields after Google/GitHub sign-up (same data as email register).
 class OAuthProfileSetupScreen extends StatefulWidget {
   const OAuthProfileSetupScreen({super.key});
@@ -36,31 +38,8 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
     'Expert',
   ];
 
-  static const _majorOptions = [
-    'Computer Science',
-    'Information Systems',
-    'Software Engineering',
-    'Artificial Intelligence',
-    'Data Science',
-    'Business Administration',
-    'Graphic Design',
-    'Multimedia',
-    'Marketing',
-    'Other',
-  ];
-
-  static const _skillsOptions = [
-    'UI/UX Design',
-    'Product Design',
-    'Flutter',
-    'Frontend Development',
-    'Backend Development',
-    'Figma',
-    'Graphic Design',
-    'Mobile App Development',
-    'Project Management',
-    'AI Tools',
-  ];
+  static List<String> get _majorOptions => RegistrationOptions.majors;
+  static List<String> get _skillsOptions => RegistrationOptions.skills;
 
   @override
   void initState() {
@@ -87,7 +66,8 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
           _experienceLevel.isEmpty ||
           _availability.isEmpty ||
           _selectedSkills.isEmpty) {
-        _showError('Please complete field, experience, availability, and skills.');
+        _showError(
+            'Please complete field, experience, availability, and skills.');
         return;
       }
     }
@@ -111,7 +91,8 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
         payload['availability'] = _availability;
       }
 
-      final res = await context.read<AppServices>().users.updateProfile(payload);
+      final res =
+          await context.read<AppServices>().users.updateProfile(payload);
       if (!mounted) return;
       res.when(
         success: (updated) {
@@ -411,7 +392,8 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              style:
+                  const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             ),
           ),
           const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
