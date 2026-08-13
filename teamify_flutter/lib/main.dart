@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'core/web/configure_url_strategy.dart';
 import 'config/app_config.dart';
 import 'core/theme.dart';
 import 'core/theme_controller.dart';
@@ -33,9 +34,12 @@ import 'screens/admin/admin_screens.dart';
 import 'screens/mentor/mentor_screens.dart';
 import 'screens/team/team_screens.dart';
 import 'screens/meeting/meeting_screens.dart';
+import 'screens/meeting/meetings_list_screen.dart';
+import 'screens/meeting/meeting_preview_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  configureAppUrlStrategy();
 
   // ── Infrastructure ──────────────────────────────────────────────────────
   final cache = CacheManager();
@@ -137,6 +141,20 @@ class TeamifyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       initialRoute: R.splash,
+      onGenerateRoute: (settings) {
+        final name = settings.name ?? '';
+        final join = RegExp(r'^/meeting/join/([0-9a-fA-F-]{36})$')
+            .firstMatch(name);
+        if (join != null) {
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => ProtectedRoute(
+              child: MeetingPreviewScreen(publicId: join.group(1)!),
+            ),
+          );
+        }
+        return null;
+      },
       routes: {
         // ── Auth ──────────────────────────────────────────────────────────────
         R.splash: (_) => const SplashScreen(),

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/network/api_result.dart';
+import '../../core/observability/app_logger.dart';
 import '../../core/routes.dart';
+import '../../data/models/api_user.dart';
 import '../../models/models.dart';
 import '../../services/app_services.dart';
 
@@ -81,6 +83,47 @@ Future<void> openProjectTeamChat(
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not open team chat: $e')),
+      );
+    }
+  }
+}
+
+/// Opens (or creates) a 1:1 DM with [user] using a real numeric room id.
+Future<void> openDirectChat(BuildContext context, ApiUser user) async {
+  final peerId = int.tryParse(user.id);
+  if (peerId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Invalid user id')),
+    );
+    return;
+  }
+
+  try {
+    final roomMap = await context
+        .read<AppServices>()
+        .chat
+        .findOrCreateDirect(peerId)
+        .unwrap();
+    if (!context.mounted) return;
+    final room = chatRoomFromApi(roomMap);
+    Navigator.pushNamed(
+      context,
+      R.directChat,
+      arguments: ChatRoom(
+        id: room.id,
+        name: user.primaryName.isNotEmpty ? user.primaryName : room.name,
+        lastMessage: room.lastMessage,
+        time: room.time,
+        initials: user.initials.isNotEmpty ? user.initials : room.initials,
+        isGroup: false,
+        projectId: room.projectId,
+      ),
+    );
+  } catch (e) {
+    AppLogger.error('Could not open direct chat', e);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open conversation: $e')),
       );
     }
   }

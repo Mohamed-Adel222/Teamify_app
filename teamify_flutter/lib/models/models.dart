@@ -107,8 +107,9 @@ class ChatMessage {
   final String id, senderId, senderName, senderInitials, message, time;
   final bool isMe;
   final bool isPending;
+  final bool isFailed;
 
-  /// text | image | file
+  /// text | image | file | meeting
   final String messageType;
   final String? fileId;
   final String? fileName;
@@ -124,6 +125,7 @@ class ChatMessage {
     required this.time,
     this.isMe = false,
     this.isPending = false,
+    this.isFailed = false,
     this.messageType = 'text',
     this.fileId,
     this.fileName,
@@ -133,7 +135,32 @@ class ChatMessage {
 
   bool get isImage => messageType == 'image';
   bool get isFile => messageType == 'file';
+  bool get isMeetingInvite => messageType == 'meeting';
   bool get hasAttachment => fileId != null && fileId!.isNotEmpty;
+
+  ChatMessage copyWith({
+    String? id,
+    bool? isPending,
+    bool? isFailed,
+    DateTime? createdAt,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      senderId: senderId,
+      senderName: senderName,
+      senderInitials: senderInitials,
+      message: message,
+      time: time,
+      isMe: isMe,
+      isPending: isPending ?? this.isPending,
+      isFailed: isFailed ?? this.isFailed,
+      messageType: messageType,
+      fileId: fileId,
+      fileName: fileName,
+      mimeType: mimeType,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }
 
 class ChatRoom {

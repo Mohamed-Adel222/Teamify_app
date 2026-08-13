@@ -47,6 +47,19 @@ def create_chat_message(
     if message_type in ("image", "file") and file_id is None:
         return None, (jsonify({"error": "file_id is required for attachments"}), 400)
 
+    raw_key = data.get("idempotency_key")
+    idempotency_key = str(raw_key).strip()[:64] if raw_key else None
+    if idempotency_key == "":
+        idempotency_key = None
+    if idempotency_key:
+        existing = Message.query.filter_by(
+            room_id=room_id,
+            sender_id=sender_id,
+            idempotency_key=idempotency_key,
+        ).first()
+        if existing is not None:
+            return existing, None
+
     room = db.session.get(ChatRoom, room_id)
     if file_id is not None and room and room.project_id:
         meta = db.session.get(FileMetadata, file_id)
@@ -59,6 +72,7 @@ def create_chat_message(
         content=content,
         message_type=message_type,
         file_id=file_id,
+        idempotency_key=idempotency_key,
     )
     db.session.add(msg)
     db.session.commit()

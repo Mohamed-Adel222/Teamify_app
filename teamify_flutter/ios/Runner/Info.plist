@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Teamify needs camera access for video meetings.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Teamify needs microphone access for meeting audio and transcription.</string>
 </dict>
 </plist>

@@ -65,6 +65,13 @@ class ChatService with ServiceErrorHandler {
         return room;
       });
 
+  Future<ApiResult<Map<String, dynamic>>> findOrCreateDirect(int userId) =>
+      guard(() async {
+        final room = await _repo.findOrCreateDirect(userId);
+        await invalidateRooms();
+        return room;
+      });
+
   Future<ApiResult<Map<String, dynamic>>> getRoom(String roomId) =>
       _dedup.deduplicate(
         'chat_room_$roomId',

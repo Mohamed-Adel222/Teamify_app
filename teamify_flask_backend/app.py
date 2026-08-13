@@ -158,6 +158,63 @@ def _apply_runtime_schema_patches(app: Flask) -> None:
         except Exception as exc:
             app.logger.warning("Schema patch users.%s skipped: %s", column, exc)
 
+    try:
+        insp = inspect(db.engine)
+        if "chat_rooms" in insp.get_table_names():
+            col_names = {c["name"] for c in insp.get_columns("chat_rooms")}
+            if "direct_pair_key" not in col_names:
+                dialect = db.engine.dialect.name
+                if dialect == "postgresql":
+                    sql = (
+                        "ALTER TABLE chat_rooms "
+                        "ADD COLUMN IF NOT EXISTS direct_pair_key VARCHAR(64)"
+                    )
+                else:
+                    sql = "ALTER TABLE chat_rooms ADD COLUMN direct_pair_key VARCHAR(64)"
+                with db.engine.begin() as conn:
+                    conn.execute(text(sql))
+                app.logger.info("Schema patch: added chat_rooms.direct_pair_key")
+    except Exception as exc:
+        app.logger.warning("Schema patch chat_rooms.direct_pair_key skipped: %s", exc)
+
+    try:
+        insp = inspect(db.engine)
+        if "meeting_sessions" in insp.get_table_names():
+            col_names = {c["name"] for c in insp.get_columns("meeting_sessions")}
+            if "meeting_id" not in col_names:
+                dialect = db.engine.dialect.name
+                if dialect == "postgresql":
+                    sql = (
+                        "ALTER TABLE meeting_sessions "
+                        "ADD COLUMN IF NOT EXISTS meeting_id INTEGER"
+                    )
+                else:
+                    sql = "ALTER TABLE meeting_sessions ADD COLUMN meeting_id INTEGER"
+                with db.engine.begin() as conn:
+                    conn.execute(text(sql))
+                app.logger.info("Schema patch: added meeting_sessions.meeting_id")
+    except Exception as exc:
+        app.logger.warning("Schema patch meeting_sessions.meeting_id skipped: %s", exc)
+
+    try:
+        insp = inspect(db.engine)
+        if "messages" in insp.get_table_names():
+            col_names = {c["name"] for c in insp.get_columns("messages")}
+            if "idempotency_key" not in col_names:
+                dialect = db.engine.dialect.name
+                if dialect == "postgresql":
+                    sql = (
+                        "ALTER TABLE messages "
+                        "ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64)"
+                    )
+                else:
+                    sql = "ALTER TABLE messages ADD COLUMN idempotency_key VARCHAR(64)"
+                with db.engine.begin() as conn:
+                    conn.execute(text(sql))
+                app.logger.info("Schema patch: added messages.idempotency_key")
+    except Exception as exc:
+        app.logger.warning("Schema patch messages.idempotency_key skipped: %s", exc)
+
 
 def create_app(test_config=None):
     """Create and configure the Flask application."""
@@ -174,8 +231,14 @@ def create_app(test_config=None):
     # CORS — allow socket.io polling path too (needed during upgrade handshake)
     _cors_origins = os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:8080",
+        ",".join([
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "https://teamify-web.web.app",
+            "https://curious-scone-0d6e70.netlify.app",
+        ]),
     ).split(",")
+    _cors_origins = [o.strip() for o in _cors_origins if o.strip()]
     cors_settings = {
         "origins": _cors_origins,
         "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -307,6 +370,7 @@ def create_app(test_config=None):
     from routes.cv import cv_bp
     from routes.disputes import disputes_bp
     from routes.chat import chat_bp
+    from routes.meetings import meetings_bp
     from routes.universities import universities_bp
 
     app.register_blueprint(auth_bp)
@@ -328,6 +392,7 @@ def create_app(test_config=None):
     app.register_blueprint(cv_bp)
     app.register_blueprint(disputes_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(meetings_bp)
     app.register_blueprint(universities_bp)
 
     @app.before_request
@@ -417,6 +482,7 @@ def create_app(test_config=None):
         from models.dispute import Dispute
         from models.chat import ChatRoom, ChatRoomMember, Message
         from models.meeting_session import MeetingSession  # noqa: F401
+        from models.meeting import Meeting, MeetingParticipant  # noqa: F401
         from models.mentor_chat_message import MentorChatMessage  # noqa: F401
         from models.token_blocklist import TokenBlocklist  # noqa: F401
         from models.admin_panel import (  # noqa: F401

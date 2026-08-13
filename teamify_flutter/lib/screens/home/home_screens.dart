@@ -17,6 +17,7 @@ import '../../data/demo/demo_notifications_data.dart';
 import '../../widgets/notification_widgets.dart';
 import '../../data/models/university_option_model.dart';
 import '../project/project_screens.dart';
+import '../chat/chat_room_utils.dart';
 
 Map<String, int> _homeDashboardCounts(Map<String, dynamic> dash) {
   final stats = dash['stats'] as Map<String, dynamic>? ?? {};
@@ -381,8 +382,8 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  void _sendDirectMessage(api.ApiUser user) {
-    Navigator.pushNamed(context, R.directChat, arguments: user);
+  Future<void> _sendDirectMessage(api.ApiUser user) async {
+    await openDirectChat(context, user);
   }
 
   @override

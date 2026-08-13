@@ -17,6 +17,7 @@ from models.user import User
 from services.chat_message_service import create_chat_message, delete_chat_message
 from services.chat_room_service import (
     add_room_member,
+    ensure_direct_chat_room,
     ensure_project_chat_room,
     sync_all_project_rooms_for_user,
     sync_project_members_to_room,
@@ -284,6 +285,40 @@ def create_room():
     return jsonify({"message": "Room created", "room": room.to_dict()}), 201
 
 
+# ── Find or create a 1:1 direct message room ──────────────────────────────────
+@chat_bp.route("/direct", methods=["POST"])
+@auth_required
+def find_or_create_direct_room():
+    """
+    Find or create a direct-message room with another user.
+    Always returns a numeric chat room id — never a client-invented dm_ id.
+    """
+    user_id = int(get_jwt_identity())
+    data = request.get_json(silent=True) or {}
+    raw = data.get("user_id") or data.get("peer_id") or data.get("member_id")
+    try:
+        peer_id = int(raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "user_id is required and must be an integer"}), 400
+
+    room, err = ensure_direct_chat_room(user_id, peer_id)
+    if err:
+        lowered = err.lower()
+        if "not found" in lowered:
+            status = 404
+        elif "not available" in lowered or "yourself" in lowered:
+            status = 403
+        else:
+            status = 400
+        return jsonify({"error": err}), status
+    db.session.commit()
+    created = room.created_at is not None
+    return jsonify({
+        "message": "Direct chat ready",
+        "room": room.to_dict(include_last_message=True),
+    }), 200
+
+
 # ── Get a single room with member profiles ────────────────────────────────────
 @chat_bp.route("/rooms/<int:room_id>", methods=["GET"])
 @auth_required
@@ -512,6 +547,15 @@ def start_meeting_session(room_id):
         transcript=[],
         participant_ids=[user_id],
     )
+    from models.meeting import Meeting
+
+    live_meeting = (
+        Meeting.query.filter_by(chat_room_id=room_id, status="live")
+        .order_by(Meeting.created_at.desc())
+        .first()
+    )
+    if live_meeting is not None:
+        session.meeting_id = live_meeting.id
     db.session.add(session)
     db.session.commit()
     return jsonify({"session": session.to_dict()}), 201
