@@ -1,4 +1,6 @@
 from unittest.mock import patch
+import sys
+import types
 
 from services.email_service import (
     PLACEHOLDER_API_KEY,
@@ -22,10 +24,13 @@ class TestIsConfigured:
         monkeypatch.setenv("RESEND_API_KEY", "re_test_not_a_real_key")
         assert is_configured() is True
 
-    def test_empty_flask_config_overrides_env(self, app, monkeypatch):
+    def test_empty_flask_config_overrides_env(self, monkeypatch):
         monkeypatch.setenv("RESEND_API_KEY", "re_from_env")
-        with app.app_context():
-            assert is_configured() is False
+        fake_flask = types.ModuleType("flask")
+        fake_flask.has_app_context = lambda: True
+        fake_flask.current_app = types.SimpleNamespace(config={"RESEND_API_KEY": ""})
+        monkeypatch.setitem(sys.modules, "flask", fake_flask)
+        assert is_configured() is False
 
 
 class TestSendEmail:
