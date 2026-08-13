@@ -309,6 +309,7 @@ def app():
         "JWT_SECRET_KEY": "test-secret-key-for-unit-tests",
         "WTF_CSRF_ENABLED": False,
         "RATELIMIT_ENABLED": False,
+        "RESEND_API_KEY": "",
     }
     with patch("services.scheduler.init_scheduler", return_value=None):
         from app import create_app, limiter
