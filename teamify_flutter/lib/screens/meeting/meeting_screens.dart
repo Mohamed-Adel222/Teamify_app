@@ -16,7 +16,6 @@ import '../../core/theme.dart';
 import '../../services/app_services.dart';
 import '../project/project_screens.dart' show AddTaskRouteArgs;
 import '../../config/app_config.dart';
-import '../../widgets/widgets.dart';
 import 'meeting_summary_export.dart';
 import 'meeting_transcript_utils.dart';
 import 'meeting_ui.dart';

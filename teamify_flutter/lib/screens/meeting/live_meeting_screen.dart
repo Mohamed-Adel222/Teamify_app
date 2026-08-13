@@ -5,6 +5,7 @@ import 'package:livekit_client/livekit_client.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/audio/meeting_speech_pipeline.dart';
+import '../../core/network/api_result.dart';
 import '../../core/observability/app_logger.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/theme.dart';
@@ -33,7 +34,12 @@ class LiveMeetingScreen extends StatefulWidget {
 }
 
 class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
-  final Room _room = Room();
+  final Room _room = Room(
+    roomOptions: const RoomOptions(
+      adaptiveStream: true,
+      dynacast: true,
+    ),
+  );
   final MeetingSpeechPipeline _speech = MeetingSpeechPipeline();
   EventsListener<RoomEvent>? _listener;
 
@@ -136,10 +142,6 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
       await _room.connect(
         widget.joinToken.url,
         widget.joinToken.token,
-        roomOptions: const RoomOptions(
-          adaptiveStream: true,
-          dynacast: true,
-        ),
       );
       await _room.localParticipant?.setCameraEnabled(_camOn);
       await _room.localParticipant?.setMicrophoneEnabled(_micOn);
@@ -170,12 +172,10 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
   Future<void> _startSessionAndSpeech() async {
     final roomId = widget.meeting.chatRoomId;
     if (roomId.isEmpty) return;
+    final services = context.read<AppServices>();
     try {
-      final session = await context
-          .read<AppServices>()
-          .chat
-          .startMeetingSession(roomId)
-          .unwrap();
+      final session =
+          await services.chat.startMeetingSession(roomId).unwrap();
       _sessionId = session['id']?.toString();
     } catch (e, st) {
       AppLogger.error('Meeting session start failed', e, st);
@@ -194,10 +194,10 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
         });
       },
       transcribeFallback: (bytes, filename) async {
-        final result = await context.read<AppServices>().ai.transcribe(
-              bytes,
-              filename: filename,
-            );
+        final result = await services.ai.transcribe(
+          bytes,
+          filename: filename,
+        );
         if (!result.isSuccess) {
           if (mounted) {
             setState(() => _speechUnavailable = true);
@@ -234,10 +234,10 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
 
   Future<void> _leave({required bool endForAll}) async {
     if (_ending) return;
-    setState(() => _ending = true);
-    await _speech.shutdown();
     final meetings = context.read<AppServices>().meetings;
     final chat = context.read<AppServices>().chat;
+    setState(() => _ending = true);
+    await _speech.shutdown();
     try {
       if (endForAll) {
         await meetings.end(widget.publicId);

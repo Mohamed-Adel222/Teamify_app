@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/observability/app_logger.dart';
+import '../../core/network/api_result.dart';
 import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
 
@@ -362,20 +363,14 @@ class _MeetingTranscriptionScreenState
       return;
     }
     try {
+      final services = context.read<AppServices>();
       if (publicId != null && publicId.isNotEmpty) {
-        final meeting = await context
-            .read<AppServices>()
-            .meetings
-            .getMeeting(publicId)
-            .unwrap();
+        final meeting = await services.meetings.getMeeting(publicId).unwrap();
         if (!mounted) return;
         _applyMeeting(meeting.title, meeting.session);
       } else if (roomId != null && sessionId != null && sessionId.isNotEmpty) {
-        final session = await context
-            .read<AppServices>()
-            .chat
-            .getMeetingSession(roomId, sessionId)
-            .unwrap();
+        final session =
+            await services.chat.getMeetingSession(roomId, sessionId).unwrap();
         if (!mounted) return;
         _applyMeeting('Meeting notes', session);
       } else {

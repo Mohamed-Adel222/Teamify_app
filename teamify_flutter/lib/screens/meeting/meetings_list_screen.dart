@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/observability/app_logger.dart';
+import '../../core/network/api_result.dart';
 import '../../core/theme.dart';
 import '../../data/models/api_meeting.dart';
 import '../../data/models/api_helpers.dart';
@@ -107,16 +108,13 @@ class _MeetingsListScreenState extends State<MeetingsListScreen> {
       );
       return;
     }
+    final meetings = context.read<AppServices>().meetings;
     try {
-      final meeting = await context
-          .read<AppServices>()
-          .meetings
-          .createMeeting(
+      final meeting = await meetings.createMeeting(
             chatRoomId: roomId,
             projectId: int.tryParse(selected['project_id']?.toString() ?? ''),
             title: '${selected['name'] ?? 'Team'} meeting',
-          )
-          .unwrap();
+          ).unwrap();
       if (!mounted) return;
       await Navigator.push(
         context,

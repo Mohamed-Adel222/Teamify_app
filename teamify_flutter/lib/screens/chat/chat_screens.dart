@@ -1651,7 +1651,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final rid = _roomId;
       if (rid != null && rid.isNotEmpty && !AppConfig.isDemoMode) {
-        final ws = _ws ?? context.read<WebSocketManager>();
         final payload = {
           'content': label,
           'message_type': messageType,
@@ -1958,9 +1957,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
     List<ApiUser> membersList = [];
     final rid = _roomId;
     final pid = _projectId;
+    final services = context.read<AppServices>();
     try {
       if (pid != null && pid.isNotEmpty) {
-        final res = await context.read<AppServices>().projects.listMembers(pid);
+        final res = await services.projects.listMembers(pid);
         if (res.isSuccess) {
           membersList = res.data ?? [];
         } else {
@@ -1968,8 +1968,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         }
       }
       if (membersList.isEmpty && rid != null) {
-        final roomData =
-            await context.read<AppServices>().chat.getRoom(rid).unwrap();
+        final roomData = await services.chat.getRoom(rid).unwrap();
         final raw =
             (roomData['members'] as List?)?.whereType<Map<String, dynamic>>() ??
                 const [];

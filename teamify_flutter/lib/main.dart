@@ -33,7 +33,6 @@ import 'screens/resume/resume_screens.dart';
 import 'screens/admin/admin_screens.dart';
 import 'screens/mentor/mentor_screens.dart';
 import 'screens/team/team_screens.dart';
-import 'screens/meeting/meeting_screens.dart';
 import 'screens/meeting/meetings_list_screen.dart';
 import 'screens/meeting/meeting_preview_screen.dart';
 

@@ -125,9 +125,9 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
       return;
     }
     setState(() => _joining = true);
+    final meetings = context.read<AppServices>().meetings;
     await _stopPreview();
-    final tokenResult =
-        await context.read<AppServices>().meetings.issueToken(widget.publicId);
+    final tokenResult = await meetings.issueToken(widget.publicId);
     if (!mounted) return;
     if (!tokenResult.isSuccess || tokenResult.data == null) {
       setState(() => _joining = false);
