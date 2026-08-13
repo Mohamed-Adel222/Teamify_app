@@ -16,11 +16,10 @@ class AppConfig {
     defaultValue: 'https://teamify-backend-5hq0.onrender.com',
   );
 
-  /// Socket.IO connects to the same origin as the REST API.
-  static const String socketUrl = String.fromEnvironment(
-    'SOCKET_URL',
-    defaultValue: apiBaseUrl,
-  );
+  /// Socket.IO connects to the same origin as the REST API unless SOCKET_URL is set.
+  static const String _socketUrlOverride = String.fromEnvironment('SOCKET_URL');
+  static String get socketUrl =>
+      _socketUrlOverride.isNotEmpty ? _socketUrlOverride : apiBaseUrl;
 
   /// Public LiveKit Cloud URL only (wss://… or https://…). Tokens are minted
   /// by Flask; this value is a display/fallback hint, not a secret.
