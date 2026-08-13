@@ -107,3 +107,13 @@ class Config:
     CACHE_TYPE = "RedisCache" if REDIS_URL else "SimpleCache"
     CACHE_REDIS_URL = REDIS_URL or None
     CACHE_DEFAULT_TIMEOUT = int(os.getenv("CACHE_DEFAULT_TIMEOUT", 300))
+
+    # ── Transactional email (Resend) ──────────────────────────────────────────
+    # One centralized Teamify sender. The project owner must verify the domain
+    # and from-address with the provider; the app cannot create them itself.
+    MAIL_PROVIDER = (os.getenv("MAIL_PROVIDER") or "resend").strip().lower()
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+    MAIL_FROM_NAME = (os.getenv("MAIL_FROM_NAME") or "Teamify").strip() or "Teamify"
+    MAIL_FROM_ADDRESS = os.getenv("MAIL_FROM_ADDRESS", "").strip()
+    # Optional public app URL used in email CTA / preferences links.
+    MAIL_APP_BASE_URL = (os.getenv("MAIL_APP_BASE_URL") or "").strip().rstrip("/")

@@ -13,6 +13,7 @@ Teamify is an AI-powered team collaboration platform designed to help students, 
 - AI Mentor
 - AI Resume Builder
 - Chat and File Sharing
+- Email notifications (Resend; see `teamify_flask_backend/docs/EMAIL.md`)
 - Cybersecurity Monitoring
 
 ## My Role: Cybersecurity Engineer

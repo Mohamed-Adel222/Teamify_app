@@ -745,6 +745,9 @@ def update_task(task_id):
         return jsonify({"error": "Forbidden", "message": "Only the project owner or admin can update tasks"}), 403
 
     data = _request_json()
+    previous_assignee = task.assigned_to
+    previous_status = task.status
+    previous_title = task.title
 
     if "title" in data:
         title = data["title"].strip()
@@ -793,6 +796,41 @@ def update_task(task_id):
         user_id=user_id,
     )
     db.session.add(log)
+
+    from routes.notifications import create_notification
+
+    assignee_changed = task.assigned_to != previous_assignee
+    if assignee_changed and task.assigned_to and task.assigned_to != user_id:
+        create_notification(
+            user_id=task.assigned_to,
+            notif_type="task_assigned",
+            title="New task assigned",
+            body=f"You have been assigned to \"{task.title}\"",
+            entity_type="Task",
+            entity_id=task.id,
+        )
+    elif task.assigned_to and task.assigned_to != user_id:
+        update_bits = []
+        if previous_title != task.title:
+            update_bits.append("title")
+        if previous_status != task.status:
+            update_bits.append(f"status → {task.status}")
+        if "priority" in data:
+            update_bits.append("priority")
+        if "due_date" in data:
+            update_bits.append("due date")
+        if "description" in data:
+            update_bits.append("description")
+        summary = ", ".join(update_bits) if update_bits else "details updated"
+        create_notification(
+            user_id=task.assigned_to,
+            notif_type="task_updated",
+            title="Task updated",
+            body=f"Task \"{task.title}\" was updated ({summary})",
+            entity_type="Task",
+            entity_id=task.id,
+        )
+
     db.session.commit()
 
     return jsonify({

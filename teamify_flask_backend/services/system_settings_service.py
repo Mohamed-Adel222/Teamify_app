@@ -195,6 +195,11 @@ def is_push_notifications_enabled() -> bool:
     return _coerce_bool(get_system_settings().get("push_notifications", True))
 
 
+def is_email_notifications_enabled() -> bool:
+    """Platform-wide switch. When false, no notification emails are sent."""
+    return _coerce_bool(get_system_settings().get("email_notifications", True))
+
+
 def is_maintenance_mode() -> bool:
     return _coerce_bool(get_system_settings().get("maintenance_mode", False))
 

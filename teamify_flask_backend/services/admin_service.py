@@ -467,6 +467,11 @@ def get_ai_monitoring_metrics():
     }
 
 def send_system_announcement(target, title, body, specific_user_id=None):
+    from datetime import date
+    import hashlib
+
+    from routes.notifications import create_notification
+
     users = []
     if target == "specific" and specific_user_id:
         u = db.session.get(User, specific_user_id)
@@ -478,18 +483,21 @@ def send_system_announcement(target, title, body, specific_user_id=None):
         users = User.query.filter_by(user_type="freelancer").all()
     else:
         users = User.query.all()
-        
+
+    digest = hashlib.sha256(f"{title}\n{body}".encode("utf-8")).hexdigest()[:16]
+    day = date.today().isoformat()
     count = 0
     for u in users:
-        notification = Notification(
+        create_notification(
             user_id=u.id,
-            type="general",
+            notif_type="admin_announcement",
             title=title,
-            body=body
+            body=body,
+            entity_type="Announcement",
+            email_idempotency_key=f"announce:{u.id}:{digest}:{day}",
         )
-        db.session.add(notification)
         count += 1
-        
+
     db.session.commit()
     return count
 

@@ -989,6 +989,21 @@ def remove_member(project_id, member_user_id):
     ))
     db.session.add(log)
     db.session.delete(pm)
+
+    try:
+        from routes.notifications import create_notification
+
+        create_notification(
+            user_id=member_user_id,
+            notif_type="member_removed",
+            title=f"Removed from {project.name}",
+            body=f"You were removed from the project \"{project.name}\".",
+            entity_type="Project",
+            entity_id=project.id,
+        )
+    except Exception:
+        pass
+
     db.session.commit()
 
     # Emit real-time event so online project members see the update

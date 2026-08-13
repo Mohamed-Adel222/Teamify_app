@@ -9,6 +9,8 @@ class ApiNotification {
   final String type;
   final String entityType;
   final String entityId;
+  final bool emailDelivered;
+  final String emailStatus;
 
   const ApiNotification({
     required this.id,
@@ -19,6 +21,8 @@ class ApiNotification {
     this.type = 'general',
     this.entityType = '',
     this.entityId = '',
+    this.emailDelivered = false,
+    this.emailStatus = '',
   });
 
   factory ApiNotification.fromJson(Map<String, dynamic> json) {
@@ -31,6 +35,11 @@ class ApiNotification {
       type: asString(json['type'] ?? 'general'),
       entityType: asString(json['entity_type'] ?? json['entityType']),
       entityId: asString(json['entity_id'] ?? json['entityId']),
+      emailDelivered: asBool(
+        json['email_delivered'] ?? json['emailDelivered'],
+        false,
+      ),
+      emailStatus: asString(json['email_status'] ?? json['emailStatus']),
     );
   }
 
@@ -45,6 +54,8 @@ class ApiNotification {
     String? type,
     String? entityType,
     String? entityId,
+    bool? emailDelivered,
+    String? emailStatus,
   }) {
     return ApiNotification(
       id: id ?? this.id,
@@ -55,6 +66,8 @@ class ApiNotification {
       type: type ?? this.type,
       entityType: entityType ?? this.entityType,
       entityId: entityId ?? this.entityId,
+      emailDelivered: emailDelivered ?? this.emailDelivered,
+      emailStatus: emailStatus ?? this.emailStatus,
     );
   }
 
@@ -67,6 +80,8 @@ class ApiNotification {
         'type': type,
         'entity_type': entityType,
         'entity_id': entityId,
+        'email_delivered': emailDelivered,
+        'email_status': emailStatus,
       };
 }
 

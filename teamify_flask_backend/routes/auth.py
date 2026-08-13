@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any, cast
 
@@ -16,6 +17,8 @@ from models.login_log import LoginLog
 from services.anomaly import check_login_anomalies
 from services.audit_log_service import log_security_event
 from app import limiter
+
+logger = logging.getLogger(__name__)
 
 # ─── Lockout constants ────────────────────────────────────────────────────────────
 MAX_FAILED_ATTEMPTS = 5         # lock after this many consecutive failures
@@ -737,10 +740,36 @@ def forgot_password():
         return jsonify({"message": "If an account exists with this email, an OTP has been sent"}), 200
 
     otp = user.generate_otp()
+    recipient = user.email
+    recipient_name = (user.full_name or user.display_name or "").strip()
+    user_id = user.id
     db.session.commit()
 
-    # In production: send OTP via email service (e.g. SendGrid, SES).
-    # For development, the OTP is stored in DB and can be retrieved for testing.
+    try:
+        from services.email_service import send_password_reset_email
+        from services.notification_email_service import record_standalone_email
+
+        result = send_password_reset_email(
+            to=recipient,
+            recipient_name=recipient_name,
+            otp=otp,
+            expires_minutes=10,
+        )
+        record_standalone_email(
+            user_id=user_id,
+            recipient_email=recipient,
+            email_type="password_reset_otp",
+            result=result,
+        )
+        if not result.success:
+            logger.warning(
+                "Password reset email was not delivered user_id=%s status=%s",
+                user_id,
+                result.status,
+            )
+    except Exception:
+        logger.warning("Password reset email failed user_id=%s", user_id, exc_info=True)
+
     return jsonify({
         "message": "If an account exists with this email, an OTP has been sent",
     }), 200

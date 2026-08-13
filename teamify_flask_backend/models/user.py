@@ -1,6 +1,8 @@
 from datetime import datetime, timezone, timedelta
 from models import db
 from models.task import Task
+import hashlib
+import hmac
 import secrets
 
 
@@ -53,8 +55,8 @@ class User(db.Model):
     meetings_attended = db.Column(db.Integer, nullable=False, default=0)
     total_meetings = db.Column(db.Integer, nullable=False, default=0)
 
-    # OTP for password reset
-    otp_code = db.Column(db.String(6), nullable=True)
+    # OTP for password reset (HMAC-SHA256 hex digest, not the raw code)
+    otp_code = db.Column(db.String(128), nullable=True)
     otp_expires_at = db.Column(db.DateTime, nullable=True)
 
     # ─── 2FA (TOTP) ──────────────────────────────────────────────────────────
@@ -201,10 +203,33 @@ class User(db.Model):
         }
 
     def generate_otp(self):
-        """Generate a 6-digit OTP valid for 10 minutes."""
-        self.otp_code = str(secrets.randbelow(900000) + 100000)
+        """Generate a 6-digit OTP valid for 10 minutes.
+
+        The plaintext code is returned to the caller so it can be emailed.
+        Only an HMAC digest is stored. Never log the returned value.
+        """
+        otp = str(secrets.randbelow(900000) + 100000)
+        self.otp_code = self._hash_otp(otp)
         self.otp_expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
-        return self.otp_code
+        return otp
+
+    @staticmethod
+    def _otp_pepper() -> bytes:
+        try:
+            from flask import current_app, has_app_context
+
+            if has_app_context():
+                secret = current_app.config.get("JWT_SECRET_KEY") or "teamify-otp"
+                return str(secret).encode("utf-8")
+        except Exception:
+            pass
+        import os
+
+        return (os.getenv("JWT_SECRET_KEY") or "teamify-otp").encode("utf-8")
+
+    @classmethod
+    def _hash_otp(cls, code: str) -> str:
+        return hmac.new(cls._otp_pepper(), str(code).encode("utf-8"), hashlib.sha256).hexdigest()
 
     def verify_otp(self, code):
         """Return True if the OTP is correct and not expired."""
@@ -216,7 +241,12 @@ class User(db.Model):
             otp_exp = otp_exp.replace(tzinfo=timezone.utc)
         if now > otp_exp:
             return False
-        return self.otp_code == code
+        provided = str(code or "")
+        stored = str(self.otp_code)
+        # Transition: legacy rows may still store a 6-digit plaintext code.
+        if len(stored) == 6 and stored.isdigit():
+            return hmac.compare_digest(stored, provided)
+        return hmac.compare_digest(stored, self._hash_otp(provided))
 
     def clear_otp(self):
         """Clear OTP after use."""
