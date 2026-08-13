@@ -521,19 +521,83 @@ def start_meeting_session(room_id):
         return jsonify({"error": "Room not found"}), 404
 
     from datetime import datetime, timezone as tz
-    now = datetime.now(tz.utc)
+    from sqlalchemy.orm.attributes import flag_modified
 
-    active = MeetingSession.query.filter_by(room_id=room_id, is_active=True).first()
+    from models.meeting import Meeting
+
+    now = datetime.now(tz.utc)
+    live_meeting = (
+        Meeting.query.filter_by(chat_room_id=room_id, status="live")
+        .order_by(Meeting.created_at.desc())
+        .first()
+    )
+
+    def _close_stale(session: MeetingSession) -> None:
+        session.is_active = False
+        session.ended_at = now
+        if session.started_at:
+            started = session.started_at
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=tz.utc)
+            session.duration_seconds = int((now - started).total_seconds())
+
+    if live_meeting is not None:
+        existing = (
+            MeetingSession.query.filter_by(
+                meeting_id=live_meeting.id, is_active=True
+            )
+            .order_by(MeetingSession.started_at.desc())
+            .first()
+        )
+        if existing is not None:
+            ids = list(existing.participant_ids or [])
+            if user_id not in ids:
+                ids.append(user_id)
+                existing.participant_ids = ids
+                flag_modified(existing, "participant_ids")
+                db.session.commit()
+            return jsonify({"session": existing.to_dict()}), 200
+
+        orphans = MeetingSession.query.filter(
+            MeetingSession.room_id == room_id,
+            MeetingSession.is_active.is_(True),
+            db.or_(
+                MeetingSession.meeting_id.is_(None),
+                MeetingSession.meeting_id != live_meeting.id,
+            ),
+        ).all()
+        for orphan in orphans:
+            _close_stale(orphan)
+        if orphans:
+            db.session.flush()
+
+        session = MeetingSession(
+            room_id=room_id,
+            project_id=room.project_id,
+            started_by=user_id,
+            is_active=True,
+            started_at=now,
+            transcript=[],
+            participant_ids=[user_id],
+            meeting_id=live_meeting.id,
+        )
+        db.session.add(session)
+        db.session.commit()
+        return jsonify({"session": session.to_dict()}), 201
+
+    active = (
+        MeetingSession.query.filter_by(room_id=room_id, is_active=True)
+        .order_by(MeetingSession.started_at.desc())
+        .first()
+    )
     if active:
-        stale = (now - active.started_at.replace(tzinfo=tz.utc)).total_seconds() > 300 \
-                if active.started_at else True
+        stale = (
+            (now - active.started_at.replace(tzinfo=tz.utc)).total_seconds() > 300
+            if active.started_at
+            else True
+        )
         if stale:
-            active.is_active = False
-            active.ended_at = now
-            if active.started_at:
-                active.duration_seconds = int(
-                    (now - active.started_at.replace(tzinfo=tz.utc)).total_seconds()
-                )
+            _close_stale(active)
             db.session.flush()
         else:
             return jsonify({"session": active.to_dict()}), 200
@@ -547,15 +611,6 @@ def start_meeting_session(room_id):
         transcript=[],
         participant_ids=[user_id],
     )
-    from models.meeting import Meeting
-
-    live_meeting = (
-        Meeting.query.filter_by(chat_room_id=room_id, status="live")
-        .order_by(Meeting.created_at.desc())
-        .first()
-    )
-    if live_meeting is not None:
-        session.meeting_id = live_meeting.id
     db.session.add(session)
     db.session.commit()
     return jsonify({"session": session.to_dict()}), 201

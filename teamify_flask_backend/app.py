@@ -215,6 +215,85 @@ def _apply_runtime_schema_patches(app: Flask) -> None:
     except Exception as exc:
         app.logger.warning("Schema patch messages.idempotency_key skipped: %s", exc)
 
+    _ensure_runtime_indexes(app)
+
+
+def _ensure_runtime_indexes(app: Flask) -> None:
+    """Create unique indexes Alembic would add, for hosts that only run patches."""
+    from sqlalchemy import inspect, text
+
+    def _exec(description: str, sql: str) -> None:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(sql))
+            app.logger.info("Schema patch: %s", description)
+        except Exception as exc:
+            app.logger.warning("Schema patch %s skipped: %s", description, exc)
+
+    try:
+        insp = inspect(db.engine)
+        tables = set(insp.get_table_names())
+    except Exception as exc:
+        app.logger.warning("Schema patch index inspect skipped: %s", exc)
+        return
+
+    if "meetings" in tables:
+        try:
+            dialect = db.engine.dialect.name
+            if dialect == "postgresql":
+                _exec(
+                    "ended duplicate live meetings",
+                    """
+                    UPDATE meetings
+                    SET status = 'ended', ended_at = NOW()
+                    WHERE status = 'live'
+                      AND id NOT IN (
+                        SELECT keep_id FROM (
+                          SELECT MAX(id) AS keep_id FROM meetings
+                          WHERE status = 'live'
+                          GROUP BY chat_room_id
+                        ) keepers
+                      )
+                    """,
+                )
+            else:
+                _exec(
+                    "ended duplicate live meetings",
+                    """
+                    UPDATE meetings
+                    SET status = 'ended', ended_at = CURRENT_TIMESTAMP
+                    WHERE status = 'live'
+                      AND id NOT IN (
+                        SELECT keep_id FROM (
+                          SELECT MAX(id) AS keep_id FROM meetings
+                          WHERE status = 'live'
+                          GROUP BY chat_room_id
+                        ) keepers
+                      )
+                    """,
+                )
+            _exec(
+                "uq_meetings_one_live_per_room",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_meetings_one_live_per_room "
+                "ON meetings (chat_room_id) WHERE status = 'live'",
+            )
+        except Exception as exc:
+            app.logger.warning("Schema patch live meeting uniqueness skipped: %s", exc)
+
+    if "messages" in tables:
+        _exec(
+            "uq_msg_idempotency",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_msg_idempotency "
+            "ON messages (room_id, sender_id, idempotency_key)",
+        )
+
+    if "chat_rooms" in tables:
+        _exec(
+            "uq_chat_rooms_direct_pair_key",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_rooms_direct_pair_key "
+            "ON chat_rooms (direct_pair_key)",
+        )
+
 
 def create_app(test_config=None):
     """Create and configure the Flask application."""

@@ -60,6 +60,16 @@ class Meeting(db.Model):
         nullable=False,
     )
 
+    __table_args__ = (
+        db.Index(
+            "uq_meetings_one_live_per_room",
+            "chat_room_id",
+            unique=True,
+            postgresql_where=db.text("status = 'live'"),
+            sqlite_where=db.text("status = 'live'"),
+        ),
+    )
+
     participants = db.relationship(
         "MeetingParticipant",
         backref="meeting",

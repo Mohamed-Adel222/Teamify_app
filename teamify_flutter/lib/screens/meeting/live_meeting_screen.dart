@@ -50,6 +50,7 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
   bool _showParticipants = false;
   bool _ending = false;
   bool _speechUnavailable = false;
+  bool _didConnect = false;
   String _connectionLabel = 'Connecting';
   String? _sessionId;
   DateTime? _startedAt;
@@ -102,6 +103,7 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
       _listener!
         ..on<RoomConnectedEvent>((_) {
           if (!mounted || _disposed) return;
+          _didConnect = true;
           setState(() {
             _connecting = false;
             _connectionLabel = 'Connected';
@@ -118,6 +120,9 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
         ..on<RoomDisconnectedEvent>((event) {
           if (!mounted || _disposed) return;
           setState(() => _connectionLabel = 'Disconnected');
+          if (_didConnect && !_ending) {
+            unawaited(_handleRemoteDisconnect());
+          }
         })
         ..on<ParticipantConnectedEvent>((_) {
           if (mounted) setState(() {});
@@ -143,8 +148,8 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
         widget.joinToken.url,
         widget.joinToken.token,
       );
-      await _room.localParticipant?.setCameraEnabled(_camOn);
-      await _room.localParticipant?.setMicrophoneEnabled(_micOn);
+      _didConnect = true;
+      await _publishLocalTracks();
       _startedAt = DateTime.now();
       await _startSessionAndSpeech();
       if (mounted && !_disposed) {
@@ -163,6 +168,52 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
         _connectionLabel = 'Disconnected';
       });
     }
+  }
+
+  Future<void> _publishLocalTracks() async {
+    if (_camOn) {
+      try {
+        await _room.localParticipant?.setCameraEnabled(true);
+      } catch (e, st) {
+        AppLogger.error('Camera publish failed', e, st);
+        _camOn = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Camera is blocked or unavailable. You are in the meeting without video.',
+              ),
+            ),
+          );
+        }
+      }
+    }
+    if (_micOn) {
+      try {
+        await _room.localParticipant?.setMicrophoneEnabled(true);
+      } catch (e, st) {
+        AppLogger.error('Microphone publish failed', e, st);
+        _micOn = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Microphone is blocked or unavailable. You are in the meeting without audio.',
+              ),
+            ),
+          );
+        }
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _handleRemoteDisconnect() async {
+    if (_ending || !_didConnect || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('The meeting has ended or you were disconnected.')),
+    );
+    await _leave(endForAll: false);
   }
 
   void _onRoomChanged() {
@@ -222,14 +273,34 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
 
   Future<void> _toggleMic() async {
     final next = !_micOn;
-    await _room.localParticipant?.setMicrophoneEnabled(next);
-    if (mounted) setState(() => _micOn = next);
+    try {
+      await _room.localParticipant?.setMicrophoneEnabled(next);
+      if (mounted) setState(() => _micOn = next);
+    } catch (e, st) {
+      AppLogger.error('Microphone toggle failed', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not change microphone. Check browser permissions.'),
+        ),
+      );
+    }
   }
 
   Future<void> _toggleCam() async {
     final next = !_camOn;
-    await _room.localParticipant?.setCameraEnabled(next);
-    if (mounted) setState(() => _camOn = next);
+    try {
+      await _room.localParticipant?.setCameraEnabled(next);
+      if (mounted) setState(() => _camOn = next);
+    } catch (e, st) {
+      AppLogger.error('Camera toggle failed', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not change camera. Check browser permissions.'),
+        ),
+      );
+    }
   }
 
   Future<void> _leave({required bool endForAll}) async {

@@ -133,8 +133,17 @@ class _MeetingsListScreenState extends State<MeetingsListScreen> {
     }
   }
 
-  void _open(ApiMeeting meeting) {
+  Future<void> _open(ApiMeeting meeting) async {
     if (meeting.isEnded) {
+      Map<String, dynamic>? session = meeting.session;
+      if (session == null) {
+        final result =
+            await context.read<AppServices>().meetings.getMeeting(meeting.publicId);
+        if (result.isSuccess && result.data?.session != null) {
+          session = result.data!.session;
+        }
+      }
+      if (!mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -142,7 +151,7 @@ class _MeetingsListScreenState extends State<MeetingsListScreen> {
             roomName: meeting.title,
             roomId: meeting.chatRoomId,
             projectId: meeting.projectId,
-            initialSession: meeting.session,
+            initialSession: session,
           ),
         ),
       );

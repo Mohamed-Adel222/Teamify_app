@@ -1,8 +1,11 @@
 """Create, authorize, and lifecycle-manage Teamify meetings."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
+
+from sqlalchemy.exc import IntegrityError
 
 from models import db
 from models.chat import ChatRoom, ChatRoomMember
@@ -12,10 +15,13 @@ from models.user import User
 from routes.notifications import create_notification
 from services.livekit_token_service import (
     create_meeting_access_token,
+    delete_livekit_room,
     livekit_configured,
     livekit_url,
 )
 from services.project_access import user_has_project_access
+
+logger = logging.getLogger(__name__)
 
 
 def _now():
@@ -56,7 +62,19 @@ def list_meetings_for_user(user_id: int) -> list[Meeting]:
         p.meeting_id
         for p in MeetingParticipant.query.filter_by(user_id=user_id).all()
     ]
-    ids = list({*hosted_ids, *member_ids})
+    room_ids = [
+        m.room_id for m in ChatRoomMember.query.filter_by(user_id=user_id).all()
+    ]
+    live_in_rooms: list[int] = []
+    if room_ids:
+        live_in_rooms = [
+            m.id
+            for m in Meeting.query.filter(
+                Meeting.chat_room_id.in_(room_ids),
+                Meeting.status == "live",
+            ).all()
+        ]
+    ids = list({*hosted_ids, *member_ids, *live_in_rooms})
     if not ids:
         return []
     return (
@@ -110,13 +128,13 @@ def create_instant_meeting(
         if not user_has_project_access(host_user_id, project_id):
             return None, "You are not a member of this project", 403
 
-    live = (
-        Meeting.query.filter_by(chat_room_id=chat_room_id, status="live")
-        .order_by(Meeting.created_at.desc())
-        .first()
-    )
+    live = _live_meeting_for_room(chat_room_id)
     if live is not None:
-        _ensure_participant(live, host_user_id, "host" if live.host_user_id == host_user_id else "participant")
+        _ensure_participant(
+            live,
+            host_user_id,
+            "host" if live.host_user_id == host_user_id else "participant",
+        )
         db.session.commit()
         return live, None, 200
 
@@ -133,7 +151,20 @@ def create_instant_meeting(
         provider_room=f"teamify_{public_id}",
     )
     db.session.add(meeting)
-    db.session.flush()
+    try:
+        db.session.flush()
+    except IntegrityError:
+        db.session.rollback()
+        live = _live_meeting_for_room(chat_room_id)
+        if live is not None:
+            _ensure_participant(
+                live,
+                host_user_id,
+                "host" if live.host_user_id == host_user_id else "participant",
+            )
+            db.session.commit()
+            return live, None, 200
+        return None, "Could not create meeting", 409
 
     _ensure_participant(meeting, host_user_id, "host")
     for member in ChatRoomMember.query.filter_by(room_id=chat_room_id).all():
@@ -157,15 +188,36 @@ def create_instant_meeting(
             entity_id=meeting.id,
         )
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        live = _live_meeting_for_room(chat_room_id)
+        if live is not None:
+            _ensure_participant(
+                live,
+                host_user_id,
+                "host" if live.host_user_id == host_user_id else "participant",
+            )
+            db.session.commit()
+            return live, None, 200
+        return None, "Could not create meeting", 409
     return meeting, None, 201
 
 
+def _live_meeting_for_room(chat_room_id: int) -> Meeting | None:
+    return (
+        Meeting.query.filter_by(chat_room_id=chat_room_id, status="live")
+        .order_by(Meeting.created_at.desc())
+        .first()
+    )
+
+
 def issue_join_token(meeting: Meeting, user_id: int) -> tuple[dict | None, str | None, int]:
+    if not user_can_access_meeting(user_id, meeting):
+        return None, "Meeting not found", 404
     if meeting.status == "ended" or meeting.status == "cancelled":
         return None, "This meeting has ended", 409
-    if not user_can_access_meeting(user_id, meeting):
-        return None, "You are not allowed to join this meeting", 403
 
     user = db.session.get(User, user_id)
     name = _display_name(user)
@@ -201,7 +253,7 @@ def issue_join_token(meeting: Meeting, user_id: int) -> tuple[dict | None, str |
 
 def leave_meeting(meeting: Meeting, user_id: int) -> tuple[dict | None, str | None, int]:
     if not user_can_access_meeting(user_id, meeting):
-        return None, "You are not a participant of this meeting", 403
+        return None, "Meeting not found", 404
     row = MeetingParticipant.query.filter_by(
         meeting_id=meeting.id, user_id=user_id
     ).first()
@@ -213,6 +265,8 @@ def leave_meeting(meeting: Meeting, user_id: int) -> tuple[dict | None, str | No
 
 
 def end_meeting(meeting: Meeting, user_id: int) -> tuple[dict | None, str | None, int]:
+    if not user_can_access_meeting(user_id, meeting):
+        return None, "Meeting not found", 404
     if meeting.host_user_id != user_id:
         return None, "Only the host can end this meeting", 403
     if meeting.status == "ended":
@@ -225,23 +279,12 @@ def end_meeting(meeting: Meeting, user_id: int) -> tuple[dict | None, str | None
             row.invite_status = "left"
             row.left_at = row.left_at or _now()
 
-    session = (
-        MeetingSession.query.filter_by(meeting_id=meeting.id, is_active=True)
-        .order_by(MeetingSession.started_at.desc())
-        .first()
-    )
-    if session is None:
-        session = (
-            MeetingSession.query.filter_by(
-                room_id=meeting.chat_room_id, is_active=True
-            )
-            .order_by(MeetingSession.started_at.desc())
-            .first()
-        )
-        if session is not None:
-            session.meeting_id = meeting.id
-
+    provider_room = meeting.provider_room
     db.session.commit()
+    try:
+        delete_livekit_room(provider_room)
+    except Exception as exc:
+        logger.warning("LiveKit room close after host end failed: %s", exc)
     return {"ok": True, "meeting": meeting.to_dict()}, None, 200
 
 

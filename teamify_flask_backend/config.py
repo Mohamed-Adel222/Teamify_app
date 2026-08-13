@@ -6,6 +6,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def resolved_stt_service_url() -> str:
+    """Return the Whisper/STT base URL, or empty when it must not be used.
+
+    Local development still defaults to localhost. Production never silently
+    posts audio to localhost / loopback even if .env.example was copied.
+    """
+    raw = (os.getenv("STT_SERVICE_URL") or "").strip()
+    is_prod = os.getenv("FLASK_ENV") == "production"
+    if not raw:
+        return "" if is_prod else "http://localhost:8000"
+    lowered = raw.lower()
+    if is_prod and any(
+        host in lowered for host in ("localhost", "127.0.0.1", "0.0.0.0")
+    ):
+        return ""
+    return raw.rstrip("/")
+
+
 def _require_secret(env_var: str) -> str:
     """Return env var value or generate a random key (warns in dev)."""
     val = os.getenv(env_var)
@@ -96,8 +114,9 @@ class Config:
     # heuristic fallbacks. Useful for lightweight test environments.
     AI_ENABLE_LOCAL_MODELS = os.getenv("AI_ENABLE_LOCAL_MODELS", "true")
 
-    # Optional: Speech-to-Text microservice URL (FastAPI / Whisper)
-    STT_SERVICE_URL = os.getenv("STT_SERVICE_URL", "http://localhost:8000")
+    # Optional: Speech-to-Text microservice URL (FastAPI / Whisper).
+    # Production must set a reachable URL; localhost is ignored when FLASK_ENV=production.
+    STT_SERVICE_URL = resolved_stt_service_url() or os.getenv("STT_SERVICE_URL", "")
 
     # Optional: Anthropic Claude API key for mentor report generation
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")

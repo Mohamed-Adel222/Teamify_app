@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:provider/provider.dart';
@@ -41,6 +42,14 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
     super.dispose();
   }
 
+  bool get _insecureWebContext {
+    if (!kIsWeb) return false;
+    final uri = Uri.base;
+    if (uri.scheme == 'https') return false;
+    final host = uri.host;
+    return host != 'localhost' && host != '127.0.0.1';
+  }
+
   Future<void> _stopPreview() async {
     final track = _previewTrack;
     _previewTrack = null;
@@ -58,6 +67,14 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
       _loading = true;
       _error = null;
     });
+    if (_insecureWebContext) {
+      setState(() {
+        _loading = false;
+        _error =
+            'Camera and microphone require HTTPS. Open Teamify over https:// and try again.';
+      });
+      return;
+    }
     final result =
         await context.read<AppServices>().meetings.getMeeting(widget.publicId);
     if (!mounted) return;

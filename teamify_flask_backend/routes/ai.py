@@ -28,6 +28,7 @@ from middleware.auth import auth_required
 
 from services.task_pipeline_service import classify_task, assign_best_members
 from services.chat_summarization_service import summarize_chat
+from config import resolved_stt_service_url
 from services.ai_mentor_service import (
     generate_mentor_report,
     get_db_performance_snapshot,
@@ -427,7 +428,12 @@ def api_transcribe():
 
     language = request.args.get("language", "en")
     task = request.args.get("task", "transcribe")
-    stt_base = os.getenv("STT_SERVICE_URL", "http://localhost:8000").rstrip("/")
+    stt_base = resolved_stt_service_url()
+    if not stt_base:
+        return jsonify({
+            "error": "Speech-to-text is not configured",
+            "success": False,
+        }), 503
     stt_url = f"{stt_base}/transcribe"
     filename = audio_file.filename or "audio.wav"
     mimetype = audio_file.mimetype or "application/octet-stream"

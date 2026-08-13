@@ -81,12 +81,6 @@ def get_meeting(public_id: str):
         .order_by(MeetingSession.started_at.desc())
         .first()
     )
-    if session is None:
-        session = (
-            MeetingSession.query.filter_by(room_id=meeting.chat_room_id)
-            .order_by(MeetingSession.started_at.desc())
-            .first()
-        )
     payload["session"] = session.to_dict() if session else None
     return jsonify({"meeting": payload}), 200
 
