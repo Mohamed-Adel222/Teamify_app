@@ -573,3 +573,44 @@ class TestChatMentions:
             from services.system_settings_service import is_email_notifications_enabled
 
             assert is_email_notifications_enabled() is True
+
+
+class TestSendInvitationEmails:
+    def test_reports_unconfigured_mail(self, app, monkeypatch):
+        from services.email_service import EmailResult
+        from services.notification_email_service import send_invitation_emails
+
+        monkeypatch.delenv("RESEND_API_KEY", raising=False)
+        monkeypatch.delenv("MAIL_FROM_ADDRESS", raising=False)
+        monkeypatch.delenv("RESEND_FROM_EMAIL", raising=False)
+        with app.app_context():
+            app.config["RESEND_API_KEY"] = ""
+            app.config["MAIL_FROM_ADDRESS"] = ""
+            with patch(
+                "services.notification_email_service.deliver_notification_email_now",
+                return_value=EmailResult(
+                    False, "skipped", error="email provider is not configured"
+                ),
+            ):
+                result = send_invitation_emails([11])
+        assert result["email_configured"] is False
+        assert result["email_sent"] is False
+        assert result["emails_sent"] == 0
+        assert "RESEND_API_KEY" in result["email_error"]
+
+    def test_reports_successful_send(self, app, monkeypatch):
+        from services.email_service import EmailResult
+        from services.notification_email_service import send_invitation_emails
+
+        monkeypatch.setenv("RESEND_API_KEY", "re_test_not_a_real_key")
+        monkeypatch.setenv("MAIL_FROM_ADDRESS", "no-reply@example.com")
+        with app.app_context():
+            with patch(
+                "services.notification_email_service.deliver_notification_email_now",
+                return_value=EmailResult(True, "sent", provider_message_id="msg_1"),
+            ):
+                result = send_invitation_emails([11])
+        assert result["email_configured"] is True
+        assert result["email_sent"] is True
+        assert result["emails_sent"] == 1
+        assert result["email_error"] is None

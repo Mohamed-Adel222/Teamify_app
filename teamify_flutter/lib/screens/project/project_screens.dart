@@ -1540,11 +1540,15 @@ class _OverviewTabState extends State<_OverviewTab> {
             setDialog(() => sending = true);
             var sent = 0;
             var failed = 0;
+            var emailFailed = 0;
             for (final id in selected) {
               final r = await projects.addMember(widget.project.id, id);
               r.when(
-                success: (_) {
+                success: (payload) {
                   sent++;
+                  if (payload['email_sent'] == false) {
+                    emailFailed++;
+                  }
                   NotificationEventDispatcher.triggerEvent(
                     context: context,
                     type: NotificationType.teamInvitation,
@@ -1560,9 +1564,13 @@ class _OverviewTabState extends State<_OverviewTab> {
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
             if (!mounted) return;
-            final msg = failed == 0
+            var msg = failed == 0
                 ? '$sent invitation${sent == 1 ? '' : 's'} sent'
                 : '$sent sent, $failed failed';
+            if (emailFailed > 0 && failed == 0) {
+              msg =
+                  '$sent invitation${sent == 1 ? '' : 's'} created in Teamify, but email was not sent. Check server mail settings.';
+            }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(msg)),
             );

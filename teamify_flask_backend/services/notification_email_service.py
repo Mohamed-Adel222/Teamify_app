@@ -9,7 +9,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from flask import after_this_request, current_app, has_app_context, has_request_context
+from flask import current_app, has_app_context
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from models import db
@@ -485,40 +487,54 @@ def _related_entity_details(notif: Notification) -> tuple[str | None, str | None
     return project_name, task_title, due_label, extra
 
 
+_SESSION_EMAIL_QUEUE = "teamify_notification_emails"
+
+
+def _mail_disabled_for_tests() -> bool:
+    try:
+        return bool(
+            has_app_context()
+            and current_app.config.get("TESTING")
+            and not current_app.config.get("MAIL_SEND_IN_TESTS")
+        )
+    except Exception:
+        return False
+
+
 def queue_notification_email(
     notification_id: int,
     *,
     idempotency_key: str | None = None,
     is_mention: bool = False,
 ) -> None:
-    """Send email after the surrounding transaction commits. Never raises."""
+    """Send email after the surrounding transaction commits. Never raises.
+
+    Invitation and other notification emails used to register Flask
+    ``after_this_request`` *before* ``db.session.commit()``. Under gunicorn's
+    gevent worker those callbacks were easy to miss, so invites created an
+    in-app notification and never emailed. Queue on the SQLAlchemy session and
+    flush on ``after_commit`` (or immediately when already committed).
+    """
     if not notification_id:
         return
-    try:
-        if has_app_context() and current_app.config.get("TESTING") and not current_app.config.get("MAIL_SEND_IN_TESTS"):
-            return
-    except Exception:
-        pass
+    if _mail_disabled_for_tests():
+        return
 
-    def _run(app, notif_id: int, key: str | None, mention: bool) -> None:
-        with app.app_context():
-            deliver_notification_email(notif_id, idempotency_key=key, is_mention=mention)
-
+    item = (int(notification_id), idempotency_key, bool(is_mention))
     try:
-        if not has_app_context():
-            return
-        app = current_app._get_current_object()
-        if has_request_context():
-            @after_this_request
-            def _after(response):
-                _spawn(lambda: _run(app, notification_id, idempotency_key, is_mention))
-                return response
-        else:
-            # Scheduler / background: caller should invoke after commit. If we
-            # are already after commit, spawn immediately.
-            _spawn(lambda: _run(app, notification_id, idempotency_key, is_mention))
+        session = db.session
+        pending = session.info.setdefault(_SESSION_EMAIL_QUEUE, [])
+        pending.append(item)
+        in_transaction = session.get_transaction() is not None
     except Exception:
-        logger.warning("Failed to queue notification email id=%s", notification_id, exc_info=True)
+        logger.warning(
+            "Failed to queue notification email id=%s", notification_id, exc_info=True
+        )
+        _spawn_delivery(*item)
+        return
+
+    if not in_transaction:
+        _flush_session_emails(session)
 
 
 def deliver_notification_email_now(
@@ -537,6 +553,89 @@ def deliver_notification_email_now(
     except Exception:
         logger.exception("Synchronous notification email failed id=%s", notification_id)
         return EmailResult(False, "failed", error="internal_error")
+
+
+def send_invitation_emails(notification_ids: list[int]) -> dict[str, Any]:
+    """Send project-invitation emails after the invite transaction committed."""
+    from services.email_service import mail_status
+
+    status = mail_status()
+    sent = 0
+    failed = 0
+    last_error = None
+    for notification_id in notification_ids:
+        if not notification_id:
+            continue
+        result = deliver_notification_email_now(int(notification_id))
+        if result.success:
+            sent += 1
+        else:
+            failed += 1
+            last_error = result.error
+    configured = bool(status.get("configured"))
+    if not configured:
+        last_error = (
+            "Email is not configured on the server. "
+            "Set RESEND_API_KEY and a verified MAIL_FROM_ADDRESS."
+        )
+    return {
+        "email_configured": configured,
+        "email_sent": sent > 0 and failed == 0,
+        "emails_sent": sent,
+        "email_error": last_error if failed or not configured else None,
+    }
+
+
+def _flush_session_emails(session) -> None:
+    pending = list(session.info.pop(_SESSION_EMAIL_QUEUE, []) or [])
+    if not pending:
+        return
+    app = None
+    try:
+        if has_app_context():
+            app = current_app._get_current_object()
+    except Exception:
+        app = None
+    for notification_id, key, mention in pending:
+        _spawn_delivery(notification_id, key, mention, app=app)
+
+
+def _spawn_delivery(
+    notification_id: int,
+    idempotency_key: str | None,
+    is_mention: bool,
+    app=None,
+) -> None:
+    if app is None:
+        try:
+            if has_app_context():
+                app = current_app._get_current_object()
+        except Exception:
+            app = None
+    if app is None:
+        logger.warning(
+            "Cannot send notification email id=%s without an application context",
+            notification_id,
+        )
+        return
+
+    def _run() -> None:
+        with app.app_context():
+            deliver_notification_email(
+                notification_id,
+                idempotency_key=idempotency_key,
+                is_mention=is_mention,
+            )
+
+    _spawn(_run)
+
+
+@event.listens_for(Session, "after_commit")
+def _send_queued_emails_after_commit(session) -> None:
+    try:
+        _flush_session_emails(session)
+    except Exception:
+        logger.warning("Failed to flush queued notification emails", exc_info=True)
 
 
 def _spawn(fn) -> None:

@@ -22,13 +22,17 @@ def invite_users_to_project(
     project: Project,
     inviter_id: int,
     user_ids: list[int],
-) -> tuple[list[int], list[dict]]:
+) -> tuple[list[int], list[dict], list[int]]:
     """
     Create or refresh pending invitations and notify each invitee.
     Does not add project_members until the invitee accepts.
+
+    Returns (invited_user_ids, skipped, notification_ids). Email is sent by
+    the caller after ``db.session.commit()`` so the invite rows exist.
     """
     invited: list[int] = []
     skipped: list[dict] = []
+    notification_ids: list[int] = []
     seen: set[int] = {project.user_id, inviter_id}
 
     inviter = db.session.get(User, inviter_id)
@@ -84,7 +88,7 @@ def invite_users_to_project(
 
         db.session.flush()
 
-        create_notification(
+        notif = create_notification(
             user_id=mid,
             notif_type="project_invitation",
             title=f"Invitation to {project.name}",
@@ -92,10 +96,13 @@ def invite_users_to_project(
             "Open this notification to accept or decline.",
             entity_type="ProjectInvitation",
             entity_id=invitation.id,
+            queue_email=False,
         )
+        if getattr(notif, "id", None):
+            notification_ids.append(notif.id)
         invited.append(mid)
 
-    return invited, skipped
+    return invited, skipped, notification_ids
 
 
 def accept_invitation(invitation_id: int, user_id: int) -> tuple[ProjectInvitation | None, str | None]:
