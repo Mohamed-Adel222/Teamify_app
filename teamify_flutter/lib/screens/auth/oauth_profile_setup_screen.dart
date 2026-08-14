@@ -46,10 +46,10 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
     super.initState();
     final user = context.read<SessionController>().currentUser;
     _isStudent = user?.isStudent ?? false;
-    if (_selectedSkills.isEmpty) {
-      _selectedSkills.addAll(
-        _isStudent ? ['Flutter', 'UI/UX Design'] : ['UI Design', 'UX Design'],
-      );
+    // Prefill from any skills already stored on the account; never seed
+    // hardcoded defaults the user did not choose.
+    if (user != null && user.skills.isNotEmpty) {
+      _selectedSkills.addAll(user.skills);
     }
   }
 
@@ -203,7 +203,12 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _skillsOptions.map((skill) {
+                // Include selected skills that are not in the catalog so
+                // they always have a chip and can be deselected.
+                children: <String>{
+                  ..._skillsOptions,
+                  ..._selectedSkills,
+                }.map((skill) {
                   final selected = _selectedSkills.contains(skill);
                   return FilterChip(
                     label: Text(skill),
@@ -349,11 +354,7 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
               _label('Primary Skills'),
               GestureDetector(
                 onTap: _showSkillsPicker,
-                child: _pickerField(
-                  _selectedSkills.isEmpty
-                      ? 'Select skills'
-                      : _selectedSkills.join(', '),
-                ),
+                child: _skillsField(),
               ),
               const SizedBox(height: 32),
               TButton(
@@ -378,6 +379,54 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
           ),
         ),
       );
+
+  /// Closed "Primary Skills" field: selected skills as removable chips.
+  Widget _skillsField() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _selectedSkills.isEmpty
+                ? const Text(
+                    'Select skills',
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  )
+                : Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _selectedSkills
+                        .map(
+                          (skill) => Chip(
+                            label: Text(
+                              skill,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            deleteIcon: const Icon(Icons.close, size: 15),
+                            onDeleted: () {
+                              setState(() => _selectedSkills.remove(skill));
+                            },
+                            backgroundColor:
+                                AppColors.primary.withValues(alpha: 0.08),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+          const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+        ],
+      ),
+    );
+  }
 
   Widget _pickerField(String value) {
     return Container(
