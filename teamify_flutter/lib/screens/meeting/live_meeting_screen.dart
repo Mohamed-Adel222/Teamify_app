@@ -5,6 +5,7 @@ import 'package:livekit_client/livekit_client.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/audio/meeting_speech_pipeline.dart';
+import '../../core/config/app_config.dart';
 import '../../core/network/api_result.dart';
 import '../../core/observability/app_logger.dart';
 import '../../core/session/session_controller.dart';
@@ -144,8 +145,12 @@ class _LiveMeetingScreenState extends State<LiveMeetingScreen> {
         });
 
       _room.addListener(_onRoomChanged);
+      final url = AppConfig.resolveLiveKitUrl(widget.joinToken.url);
+      if (url.isEmpty || widget.joinToken.token.isEmpty) {
+        throw StateError('LiveKit URL or token missing');
+      }
       await _room.connect(
-        widget.joinToken.url,
+        url,
         widget.joinToken.token,
       );
       _didConnect = true;

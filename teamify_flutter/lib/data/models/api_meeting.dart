@@ -44,6 +44,7 @@ class ApiMeeting {
   final int participantCount;
   final List<ApiMeetingParticipant> participants;
   final Map<String, dynamic>? session;
+  final bool videoAvailable;
 
   const ApiMeeting({
     required this.id,
@@ -63,6 +64,7 @@ class ApiMeeting {
     this.participantCount = 0,
     this.participants = const [],
     this.session,
+    this.videoAvailable = true,
   });
 
   bool get isLive => status == 'live';
@@ -104,6 +106,9 @@ class ApiMeeting {
       session: sessionRaw is Map
           ? Map<String, dynamic>.from(sessionRaw)
           : null,
+      videoAvailable: json.containsKey('video_available')
+          ? asBool(json['video_available'], true)
+          : true,
     );
   }
 
@@ -124,6 +129,7 @@ class MeetingJoinToken {
   final String identity;
   final String room;
   final int ttlSeconds;
+  final bool configured;
   final ApiMeeting? meeting;
 
   const MeetingJoinToken({
@@ -132,17 +138,25 @@ class MeetingJoinToken {
     required this.identity,
     required this.room,
     this.ttlSeconds = 7200,
+    this.configured = true,
     this.meeting,
   });
 
   factory MeetingJoinToken.fromJson(Map<String, dynamic> json) {
-    final meetingRaw = json['meeting'];
+    final nested = json['data'];
+    final source = nested is Map
+        ? {...json, ...Map<String, dynamic>.from(nested)}
+        : json;
+    final meetingRaw = source['meeting'];
     return MeetingJoinToken(
-      url: asString(json['url']),
-      token: asString(json['token']),
-      identity: asString(json['identity']),
-      room: asString(json['room']),
-      ttlSeconds: asInt(json['ttl_seconds'], 7200),
+      url: asString(source['url']),
+      token: asString(source['token']),
+      identity: asString(source['identity']),
+      room: asString(source['room']),
+      ttlSeconds: asInt(source['ttl_seconds'], 7200),
+      configured: source.containsKey('configured')
+          ? asBool(source['configured'], true)
+          : true,
       meeting: meetingRaw is Map
           ? ApiMeeting.fromJson(Map<String, dynamic>.from(meetingRaw))
           : null,

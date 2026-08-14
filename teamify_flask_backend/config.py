@@ -127,6 +127,18 @@ class Config:
     # Optional: Anthropic Claude API key for mentor report generation
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+    # LiveKit Cloud (video meetings). Secrets stay on the server.
+    # LIVEKIT_HOST is accepted as an alias for LIVEKIT_URL.
+    LIVEKIT_URL = (
+        os.getenv("LIVEKIT_URL") or os.getenv("LIVEKIT_HOST") or ""
+    ).strip()
+    LIVEKIT_API_KEY = (
+        os.getenv("LIVEKIT_API_KEY") or os.getenv("LIVEKIT_KEY") or ""
+    ).strip()
+    LIVEKIT_API_SECRET = (
+        os.getenv("LIVEKIT_API_SECRET") or os.getenv("LIVEKIT_SECRET") or ""
+    ).strip()
+
     # ── Transactional email (Resend) ──────────────────────────────────────────
     # One centralized Teamify sender. The project owner must verify the domain
     # and from-address with the provider; the app cannot create them itself.
