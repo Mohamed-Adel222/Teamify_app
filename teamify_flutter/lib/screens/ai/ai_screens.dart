@@ -285,16 +285,20 @@ class _AiModelsStatusBannerState extends State<_AiModelsStatusBanner> {
   @override
   Widget build(BuildContext context) {
     String title = 'AI models';
-    String subtitle = 'Checking which models are linked…';
+    String subtitle = 'Checking runtime status…';
     if (!_loading && _status != null) {
-      final linked = _status!['linked_count'] ?? 0;
+      final real = _status!['real_model_count'] ?? 0;
       final total = _status!['total'] ?? 0;
-      final loaded = _status!['loaded_count'] ?? 0;
       final fallback = _status!['fallback_count'] ?? 0;
-      title = '$linked of $total models linked';
-      subtitle = loaded == total
-          ? 'All models loaded on this backend.'
-          : '$loaded loaded now · $fallback using a fallback.';
+      final errors = _status!['error_count'] ?? 0;
+      title = '$real of $total running as REAL_MODEL';
+      if (errors > 0) {
+        subtitle = '$errors error · $fallback fallback. Tap for details.';
+      } else if (real == total && total > 0) {
+        subtitle = 'All trained models passed a live inference test.';
+      } else {
+        subtitle = '$fallback using heuristic fallback. Tap for details.';
+      }
     } else if (!_loading) {
       subtitle = 'Tap to open the model report.';
     }
@@ -388,16 +392,26 @@ class _AIModelsReportScreenState extends State<AIModelsReportScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${_report?['linked_count'] ?? 0} of ${_report?['total'] ?? 0} models linked',
+                            '${_report?['real_model_count'] ?? 0} of ${_report?['total'] ?? 0} REAL_MODEL',
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${_report?['loaded_count'] ?? 0} loaded in this backend · ${_report?['fallback_count'] ?? 0} using fallback logic',
+                            '${_report?['fallback_count'] ?? 0} fallback · ${_report?['error_count'] ?? 0} error',
                             style: const TextStyle(
                                 color: AppColors.textSecondary, fontSize: 13),
                           ),
+                          if (_report?['environment'] is Map) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _environmentLine(
+                                  Map<String, dynamic>.from(
+                                      _report!['environment'] as Map)),
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppColors.textHint),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -408,19 +422,43 @@ class _AIModelsReportScreenState extends State<AIModelsReportScreen> {
     );
   }
 
+  String _environmentLine(Map<String, dynamic> env) {
+    final python = env['python_version']?.toString() ?? '';
+    final flaskEnv = env['flask_env']?.toString() ?? '';
+    final host = env['hostname']?.toString() ?? '';
+    final parts = <String>[
+      if (python.isNotEmpty) 'Python $python',
+      if (host.isNotEmpty) host,
+      if (flaskEnv.isNotEmpty) flaskEnv,
+    ];
+    return parts.join(' · ');
+  }
+
   Widget _modelCard(Map<String, dynamic> model) {
-    final linked = model['linked'] == true;
+    final mode = model['mode']?.toString() ?? '';
     final loaded = model['loaded'] == true;
-    final statusLabel = !linked
-        ? 'Not linked'
-        : loaded
-            ? 'Linked · loaded'
-            : 'Linked · fallback';
-    final statusColor = !linked
-        ? AppColors.warning
-        : loaded
-            ? AppColors.success
-            : AppColors.primary;
+    final inference = model['inference_test'] == true;
+    final status = model['status']?.toString() ?? '';
+    final isReal = mode == 'REAL_MODEL' && loaded && inference;
+    final isError = !isReal && status == 'error';
+
+    late final String badge;
+    late final Color badgeBg;
+    late final Color badgeFg;
+    if (isReal) {
+      badge = '🟢 REAL MODEL ACTIVE';
+      badgeBg = AppColors.success.withValues(alpha: 0.15);
+      badgeFg = AppColors.success;
+    } else if (isError) {
+      badge = '🔴 MODEL ERROR';
+      badgeBg = AppColors.error.withValues(alpha: 0.12);
+      badgeFg = AppColors.error;
+    } else {
+      badge = '🟡 FALLBACK ACTIVE';
+      badgeBg = AppColors.warning.withValues(alpha: 0.15);
+      badgeFg = AppColors.warning;
+    }
+
     final error = model['error']?.toString() ?? '';
     return TCard(
       margin: const EdgeInsets.only(bottom: 12),
@@ -428,28 +466,38 @@ class _AIModelsReportScreenState extends State<AIModelsReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  model['name']?.toString() ?? 'Model',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-              ),
-              TChip(label: statusLabel),
-            ],
+          Text(
+            model['name']?.toString() ?? 'Model',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          TChip(label: badge, bg: badgeBg, textColor: badgeFg, fontSize: 10),
+          const SizedBox(height: 8),
           Text(
             model['description']?.toString() ?? '',
             style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 8),
+          _flagRow('File exists', model['file_exists'] == true ||
+              model['file_present'] == true),
+          _flagRow('Dependencies', model['dependencies_ok'] == true),
+          _flagRow('Loaded in memory', loaded),
+          _flagRow('Inference test', inference),
+          const SizedBox(height: 6),
           Text(
-            model['endpoint']?.toString() ?? '',
-            style: TextStyle(fontSize: 12, color: statusColor),
+            'Mode: ${mode.isEmpty ? 'FALLBACK' : mode}',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isReal ? AppColors.success : badgeFg),
           ),
+          if ((model['endpoint']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              model['endpoint'].toString(),
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
           if ((model['path']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
@@ -459,10 +507,25 @@ class _AIModelsReportScreenState extends State<AIModelsReportScreen> {
           ],
           if (error.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(error,
-                style: const TextStyle(fontSize: 12, color: AppColors.warning)),
+            Text(
+              error,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _flagRow(String label, bool ok) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text(
+        '${ok ? '✓' : '✗'} $label',
+        style: TextStyle(
+          fontSize: 12,
+          color: ok ? AppColors.success : AppColors.textSecondary,
+        ),
       ),
     );
   }

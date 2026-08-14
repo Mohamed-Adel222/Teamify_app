@@ -356,6 +356,7 @@ def create_app(test_config=None):
             or path.startswith("/api/auth")
             or path.startswith("/api/health")
             or path.startswith("/socket.io")
+            or path.rstrip("/").endswith("/api/ai/models/status")
         ):
             return None
         try:

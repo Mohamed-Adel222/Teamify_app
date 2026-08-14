@@ -903,7 +903,11 @@ def api_delay_model_status():
 @ai_bp.route("/models/status", methods=["GET"])
 @auth_required
 def api_ai_models_status():
-    """Report which on-disk ML models are present, loaded, or using fallbacks."""
+    """Runtime report: file, dependencies, in-memory load, and inference test.
+
+    REAL_MODEL only when load + inference succeed. Heuristic fallbacks stay
+    available on the existing AI endpoints. Never includes secrets.
+    """
     from services.ai_models_status_service import get_ai_models_status
 
     return jsonify(get_ai_models_status()), 200

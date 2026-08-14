@@ -133,6 +133,16 @@ class TestAIWorkload:
 class TestAIModelsStatus:
     URL = "/api/ai/models/status"
 
+    @pytest.fixture(autouse=True)
+    def _platform_available(self):
+        with patch(
+            "services.system_settings_service.is_ai_enabled", return_value=True
+        ), patch(
+            "services.system_settings_service.is_maintenance_mode",
+            return_value=False,
+        ):
+            yield
+
     def test_no_token_401(self, client):
         assert client.get(self.URL).status_code == 401
 
@@ -143,22 +153,77 @@ class TestAIModelsStatus:
                 {
                     "id": "delay_predictor",
                     "name": "Delay Predictor",
-                    "linked": True,
+                    "file_exists": True,
+                    "dependencies_ok": False,
                     "loaded": False,
-                    "file_present": True,
-                    "uses_fallback": True,
+                    "inference_test": False,
+                    "mode": "FALLBACK",
+                    "status": "fallback",
+                    "error": "No module named 'joblib'",
                     "endpoint": "POST /api/ai/delay",
                 }
             ],
             "total": 1,
-            "linked_count": 1,
-            "loaded_count": 0,
+            "real_model_count": 0,
             "fallback_count": 1,
-            "all_linked": True,
-            "all_loaded": False,
+            "error_count": 0,
+            "loaded_count": 0,
+            "linked_count": 1,
+            "environment": {"python_version": "3.12", "packages": {}},
         }
         r = client.get(self.URL, headers=member_headers)
         assert r.status_code == 200
         body = r.get_json()
-        assert body["linked_count"] == 1
-        assert body["models"][0]["id"] == "delay_predictor"
+        assert body["models"][0]["mode"] == "FALLBACK"
+        assert body["models"][0]["loaded"] is False
+        blob = str(body).upper()
+        assert "JWT_SECRET" not in blob
+        assert "DATABASE_URL" not in blob
+        assert "ANTHROPIC_API_KEY" not in blob
+
+    @patch("routes.ai.classify_task")
+    def test_classify_task_still_works_with_fallback(
+        self, m_cls, client, member_headers
+    ):
+        m_cls.return_value = {
+            "category": "backend",
+            "difficulty": "medium",
+            "required_skills": ["Python"],
+            "source": "keyword_fallback",
+        }
+        r = client.post(
+            "/api/ai/classify-task",
+            headers=member_headers,
+            json={"text": "Build a Flask API"},
+        )
+        assert r.status_code == 200
+        assert r.get_json()["source"] == "keyword_fallback"
+
+    def test_live_status_contract_and_no_secrets(self, client, member_headers):
+        r = client.get(self.URL, headers=member_headers)
+        assert r.status_code == 200
+        body = r.get_json()
+        assert "models" in body
+        assert "environment" in body
+        blob = str(body).upper()
+        assert "JWT_SECRET" not in blob
+        assert "DATABASE_URL" not in blob
+        assert "ANTHROPIC_API_KEY" not in blob
+        for model in body["models"]:
+            for key in (
+                "name",
+                "file_exists",
+                "dependencies_ok",
+                "loaded",
+                "inference_test",
+                "mode",
+                "status",
+                "error",
+                "path",
+            ):
+                assert key in model
+            if model["mode"] == "REAL_MODEL":
+                assert model["file_exists"] is True
+                assert model["dependencies_ok"] is True
+                assert model["loaded"] is True
+                assert model["inference_test"] is True

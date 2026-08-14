@@ -477,6 +477,22 @@ def persist_cv_from_ai_build(user_id: int, ai_result: dict) -> None:
     db.session.commit()
 
 
+def probe_cv_builder_inference(user_data: dict) -> dict:
+    """Run CV generation on in-memory sample data. Never reads or writes the DB."""
+    _load_pipeline()
+    if _cv_module is not None:
+        cv = _cv_module.update_cv(user_data)
+        if not isinstance(cv, dict):
+            raise TypeError("ai_resume_builder.update_cv() did not return a dict")
+        return {"ok": True, "backend": "pipeline", "source": "ai_pipeline"}
+    if _pkl_model is not None:
+        cv = _pkl_model.generate_cv_data(user_data)
+        if not isinstance(cv, dict):
+            raise TypeError("cv_builder.pkl generate_cv_data() did not return a dict")
+        return {"ok": True, "backend": "pkl", "source": "pkl_stub"}
+    raise RuntimeError(_load_error or "CV builder backends unavailable")
+
+
 def get_cv_builder_status() -> dict:
     """Report CV builder pipeline / pkl availability without forcing a load."""
     module_present = os.path.isfile(_MODULE_FILE)
