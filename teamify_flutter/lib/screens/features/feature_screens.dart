@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../core/observability/app_logger.dart';
+import '../../core/network/api_result.dart';
+import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
 
 // ── Complete Profile ──────────────────────────────────────────────────────────
@@ -314,87 +318,220 @@ class ChatEmotionScreen extends StatelessWidget {
 }
 
 // ── Meeting Transcription ─────────────────────────────────────────────────────
-class MeetingTranscriptionScreen extends StatelessWidget {
+class MeetingTranscriptionScreen extends StatefulWidget {
   const MeetingTranscriptionScreen({super.key});
+
+  @override
+  State<MeetingTranscriptionScreen> createState() =>
+      _MeetingTranscriptionScreenState();
+}
+
+class _MeetingTranscriptionScreenState
+    extends State<MeetingTranscriptionScreen> {
+  bool _loading = true;
+  String? _error;
+  String _title = 'Meeting Intelligence';
+  String _meta = '';
+  String _summary = '';
+  List<String> _actions = [];
+  String _transcript = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    String? publicId;
+    String? roomId;
+    String? sessionId;
+    if (args is String) publicId = args;
+    if (args is Map) {
+      publicId = args['publicId']?.toString() ?? args['public_id']?.toString();
+      roomId = args['roomId']?.toString();
+      sessionId = args['sessionId']?.toString();
+    }
+    if ((publicId == null || publicId.isEmpty) &&
+        (roomId == null || roomId.isEmpty)) {
+      setState(() {
+        _loading = false;
+        _error =
+            'Open a meeting from history or a chat to see its transcript and AI summary.';
+      });
+      return;
+    }
+    try {
+      final services = context.read<AppServices>();
+      if (publicId != null && publicId.isNotEmpty) {
+        final meeting = await services.meetings.getMeeting(publicId).unwrap();
+        if (!mounted) return;
+        _applyMeeting(meeting.title, meeting.session);
+      } else if (roomId != null && sessionId != null && sessionId.isNotEmpty) {
+        final session =
+            await services.chat.getMeetingSession(roomId, sessionId).unwrap();
+        if (!mounted) return;
+        _applyMeeting('Meeting notes', session);
+      } else {
+        setState(() {
+          _loading = false;
+          _error = 'This meeting does not have a saved transcript yet.';
+        });
+        return;
+      }
+    } catch (e, st) {
+      AppLogger.error('Failed to load meeting intelligence', e, st);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load meeting notes.';
+      });
+    }
+  }
+
+  void _applyMeeting(String title, Map<String, dynamic>? session) {
+    final summary = session?['summary']?.toString() ??
+        (session?['ai_summary'] is Map
+            ? (session!['ai_summary']['summary']?.toString() ?? '')
+            : '');
+    final actionsRaw = session?['action_items'];
+    final actions = <String>[];
+    if (actionsRaw is List) {
+      for (final item in actionsRaw) {
+        if (item is String && item.trim().isNotEmpty) {
+          actions.add(item.trim());
+        } else if (item is Map) {
+          final t = item['title']?.toString() ?? item['text']?.toString() ?? '';
+          if (t.isNotEmpty) actions.add(t);
+        }
+      }
+    }
+    final lines = <String>[];
+    final transcript = session?['transcript'] ?? session?['speech_transcript'];
+    if (transcript is List) {
+      for (final row in transcript) {
+        if (row is Map) {
+          final name = row['sender_name']?.toString() ?? 'Speaker';
+          final content = row['content']?.toString() ?? '';
+          if (content.isNotEmpty) lines.add('$name: $content');
+        }
+      }
+    }
+    setState(() {
+      _loading = false;
+      _error = null;
+      _title = title;
+      _meta = session?['started_at']?.toString() ?? '';
+      _summary = summary;
+      _actions = actions;
+      _transcript = lines.join('\n');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Meeting Intelligence')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const TCard(
-              padding: EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Icon(Icons.mic, color: AppColors.error),
-                  SizedBox(width: 16),
-                  Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Redesign Kick-off',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text('Recorded: May 07 • 42 mins',
-                            style: TextStyle(
-                                color: AppColors.textSecondary, fontSize: 12)),
-                      ]),
-                  Spacer(),
-                  Icon(Icons.share_outlined, color: AppColors.primary),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-            const TSectionHeader(title: 'Meeting Summary'),
-            const SizedBox(height: 16),
-            const TCard(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                  'The team agreed on the mobile-first approach. Major technical blockers were discussed regarding the API integration. Ahmed will lead the design sprint starting Monday.',
-                  style: TextStyle(height: 1.5, fontSize: 14)),
-            ),
-            const SizedBox(height: 32),
-            const TSectionHeader(title: 'Action Items'),
-            const SizedBox(height: 16),
-            _taskItem('Finalize UI Kit by Tuesday', true),
-            _taskItem('Draft API documentation', false),
-            _taskItem('Schedule client walkthrough', false),
-            const SizedBox(height: 32),
-            const TSectionHeader(title: 'Live Transcript'),
-            const SizedBox(height: 16),
-            const TCard(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                  'Sarah: "The timeline is tight, we need to focus on core features first."\nAhmed: "I agree, I will prioritize the login and dashboard views."\n...',
-                  style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                      height: 1.8)),
-            ),
-            const SizedBox(height: 40),
-            TButton(label: 'Export Insights', onTap: () {}),
-          ],
-        ),
-      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TCard(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.mic, color: AppColors.error),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_title,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16)),
+                                  if (_meta.isNotEmpty)
+                                    Text(_meta,
+                                        style: const TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      const TSectionHeader(title: 'Meeting Summary'),
+                      const SizedBox(height: 16),
+                      TCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          _summary.isEmpty
+                              ? 'No AI summary is available for this meeting yet.'
+                              : _summary,
+                          style: const TextStyle(height: 1.5, fontSize: 14),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      const TSectionHeader(title: 'Action Items'),
+                      const SizedBox(height: 16),
+                      if (_actions.isEmpty)
+                        const TCard(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'No action items were extracted.',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        )
+                      else
+                        ..._actions.map(_taskItem),
+                      const SizedBox(height: 32),
+                      const TSectionHeader(title: 'Transcript'),
+                      const SizedBox(height: 16),
+                      TCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          _transcript.isEmpty
+                              ? 'No transcript was saved for this meeting.'
+                              : _transcript,
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              height: 1.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
     );
   }
 
-  Widget _taskItem(String t, bool done) => TCard(
+  Widget _taskItem(String t) => TCard(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(children: [
-          Icon(done ? Icons.check_circle : Icons.circle_outlined,
-              color: done ? AppColors.success : AppColors.primary),
+          const Icon(Icons.circle_outlined, color: AppColors.primary),
           const SizedBox(width: 12),
-          Text(t,
-              style: TextStyle(
-                  fontSize: 14,
-                  decoration: done ? TextDecoration.lineThrough : null,
-                  color: done ? AppColors.textHint : AppColors.textPrimary)),
+          Expanded(
+            child: Text(t, style: const TextStyle(fontSize: 14)),
+          ),
         ]),
       );
 }

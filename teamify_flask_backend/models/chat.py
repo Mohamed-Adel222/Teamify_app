@@ -17,6 +17,8 @@ class ChatRoom(db.Model):
         nullable=True,
     )
     is_group = db.Column(db.Boolean, default=False, nullable=False)
+    # Stable 1:1 key "{min_user_id}:{max_user_id}" — unique when set.
+    direct_pair_key = db.Column(db.String(64), nullable=True, unique=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
@@ -36,6 +38,7 @@ class ChatRoom(db.Model):
             "name": self.name,
             "project_id": self.project_id,
             "is_group": self.is_group,
+            "direct_pair_key": self.direct_pair_key,
             "created_at": utc_iso(self.created_at),
             "member_ids": [
                 m.user_id
@@ -109,6 +112,7 @@ class Message(db.Model):
         db.ForeignKey("file_metadata.id", ondelete="SET NULL"),
         nullable=True,
     )
+    idempotency_key = db.Column(db.String(64), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationship to user
@@ -117,6 +121,13 @@ class Message(db.Model):
 
     __table_args__ = (
         db.Index("ix_msg_room_created", "room_id", "created_at"),
+        db.Index(
+            "uq_msg_idempotency",
+            "room_id",
+            "sender_id",
+            "idempotency_key",
+            unique=True,
+        ),
     )
 
     def __init__(self, **kwargs):
@@ -143,6 +154,7 @@ class Message(db.Model):
             "content": self.content,
             "message_type": self.message_type or "text",
             "file_id": self.file_id,
+            "idempotency_key": self.idempotency_key,
             "attachment": attachment,
             "created_at": utc_iso(self.created_at),
         }

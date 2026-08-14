@@ -24,6 +24,12 @@ class MeetingSession(db.Model):
         nullable=False,
         index=True,
     )
+    meeting_id = db.Column(
+        db.Integer,
+        db.ForeignKey("meetings.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     project_id = db.Column(
         db.Integer,
         db.ForeignKey("projects.id", ondelete="SET NULL"),
@@ -53,6 +59,7 @@ class MeetingSession(db.Model):
         data = {
             "id": self.id,
             "room_id": self.room_id,
+            "meeting_id": self.meeting_id,
             "project_id": self.project_id,
             "started_by": self.started_by,
             "started_at": _utc_iso(self.started_at),

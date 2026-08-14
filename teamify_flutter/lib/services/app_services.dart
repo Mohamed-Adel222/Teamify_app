@@ -13,6 +13,7 @@ import 'feedback_service.dart';
 import 'file_service.dart';
 import 'home_service.dart';
 import 'log_service.dart';
+import 'meeting_service.dart';
 import 'notification_service.dart';
 import 'project_service.dart';
 import 'rating_service.dart';
@@ -43,6 +44,7 @@ class AppServices {
   late final CVService cvs;
   late final AIService ai;
   late final ChatService chat;
+  late final MeetingService meetings;
   late final NotificationService notifications;
   late final SearchService search;
   late final HomeService home;
@@ -120,6 +122,7 @@ class AppServices {
 
     // ── Communication ─────────────────────────────────────────────────────
     chat = ChatService(repos.chat, offlineManager, cache);
+    meetings = MeetingService(repos.meetings);
     notifications = NotificationService(repos.notifications, cache,
         ws: ws, offline: offlineManager);
 

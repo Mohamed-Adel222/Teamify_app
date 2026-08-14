@@ -17,6 +17,7 @@ from models.user import User
 from services.chat_message_service import create_chat_message, delete_chat_message
 from services.chat_room_service import (
     add_room_member,
+    ensure_direct_chat_room,
     ensure_project_chat_room,
     sync_all_project_rooms_for_user,
     sync_project_members_to_room,
@@ -319,6 +320,33 @@ def create_room():
     return jsonify({"message": "Room created", "room": room.to_dict()}), 201
 
 
+def _direct_room_response():
+    """Find or create a 1:1 DM. Always returns a numeric chat room id."""
+    user_id = int(get_jwt_identity())
+    data = request.get_json(silent=True) or {}
+    raw = data.get("user_id") or data.get("peer_id") or data.get("member_id")
+    try:
+        peer_id = int(raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "user_id is required and must be an integer"}), 400
+
+    room, err = ensure_direct_chat_room(user_id, peer_id)
+    if err:
+        lowered = err.lower()
+        if "not found" in lowered:
+            status = 404
+        elif "not available" in lowered or "yourself" in lowered:
+            status = 403
+        else:
+            status = 400
+        return jsonify({"error": err}), status
+    db.session.commit()
+    return jsonify({
+        "message": "Direct chat ready",
+        "room": room.to_dict(include_last_message=True),
+    }), 200
+
+
 # ── Find or create a 1:1 direct-message room ─────────────────────────────────
 @chat_bp.route("/rooms/direct", methods=["POST"])
 @auth_required
@@ -344,62 +372,18 @@ def open_direct_room():
       404:
         description: Target user not found
     """
-    user_id = int(get_jwt_identity())
-    data = request.get_json(silent=True) or {}
+    return _direct_room_response()
 
-    try:
-        other_id = int(data.get("user_id"))
-    except (TypeError, ValueError):
-        return jsonify({"error": "user_id is required"}), 400
 
-    if other_id == user_id:
-        return jsonify({"error": "Cannot open a chat with yourself"}), 400
-
-    other = db.session.get(User, other_id)
-    if not other:
-        return jsonify({"error": "User not found"}), 404
-
-    # Existing non-group, non-project room whose members are exactly the pair.
-    my_room_ids = [
-        m.room_id
-        for m in ChatRoomMember.query.filter_by(user_id=user_id).all()
-    ]
-    if my_room_ids:
-        candidates = ChatRoom.query.filter(
-            ChatRoom.id.in_(my_room_ids),
-            ChatRoom.is_group.is_(False),
-            ChatRoom.project_id.is_(None),
-        ).all()
-        for room in candidates:
-            member_ids = {
-                m.user_id
-                for m in ChatRoomMember.query.filter_by(room_id=room.id).all()
-            }
-            if member_ids == {user_id, other_id}:
-                return jsonify({
-                    "message": "Existing direct chat",
-                    "room": room.to_dict(include_last_message=True),
-                }), 200
-
-    me = db.session.get(User, user_id)
-    my_name = (me.full_name or me.display_name) if me else "User"
-    other_name = other.full_name or other.display_name or "User"
-
-    room = ChatRoom(
-        name=f"{my_name} & {other_name}",
-        project_id=None,
-        is_group=False,
-    )
-    db.session.add(room)
-    db.session.flush()
-    add_room_member(room.id, user_id)
-    add_room_member(room.id, other_id)
-    db.session.commit()
-
-    return jsonify({
-        "message": "Direct chat created",
-        "room": room.to_dict(include_last_message=True),
-    }), 201
+# ── Find or create a 1:1 direct message room ──────────────────────────────────
+@chat_bp.route("/direct", methods=["POST"])
+@auth_required
+def find_or_create_direct_room():
+    """
+    Find or create a direct-message room with another user.
+    Always returns a numeric chat room id — never a client-invented dm_ id.
+    """
+    return _direct_room_response()
 
 
 # ── Get a single room with member profiles ────────────────────────────────────
@@ -652,19 +636,83 @@ def start_meeting_session(room_id):
         return jsonify({"error": "Room not found"}), 404
 
     from datetime import datetime, timezone as tz
-    now = datetime.now(tz.utc)
+    from sqlalchemy.orm.attributes import flag_modified
 
-    active = MeetingSession.query.filter_by(room_id=room_id, is_active=True).first()
+    from models.meeting import Meeting
+
+    now = datetime.now(tz.utc)
+    live_meeting = (
+        Meeting.query.filter_by(chat_room_id=room_id, status="live")
+        .order_by(Meeting.created_at.desc())
+        .first()
+    )
+
+    def _close_stale(session: MeetingSession) -> None:
+        session.is_active = False
+        session.ended_at = now
+        if session.started_at:
+            started = session.started_at
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=tz.utc)
+            session.duration_seconds = int((now - started).total_seconds())
+
+    if live_meeting is not None:
+        existing = (
+            MeetingSession.query.filter_by(
+                meeting_id=live_meeting.id, is_active=True
+            )
+            .order_by(MeetingSession.started_at.desc())
+            .first()
+        )
+        if existing is not None:
+            ids = list(existing.participant_ids or [])
+            if user_id not in ids:
+                ids.append(user_id)
+                existing.participant_ids = ids
+                flag_modified(existing, "participant_ids")
+                db.session.commit()
+            return jsonify({"session": existing.to_dict()}), 200
+
+        orphans = MeetingSession.query.filter(
+            MeetingSession.room_id == room_id,
+            MeetingSession.is_active.is_(True),
+            db.or_(
+                MeetingSession.meeting_id.is_(None),
+                MeetingSession.meeting_id != live_meeting.id,
+            ),
+        ).all()
+        for orphan in orphans:
+            _close_stale(orphan)
+        if orphans:
+            db.session.flush()
+
+        session = MeetingSession(
+            room_id=room_id,
+            project_id=room.project_id,
+            started_by=user_id,
+            is_active=True,
+            started_at=now,
+            transcript=[],
+            participant_ids=[user_id],
+            meeting_id=live_meeting.id,
+        )
+        db.session.add(session)
+        db.session.commit()
+        return jsonify({"session": session.to_dict()}), 201
+
+    active = (
+        MeetingSession.query.filter_by(room_id=room_id, is_active=True)
+        .order_by(MeetingSession.started_at.desc())
+        .first()
+    )
     if active:
-        stale = (now - active.started_at.replace(tzinfo=tz.utc)).total_seconds() > 300 \
-                if active.started_at else True
+        stale = (
+            (now - active.started_at.replace(tzinfo=tz.utc)).total_seconds() > 300
+            if active.started_at
+            else True
+        )
         if stale:
-            active.is_active = False
-            active.ended_at = now
-            if active.started_at:
-                active.duration_seconds = int(
-                    (now - active.started_at.replace(tzinfo=tz.utc)).total_seconds()
-                )
+            _close_stale(active)
             db.session.flush()
         else:
             return jsonify({"session": active.to_dict()}), 200

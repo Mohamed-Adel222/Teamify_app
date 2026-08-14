@@ -44,6 +44,7 @@ class R {
   static const fileSharing = '/file-sharing';
   static const fileIntegrity = '/file-integrity';
   static const meeting = '/meeting';
+  static const meetingJoin = '/meeting/join';
 
   // AI
   static const aiHub = '/ai-hub';

@@ -247,17 +247,17 @@ def register_chat_events(socketio) -> None:
 
         if user_id is None:
             emit("error", {"message": "Not authenticated"})
-            return
+            return {"ok": False, "error": "Not authenticated"}
 
         if not isinstance(data, dict):
             emit("error", {"message": "Invalid payload — expected JSON object"})
-            return
+            return {"ok": False, "error": "Invalid payload"}
 
         try:
             room_id = int(data["room_id"])
         except (KeyError, TypeError, ValueError):
             emit("error", {"message": "room_id is required and must be an integer"})
-            return
+            return {"ok": False, "error": "room_id is required and must be an integer"}
 
         # Verify membership
         membership = db.session.query(ChatRoomMember).filter_by(
@@ -265,7 +265,7 @@ def register_chat_events(socketio) -> None:
         ).first()
         if membership is None:
             emit("error", {"message": "You are not a member of this room"})
-            return
+            return {"ok": False, "error": "You are not a member of this room"}
 
         room_name = f"chat_{room_id}"
         join_room(room_name)
@@ -276,6 +276,7 @@ def register_chat_events(socketio) -> None:
 
         emit("joined", {"room_id": room_id, "user_id": user_id}, to=room_name)
         logger.info("[WS] user=%s joined room=%s", user_id, room_name)
+        return {"ok": True, "room_id": room_id}
 
     # ------------------------------------------------------------------
     # leave_chat
@@ -386,17 +387,17 @@ def register_chat_events(socketio) -> None:
 
         if user_id is None:
             emit("error", {"message": "Not authenticated"})
-            return
+            return {"ok": False, "error": "Not authenticated"}
 
         if not isinstance(data, dict):
             emit("error", {"message": "Invalid payload"})
-            return
+            return {"ok": False, "error": "Invalid payload"}
 
         try:
             room_id = int(data["room_id"])
         except (KeyError, TypeError, ValueError):
             emit("error", {"message": "room_id is required and must be an integer"})
-            return
+            return {"ok": False, "error": "room_id is required and must be an integer"}
 
         # Verify membership (re-check on every message to detect kicked members)
         membership = db.session.query(ChatRoomMember).filter_by(
@@ -404,24 +405,27 @@ def register_chat_events(socketio) -> None:
         ).first()
         if membership is None:
             emit("error", {"message": "You are not a member of this room"})
-            return
+            return {"ok": False, "error": "You are not a member of this room"}
 
         msg, err = create_chat_message(room_id, user_id, data)
         if err:
             body, status = err
             try:
                 payload = body.get_json()
-                emit("error", {"message": payload.get("error", "Send failed")})
+                message = payload.get("error", "Send failed")
             except Exception:
-                emit("error", {"message": "Send failed"})
-            return
+                message = "Send failed"
+            emit("error", {"message": message})
+            return {"ok": False, "error": message}
 
         # Broadcast to room
         room_name = f"chat_{room_id}"
-        emit("receive_message", msg.to_dict(), to=room_name)
+        payload = msg.to_dict()
+        emit("receive_message", payload, to=room_name)
         logger.info(
             "[WS] msg room=%s user=%s type=%s",
             room_id,
             user_id,
             msg.message_type,
         )
+        return {"ok": True, "message": payload}

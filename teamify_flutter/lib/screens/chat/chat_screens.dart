@@ -13,6 +13,8 @@ import '../../core/files/file_downloader.dart';
 import '../../core/files/file_actions.dart';
 import '../../core/network/api_result.dart';
 import '../../core/network/websocket_manager.dart';
+import '../../core/observability/app_logger.dart';
+import '../../core/offline/mutation_id.dart';
 import '../../core/theme.dart';
 import '../../core/routes.dart';
 import '../../core/session/session_controller.dart';
@@ -23,7 +25,7 @@ import '../../models/models.dart';
 import '../../config/app_config.dart';
 import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
-import '../meeting/meeting_screens.dart';
+import '../meeting/meeting_preview_screen.dart';
 import 'chat_attachment_utils.dart';
 import 'chat_room_utils.dart';
 
@@ -168,8 +170,8 @@ List<_ChatListItem> _chatListItems(List<ChatMessage> messages) {
   String? lastLabel;
   for (var i = 0; i < sorted.length; i++) {
     final m = sorted[i];
-    if (m.createdAt == null) continue;
-    final label = _formatChatDateLabel(m.createdAt!);
+    final when = m.createdAt ?? DateTime.now();
+    final label = _formatChatDateLabel(when);
     if (label != lastLabel) {
       items.add(_ChatListItem.date(label));
       lastLabel = label;
@@ -490,6 +492,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   StreamSubscription<SocketPayload>? _socketSub;
   WebSocketManager? _ws;
   bool _loadingHistory = true;
+  String? _loadError;
   bool _recordingVoice = false;
   bool _transcribingVoice = false;
   String? _roomId;
@@ -498,7 +501,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   int _memberCount = 0;
   List<ApiUser> _roomMembers = [];
   bool _sendingAttachment = false;
+  bool _openingMeeting = false;
   final ScrollController _chatScroll = ScrollController();
+  final Map<String, Map<String, dynamic>> _pendingPayloads = {};
 
   @override
   void initState() {
@@ -526,31 +531,44 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (!mounted) return;
     _ws = context.read<WebSocketManager>();
     final args = ModalRoute.of(context)?.settings.arguments;
-    ChatRoom? room = args is ChatRoom ? args : null;
-    if (room == null && args is ApiUser) {
-      // Direct message: resolve (or create) the real 1:1 room on the server.
-      final res =
-          await context.read<AppServices>().chat.openDirectRoom(args.id);
-      if (!mounted) return;
-      if (res.isSuccess && res.data != null) {
-        room = chatRoomFromApi(res.data!);
-        // Show the peer's name, not the stored room name.
-        room = ChatRoom(
-          id: room.id,
-          name: args.primaryName,
-          lastMessage: room.lastMessage,
-          time: room.time,
-          initials: args.initials,
-          isGroup: false,
-          projectId: room.projectId,
-        );
-      } else {
-        setState(() => _loadingHistory = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.error ?? 'Could not open chat'),
-          ),
-        );
+    ChatRoom? room;
+    if (args is ChatRoom) {
+      room = args;
+    } else if (args is ApiUser) {
+      final peerId = int.tryParse(args.id);
+      if (peerId == null) {
+        setState(() {
+          _loadingHistory = false;
+          _loadError = 'Invalid user id';
+        });
+        return;
+      }
+      try {
+        final roomMap = await context
+            .read<AppServices>()
+            .chat
+            .findOrCreateDirect(peerId)
+            .unwrap();
+        if (!mounted) return;
+        room = chatRoomFromApi(roomMap);
+        if (args.primaryName.isNotEmpty) {
+          room = ChatRoom(
+            id: room.id,
+            name: args.primaryName,
+            lastMessage: room.lastMessage,
+            time: room.time,
+            initials: args.initials,
+            isGroup: false,
+            projectId: room.projectId,
+          );
+        }
+      } catch (e, st) {
+        AppLogger.error('Failed to open direct chat', e, st);
+        if (!mounted) return;
+        setState(() {
+          _loadingHistory = false;
+          _loadError = 'Could not open conversation. Please try again.';
+        });
         return;
       }
     }
@@ -558,11 +576,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
       setState(() => _loadingHistory = false);
       return;
     }
+    if (int.tryParse(room.id) == null) {
+      setState(() {
+        _loadingHistory = false;
+        _loadError =
+            'This chat has an invalid room id. Open it from the chat list.';
+      });
+      return;
+    }
     final resolvedRoom = room;
     setState(() {
       _roomId = resolvedRoom.id;
       _roomName = resolvedRoom.name;
       _projectId = resolvedRoom.projectId;
+      _loadError = null;
     });
     try {
       final roomData = await context
@@ -581,7 +608,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
         _memberCount = _roomMembers.length;
         if (_projectId != null || _memberCount > 0) setState(() {});
       }
-    } catch (_) {}
+    } catch (e, st) {
+      AppLogger.error('Failed to load chat room', e, st);
+      if (mounted) {
+        setState(() {
+          _loadError = 'Could not load chat details.';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load chat details.')),
+        );
+      }
+    }
     await _loadHistory();
     await _ws?.connect();
     _subscribeSocket();
@@ -596,6 +633,23 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _socketSub = ws.stream.listen((payload) {
       if (payload.event == SocketEvent.connected) {
         ws.joinRoom(rid);
+        if (mounted) setState(() {});
+        return;
+      }
+      if (payload.event == SocketEvent.disconnected ||
+          payload.event == SocketEvent.connectError) {
+        if (mounted) setState(() {});
+        return;
+      }
+      if (payload.event == SocketEvent.error) {
+        final message = payload.data['message']?.toString() ??
+            payload.data['error']?.toString() ??
+            'Chat error';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        }
         return;
       }
       if (payload.event == SocketEvent.chatMessage) {
@@ -684,10 +738,40 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   void _failPending(String pendingId, String message) {
     if (!mounted) return;
-    setState(() => _messages.removeWhere((m) => m.id == pendingId));
+    setState(() {
+      final idx = _messages.indexWhere((m) => m.id == pendingId);
+      if (idx >= 0) {
+        _messages[idx] = _messages[idx].copyWith(
+          isPending: false,
+          isFailed: true,
+        );
+      }
+    });
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: 'Retry',
+          onPressed: () => _retryFailed(pendingId),
+        ),
+      ),
     );
+  }
+
+  Future<void> _retryFailed(String pendingId) async {
+    final rid = _roomId;
+    final payload = _pendingPayloads[pendingId];
+    if (rid == null || payload == null) return;
+    setState(() {
+      final idx = _messages.indexWhere((m) => m.id == pendingId);
+      if (idx >= 0) {
+        _messages[idx] = _messages[idx].copyWith(
+          isPending: true,
+          isFailed: false,
+        );
+      }
+    });
+    await _deliverPending(pendingId, rid, payload);
   }
 
   void _handleSendResult(
@@ -714,16 +798,39 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _failPending(pendingId, result.error ?? 'Could not send message');
   }
 
-  Future<void> _confirmPendingViaRestIfNeeded(
+  Future<void> _deliverPending(
     String pendingId,
     String rid,
     Map<String, dynamic> payload,
   ) async {
-    await Future.delayed(const Duration(seconds: 8));
+    final ws = _ws ?? context.read<WebSocketManager>();
+    if (!ws.isConnected) {
+      await ws.connect();
+    }
+    if (!mounted) return;
+
+    if (ws.isConnected) {
+      final ack = await ws.sendChatPayloadWithAck(rid, payload);
+      if (!mounted) return;
+      if (ack != null && ack['ok'] == true) {
+        final row = ack['message'];
+        if (row is Map) {
+          _confirmPendingFromServer(
+            pendingId,
+            Map<String, dynamic>.from(row),
+          );
+          return;
+        }
+      }
+      if (ack != null && ack['ok'] == false) {
+        final err = ack['error']?.toString() ?? 'Could not send message';
+        _failPending(pendingId, err);
+        return;
+      }
+    }
+
     if (!mounted) return;
     if (!_messages.any((m) => m.id == pendingId && m.isPending)) return;
-    final ws = _ws ?? context.read<WebSocketManager>();
-    if (ws.isConnected) return;
     final result =
         await context.read<AppServices>().chat.sendMessage(rid, payload);
     _handleSendResult(pendingId, result);
@@ -802,53 +909,75 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ..clear()
           ..addAll(_messages.map((e) => e.id).where((id) => id.isNotEmpty));
         _loadingHistory = false;
+        _loadError = null;
       });
       _scrollChatToEnd();
-    } catch (_) {
+    } catch (e, st) {
+      AppLogger.error('Failed to load chat history', e, st);
       if (!mounted) return;
       setState(() => _loadingHistory = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load messages. Pull to retry.')),
+      );
     }
   }
 
   Future<void> _openMeeting() async {
     final rid = _roomId;
-    if (rid == null) return;
-
-    final session = context.read<SessionController>();
-    final me = session.currentUser;
-    final hostName = me?.fullName ?? me?.displayName ?? 'You';
-    final participantNames = _roomMembers
-        .map((u) => u.primaryName)
-        .where((name) => name.isNotEmpty)
-        .toList();
-    if (participantNames.isEmpty) {
-      participantNames.add(hostName);
+    if (rid == null || _openingMeeting) return;
+    final roomIdInt = int.tryParse(rid);
+    if (roomIdInt == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot start a meeting from this chat.')),
+      );
+      return;
     }
 
-    final meeting = DemoMeeting(
-      id: rid,
-      roomId: rid,
-      projectId: _projectId,
-      title: '$_roomName Sync',
-      projectName: _roomName,
-      dateTimeLabel: 'Today, ${_formatMsgTimeFromDateTime(DateTime.now())}',
-      scheduledAt: DateTime.now(),
-      hostName: hostName,
-      hostInitials: _initialsFromName(hostName),
-      participantCount: participantNames.length,
-      participantNames: participantNames,
-      status: 'Live',
-      description: 'Live meeting from this chat.',
-    );
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => PermissionsPreviewSheet(meeting: meeting),
-    );
+    setState(() => _openingMeeting = true);
+    try {
+      final meeting = await context.read<AppServices>().meetings.createMeeting(
+            chatRoomId: roomIdInt,
+            projectId: int.tryParse(_projectId ?? ''),
+            title: '$_roomName meeting',
+          ).unwrap();
+      if (!mounted) return;
+      final session = context.read<SessionController>();
+      final me = session.currentUser;
+      final hostName = me?.fullName ?? me?.displayName ?? 'You';
+      final now = DateTime.now();
+      setState(() {
+        _messages.add(ChatMessage(
+          id: 'meeting_${meeting.publicId}',
+          senderId: me?.id ?? '',
+          senderName: hostName,
+          senderInitials: _initialsFromName(hostName),
+          message: '$hostName started a meeting',
+          time: _formatMsgTimeFromDateTime(now),
+          isMe: true,
+          messageType: 'meeting',
+          fileId: meeting.publicId,
+          fileName: meeting.title,
+          mimeType: meeting.isLive ? 'LIVE' : meeting.status,
+          createdAt: now,
+        ));
+      });
+      _scrollChatToEnd();
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MeetingPreviewScreen(publicId: meeting.publicId),
+        ),
+      );
+    } catch (e, st) {
+      AppLogger.error('Failed to start meeting', e, st);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start meeting: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _openingMeeting = false);
+    }
   }
 
   Widget _meetingChatCard(ChatMessage m) {
@@ -945,7 +1074,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           Text(
             isLive
                 ? 'Started at ${m.time} · Tap to join'
-                : 'Meeting ended · Duration: 00:15:20 · 4 members',
+                : 'Meeting ended · Tap to view notes',
             style:
                 const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
@@ -954,35 +1083,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
-                final names = _roomMembers
-                    .map((u) => u.primaryName)
-                    .where((name) => name.isNotEmpty)
-                    .toList();
-                if (names.isEmpty) names.add(m.senderName);
-                final targetMeeting = DemoMeeting(
-                  id: _roomId ?? m.fileId ?? '',
-                  roomId: _roomId ?? m.fileId ?? '',
-                  sessionId: m.fileId,
-                  projectId: _projectId,
-                  title: m.fileName ?? 'Project Meeting',
-                  projectName: _roomName,
-                  dateTimeLabel: m.time,
-                  scheduledAt: DateTime.now(),
-                  hostName: m.senderName,
-                  hostInitials: m.senderInitials,
-                  participantCount: names.length,
-                  participantNames: names,
-                  status: isLive ? 'Live' : 'Ended',
-                );
-                showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(24)),
+                final publicId = m.fileId ?? '';
+                if (publicId.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('This meeting is no longer available.'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MeetingPreviewScreen(publicId: publicId),
                   ),
-                  builder: (_) =>
-                      PermissionsPreviewSheet(meeting: targetMeeting),
                 );
               },
               icon: Icon(isLive ? Icons.video_call : Icons.replay, size: 16),
@@ -1579,11 +1693,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
           'content': label,
           'message_type': messageType,
           if (numericFileId != null) 'file_id': numericFileId,
+          'idempotency_key': MutationId.generate(),
         };
-
-        final result =
-            await context.read<AppServices>().chat.sendMessage(rid, payload);
-        _handleSendResult(pendingId, result);
+        _pendingPayloads[pendingId] = payload;
+        await _deliverPending(pendingId, rid, payload);
       } else if (mounted) {
         setState(() {
           final idx = _messages.indexWhere((m) => m.id == pendingId);
@@ -1607,8 +1720,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
           }
         });
       }
-    } catch (e) {
-      _failPending(pendingId, 'Could not send attachment: $e');
+    } catch (e, st) {
+      AppLogger.error('Failed to send attachment', e, st);
+      _failPending(pendingId, 'Could not send attachment.');
     } finally {
       if (mounted) {
         setState(() => _sendingAttachment = false);
@@ -1822,7 +1936,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
       isPending: true,
       createdAt: now,
     );
-    final payload = {'content': text, 'message_type': 'text'};
+    final payload = {
+      'content': text,
+      'message_type': 'text',
+      'idempotency_key': MutationId.generate(),
+    };
+    _pendingPayloads[pendingId] = payload;
     setState(() {
       _messages.add(pending);
       _ctrl.clear();
@@ -1841,14 +1960,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       entityId: rid,
     );
 
-    if (ws.isConnected) {
-      ws.sendMessage(rid, text);
-      unawaited(_confirmPendingViaRestIfNeeded(pendingId, rid, payload));
-    } else {
-      final result =
-          await context.read<AppServices>().chat.sendMessage(rid, payload);
-      _handleSendResult(pendingId, result);
-    }
+    await _deliverPending(pendingId, rid, payload);
   }
 
   void _scrollChatToEnd() {
@@ -1902,13 +2014,33 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Future<void> _showMembersList() async {
-    final pid = _projectId;
     List<ApiUser> membersList = [];
-    if (pid != null && pid.isNotEmpty) {
-      try {
-        final res = await context.read<AppServices>().projects.listMembers(pid);
-        res.when(success: (m) => membersList = m, failure: (_) {});
-      } catch (_) {}
+    final rid = _roomId;
+    final pid = _projectId;
+    final services = context.read<AppServices>();
+    try {
+      if (pid != null && pid.isNotEmpty) {
+        final res = await services.projects.listMembers(pid);
+        if (res.isSuccess) {
+          membersList = res.data ?? [];
+        } else {
+          AppLogger.error('Could not load project members: ${res.error}');
+        }
+      }
+      if (membersList.isEmpty && rid != null) {
+        final roomData = await services.chat.getRoom(rid).unwrap();
+        final raw =
+            (roomData['members'] as List?)?.whereType<Map<String, dynamic>>() ??
+                const [];
+        membersList = raw.map(ApiUser.fromJson).toList();
+      }
+    } catch (e, st) {
+      AppLogger.error('Could not load chat members', e, st);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load members.')),
+        );
+      }
     }
     if (!mounted) return;
     if (membersList.isEmpty && _roomMembers.isNotEmpty) {
@@ -2077,13 +2209,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
           title: const Text('Messages',
               style: TextStyle(fontWeight: FontWeight.bold)),
         ),
-        body: const Center(
+        body: Center(
           child: Padding(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Text(
-              'Choose a conversation from the list to start messaging.',
+              _loadError ??
+                  'Choose a conversation from the list to start messaging.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
         ),
@@ -2334,7 +2467,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     onLongPress: isMe && !m.isPending
-                        ? () => _confirmDeleteMessage(m)
+                        ? () => m.isFailed
+                            ? _retryFailed(m.id)
+                            : _confirmDeleteMessage(m)
                         : null,
                     borderRadius: radius,
                     child: Container(
@@ -2393,12 +2528,34 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 if (isLastInGroup)
                   Padding(
                     padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
-                    child: Text(
-                      '${m.time}${m.isPending ? ' · sending' : ''}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${m.time}${m.isPending ? ' · sending' : ''}${m.isFailed ? ' · failed' : ''}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: m.isFailed
+                                ? const Color(0xFFDC2626)
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        if (m.isFailed)
+                          GestureDetector(
+                            onTap: () => _retryFailed(m.id),
+                            child: const Padding(
+                              padding: EdgeInsets.only(left: 6),
+                              child: Text(
+                                'Retry',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
               ],

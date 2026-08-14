@@ -159,6 +159,142 @@ def _apply_runtime_schema_patches(app: Flask) -> None:
         except Exception as exc:
             app.logger.warning("Schema patch users.%s skipped: %s", column, exc)
 
+    try:
+        insp = inspect(db.engine)
+        if "chat_rooms" in insp.get_table_names():
+            col_names = {c["name"] for c in insp.get_columns("chat_rooms")}
+            if "direct_pair_key" not in col_names:
+                dialect = db.engine.dialect.name
+                if dialect == "postgresql":
+                    sql = (
+                        "ALTER TABLE chat_rooms "
+                        "ADD COLUMN IF NOT EXISTS direct_pair_key VARCHAR(64)"
+                    )
+                else:
+                    sql = "ALTER TABLE chat_rooms ADD COLUMN direct_pair_key VARCHAR(64)"
+                with db.engine.begin() as conn:
+                    conn.execute(text(sql))
+                app.logger.info("Schema patch: added chat_rooms.direct_pair_key")
+    except Exception as exc:
+        app.logger.warning("Schema patch chat_rooms.direct_pair_key skipped: %s", exc)
+
+    try:
+        insp = inspect(db.engine)
+        if "meeting_sessions" in insp.get_table_names():
+            col_names = {c["name"] for c in insp.get_columns("meeting_sessions")}
+            if "meeting_id" not in col_names:
+                dialect = db.engine.dialect.name
+                if dialect == "postgresql":
+                    sql = (
+                        "ALTER TABLE meeting_sessions "
+                        "ADD COLUMN IF NOT EXISTS meeting_id INTEGER"
+                    )
+                else:
+                    sql = "ALTER TABLE meeting_sessions ADD COLUMN meeting_id INTEGER"
+                with db.engine.begin() as conn:
+                    conn.execute(text(sql))
+                app.logger.info("Schema patch: added meeting_sessions.meeting_id")
+    except Exception as exc:
+        app.logger.warning("Schema patch meeting_sessions.meeting_id skipped: %s", exc)
+
+    try:
+        insp = inspect(db.engine)
+        if "messages" in insp.get_table_names():
+            col_names = {c["name"] for c in insp.get_columns("messages")}
+            if "idempotency_key" not in col_names:
+                dialect = db.engine.dialect.name
+                if dialect == "postgresql":
+                    sql = (
+                        "ALTER TABLE messages "
+                        "ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64)"
+                    )
+                else:
+                    sql = "ALTER TABLE messages ADD COLUMN idempotency_key VARCHAR(64)"
+                with db.engine.begin() as conn:
+                    conn.execute(text(sql))
+                app.logger.info("Schema patch: added messages.idempotency_key")
+    except Exception as exc:
+        app.logger.warning("Schema patch messages.idempotency_key skipped: %s", exc)
+
+    _ensure_runtime_indexes(app)
+
+
+def _ensure_runtime_indexes(app: Flask) -> None:
+    """Create unique indexes Alembic would add, for hosts that only run patches."""
+    from sqlalchemy import inspect, text
+
+    def _exec(description: str, sql: str) -> None:
+        try:
+            with db.engine.begin() as conn:
+                conn.execute(text(sql))
+            app.logger.info("Schema patch: %s", description)
+        except Exception as exc:
+            app.logger.warning("Schema patch %s skipped: %s", description, exc)
+
+    try:
+        insp = inspect(db.engine)
+        tables = set(insp.get_table_names())
+    except Exception as exc:
+        app.logger.warning("Schema patch index inspect skipped: %s", exc)
+        return
+
+    if "meetings" in tables:
+        try:
+            dialect = db.engine.dialect.name
+            if dialect == "postgresql":
+                _exec(
+                    "ended duplicate live meetings",
+                    """
+                    UPDATE meetings
+                    SET status = 'ended', ended_at = NOW()
+                    WHERE status = 'live'
+                      AND id NOT IN (
+                        SELECT keep_id FROM (
+                          SELECT MAX(id) AS keep_id FROM meetings
+                          WHERE status = 'live'
+                          GROUP BY chat_room_id
+                        ) keepers
+                      )
+                    """,
+                )
+            else:
+                _exec(
+                    "ended duplicate live meetings",
+                    """
+                    UPDATE meetings
+                    SET status = 'ended', ended_at = CURRENT_TIMESTAMP
+                    WHERE status = 'live'
+                      AND id NOT IN (
+                        SELECT keep_id FROM (
+                          SELECT MAX(id) AS keep_id FROM meetings
+                          WHERE status = 'live'
+                          GROUP BY chat_room_id
+                        ) keepers
+                      )
+                    """,
+                )
+            _exec(
+                "uq_meetings_one_live_per_room",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_meetings_one_live_per_room "
+                "ON meetings (chat_room_id) WHERE status = 'live'",
+            )
+        except Exception as exc:
+            app.logger.warning("Schema patch live meeting uniqueness skipped: %s", exc)
+
+    if "messages" in tables:
+        _exec(
+            "uq_msg_idempotency",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_msg_idempotency "
+            "ON messages (room_id, sender_id, idempotency_key)",
+        )
+
+    if "chat_rooms" in tables:
+        _exec(
+            "uq_chat_rooms_direct_pair_key",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_rooms_direct_pair_key "
+            "ON chat_rooms (direct_pair_key)",
+        )
+
 
 def create_app(test_config=None):
     """Create and configure the Flask application."""
@@ -320,6 +456,7 @@ def create_app(test_config=None):
     from routes.cv import cv_bp
     from routes.disputes import disputes_bp
     from routes.chat import chat_bp
+    from routes.meetings import meetings_bp
     from routes.universities import universities_bp
     from routes.connections import connections_bp
 
@@ -342,6 +479,7 @@ def create_app(test_config=None):
     app.register_blueprint(cv_bp)
     app.register_blueprint(disputes_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(meetings_bp)
     app.register_blueprint(universities_bp)
     app.register_blueprint(connections_bp)
 
@@ -434,6 +572,7 @@ def create_app(test_config=None):
         from models.chat import ChatRoom, ChatRoomMember, Message
         from models.connection import Connection  # noqa: F401
         from models.meeting_session import MeetingSession  # noqa: F401
+        from models.meeting import Meeting, MeetingParticipant  # noqa: F401
         from models.mentor_chat_message import MentorChatMessage  # noqa: F401
         from models.token_blocklist import TokenBlocklist  # noqa: F401
         from models.admin_panel import (  # noqa: F401

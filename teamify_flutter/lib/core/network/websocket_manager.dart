@@ -11,6 +11,8 @@ import '../observability/app_logger.dart';
 enum SocketEvent {
   connected,
   disconnected,
+  connectError,
+  error,
   chatMessage,
   messageDeleted,
   meetingPresence,
@@ -122,7 +124,7 @@ class WebSocketManager {
       _destroySocket();
 
       _socket = io.io(
-        AppConfig.apiBaseUrl,
+        AppConfig.socketUrl,
         io.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             // Pass JWT in both the auth dict (preferred by Socket.IO v4)
@@ -179,7 +181,7 @@ class WebSocketManager {
     _socket?.emit('leave_meeting', {'room_id': id});
   }
 
-  /// Send a chat message to a room.
+  /// Send a chat message to a room (fire-and-forget). Prefer [sendChatPayloadWithAck].
   void sendMessage(String roomId, String content) {
     sendChatPayload(roomId, {'content': content, 'message_type': 'text'});
   }
@@ -191,6 +193,43 @@ class WebSocketManager {
       'room_id': int.tryParse(roomId) ?? roomId,
       ...payload,
     });
+  }
+
+  /// Send a chat payload and wait for the server acknowledgement.
+  ///
+  /// Returns the ack map (`{ok, message}` or `{ok: false, error}`) or `null`
+  /// when the socket is down or the ack times out. Socket connectivity alone
+  /// is not treated as delivery — callers must inspect the ack or use REST.
+  Future<Map<String, dynamic>?> sendChatPayloadWithAck(
+    String roomId,
+    Map<String, dynamic> payload, {
+    Duration timeout = AppConfig.messageAckTimeout,
+  }) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return null;
+    final completer = Completer<Map<String, dynamic>?>();
+    try {
+      socket.emitWithAck(
+        'send_message',
+        {
+          'room_id': int.tryParse(roomId) ?? roomId,
+          ...payload,
+        },
+        ack: (dynamic data) {
+          if (completer.isCompleted) return;
+          completer.complete(_asMap(data));
+        },
+      );
+    } catch (e, st) {
+      AppLogger.error('[WS] send_message emit failed', e, st);
+      return null;
+    }
+    try {
+      return await completer.future.timeout(timeout);
+    } on TimeoutException {
+      AppLogger.log('[WS] send_message ack timed out for room $roomId');
+      return null;
+    }
   }
 
   /// Disconnect cleanly (preserves the ability to reconnect later).
@@ -241,10 +280,30 @@ class WebSocketManager {
 
     socket.onConnectError((err) {
       debugPrint('[WS] Connection error: $err');
+      AppLogger.error('[WS] connect_error', err);
       if (_connectCompleter != null && !_connectCompleter!.isCompleted) {
         _connectCompleter!.complete(false);
       }
+      _emit(SocketEvent.connectError, {'message': err?.toString() ?? 'connect_error'});
       if (!_disposed) _scheduleReconnect();
+    });
+
+    socket.onError((err) {
+      debugPrint('[WS] Socket error: $err');
+      AppLogger.error('[WS] error', err);
+      _emit(SocketEvent.error, {'message': err?.toString() ?? 'socket error'});
+    });
+
+    socket.on('error', (data) {
+      final map = _asMap(data);
+      final message = map['message']?.toString() ??
+          map['error']?.toString() ??
+          'Chat error';
+      AppLogger.error('[WS] server error: $message');
+      _emit(SocketEvent.error, {
+        ...map,
+        'message': message,
+      });
     });
 
     // ── Chat events ──────────────────────────────────────────────────────
@@ -311,11 +370,12 @@ class WebSocketManager {
         'connect',
         'disconnect',
         'connect_error',
+        'error',
         'receive_message',
         'new_message',
         'message',
         'message_deleted',
-        'error',
+        'meeting_presence',
         'new_notification',
         'notification',
         'task_update',

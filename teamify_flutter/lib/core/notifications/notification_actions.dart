@@ -7,9 +7,23 @@ import '../routes.dart';
 import '../theme.dart';
 import '../../data/models/models.dart' as api;
 import '../../screens/project/project_screens.dart';
+import '../../screens/meeting/meeting_preview_screen.dart';
 import '../../services/app_services.dart';
 import '../../core/session/session_controller.dart';
 import '../../widgets/widgets.dart';
+
+String? meetingPublicIdFromNotification(api.ApiNotification n) {
+  final bodyMatch =
+      RegExp(r'meeting:([0-9a-fA-F-]{36})').firstMatch(n.body);
+  if (bodyMatch != null) return bodyMatch.group(1);
+  final type = n.type.toLowerCase();
+  final et = n.entityType.toLowerCase();
+  if ((type == 'meeting_invite' || et == 'meeting') &&
+      RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(n.entityId)) {
+    return n.entityId;
+  }
+  return null;
+}
 
 String notificationTypeLabel(String type) {
   if (type.isEmpty) return 'General';
@@ -77,6 +91,17 @@ Future<void> handleNotificationTap(
   }
 
   if (!context.mounted) return;
+
+  final meetingPublicId = meetingPublicIdFromNotification(notification);
+  if (meetingPublicId != null) {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MeetingPreviewScreen(publicId: meetingPublicId),
+      ),
+    );
+    return;
+  }
 
   if (et == 'task' && notification.entityId.isNotEmpty) {
     await _openTaskDetailFromNotification(context, notification,
