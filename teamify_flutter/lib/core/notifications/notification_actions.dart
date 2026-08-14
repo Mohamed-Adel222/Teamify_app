@@ -23,9 +23,8 @@ String notificationTypeLabel(String type) {
 
 String formatNotificationFullDate(String iso) {
   if (iso.isEmpty) return '—';
-  final dt = DateTime.tryParse(iso);
-  if (dt == null) return iso;
-  final local = dt.toLocal();
+  final local = api.parseApiDateTime(iso);
+  if (local == null) return iso;
   final y = local.year;
   final m = local.month.toString().padLeft(2, '0');
   final d = local.day.toString().padLeft(2, '0');

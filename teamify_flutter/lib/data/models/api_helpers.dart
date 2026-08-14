@@ -52,12 +52,31 @@ List<Map<String, dynamic>> asMapList(dynamic value) {
   return const [];
 }
 
+/// Parse an API ISO-8601 timestamp, treating timezone-less values as UTC.
+///
+/// The backend stores UTC; older payloads may lack the `Z`/offset suffix and
+/// Dart would otherwise interpret them as local time.
+DateTime? parseApiDateTime(String? iso) {
+  if (iso == null || iso.isEmpty) return null;
+  var value = iso.trim();
+  // SQLite / API sometimes returns "2026-05-25 10:00:00" without "T".
+  if (value.contains(' ') && !value.contains('T')) {
+    value = value.replaceFirst(' ', 'T');
+  }
+  final hasOffset = value.endsWith('Z') ||
+      value.endsWith('z') ||
+      RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value);
+  final parsed = DateTime.tryParse(hasOffset ? value : '${value}Z');
+  return parsed?.toLocal();
+}
+
 /// Human-readable relative time from an ISO-8601 timestamp.
 String formatRelativeTime(String isoString) {
   if (isoString.isEmpty) return '';
-  final dt = DateTime.tryParse(isoString);
-  if (dt == null) return isoString.replaceFirst('T', ' ').split('.').first;
-  final local = dt.toLocal();
+  final local = parseApiDateTime(isoString);
+  if (local == null) {
+    return isoString.replaceFirst('T', ' ').split('.').first;
+  }
   final diff = DateTime.now().difference(local);
   if (diff.inMinutes < 1) return 'Just now';
   if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
