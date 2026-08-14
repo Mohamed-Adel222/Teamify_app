@@ -44,9 +44,15 @@ marshmallow>=3.21.0
 # Scheduling
 APScheduler>=3.10.0
 
-# DistilBERT task category model (model1_category/model.safetensors present)
-transformers>=4.40.0
-torch>=2.2.0
+# DistilBERT is optional and local-only. Production (requirements-deploy.txt)
+# does not install torch. Do not enable AI_ENABLE_DISTILBERT on Render.
+# transformers>=4.40.0
+# torch>=2.2.0
+# For a local CPU experiment only (not Render):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install transformers
+#   git lfs pull
+#   AI_ENABLE_DISTILBERT=true
 
 # Optional: Claude API for mentor report generation
 # Uncomment when ANTHROPIC_API_KEY is set in .env

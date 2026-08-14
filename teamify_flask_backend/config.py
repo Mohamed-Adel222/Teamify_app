@@ -92,9 +92,15 @@ class Config:
         os.path.join(os.path.dirname(__file__), "ml_models"),
     )
 
-    # Set to "false" / "0" / "no" to bypass all .pkl inference and use only
-    # heuristic fallbacks. Useful for lightweight test environments.
+    # Set to "false" / "0" / "no" to bypass sklearn .pkl inference and use
+    # only heuristic fallbacks. Useful for lightweight test environments.
+    # This flag does not control DistilBERT (see AI_ENABLE_DISTILBERT).
     AI_ENABLE_LOCAL_MODELS = os.getenv("AI_ENABLE_LOCAL_MODELS", "true")
+
+    # DistilBERT task classifier is optional and OFF by default.
+    # Production (Render) uses the keyword fallback — do not set this true
+    # on a 512 MB instance. See docs/AI_MODELS.md.
+    AI_ENABLE_DISTILBERT = os.getenv("AI_ENABLE_DISTILBERT", "false")
 
     # Optional: Speech-to-Text microservice URL (FastAPI / Whisper)
     STT_SERVICE_URL = os.getenv("STT_SERVICE_URL", "http://localhost:8000")

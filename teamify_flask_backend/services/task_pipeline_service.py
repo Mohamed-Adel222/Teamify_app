@@ -4,11 +4,11 @@ Task Pipeline Service
 Provides two functions consumed by routes/ai.py:
 
   classify_task(text) → category, difficulty, required_skills
-    Uses the fine-tuned DistilBERT model from model1_category/.
-    Label encoder: cat_le(1).pkl (12 classes: ai_ml, backend, cloud,
-      data_science, database, devops, frontend, mobile,
-      project_management, security, testing, ui_ux).
-    Falls back to keyword matching if transformers/torch are absent.
+    Production path: keyword matching (no PyTorch). DistilBERT is optional
+    and off by default — see docs/AI_MODELS.md.
+    Label encoder (local opt-in only): cat_le(1).pkl (12 classes: ai_ml,
+    backend, cloud, data_science, database, devops, frontend, mobile,
+    project_management, security, testing, ui_ux).
 
   assign_best_members(task_info, members_list) → ranked member list
     Uses model2_assignment/model.pkl (GradientBoostingRegressor).
@@ -50,9 +50,61 @@ _assign_model_cache:    Any           = None   # GradientBoostingRegressor
 _assign_features_cache: list | None   = None   # ordered list of feature names
 _assign_load_error:     Optional[str] = None
 
+_GIT_LFS_POINTER_PREFIX = b"version https://git-lfs.github.com/spec/v1"
+_MIN_WEIGHT_BYTES = 1_000_000  # DistilBERT safetensors is ~268 MB; pointers are ~130 B
+
+DISTILBERT_DISABLED_REASON = (
+    "DistilBERT is not used in production. classify-task uses the keyword "
+    "fallback. CPU-only PyTorch is still too large for typical Render RAM "
+    "(Git LFS weights ~268MB plus torch CPU wheels). Set "
+    "AI_ENABLE_DISTILBERT=true only on a machine with materialized weights "
+    "and spare RAM. See docs/AI_MODELS.md."
+)
+
+
+def distilbert_enabled() -> bool:
+    """Opt-in only. Production default is keyword fallback."""
+    return os.getenv("AI_ENABLE_DISTILBERT", "false").strip().lower() in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    )
+
+
+def is_usable_weight_file(path: str) -> bool:
+    """True when path is a real weight file, not a missing or Git LFS pointer."""
+    if not path or not os.path.isfile(path):
+        return False
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            head = fh.read(64)
+    except OSError:
+        return False
+    if head.startswith(_GIT_LFS_POINTER_PREFIX):
+        return False
+    return size >= _MIN_WEIGHT_BYTES
+
+
+def category_weight_candidates() -> list[str]:
+    return [
+        os.path.join(_CATEGORY_MODEL_DIR, "model.safetensors"),
+        os.path.join(_CATEGORY_MODEL_DIR, "pytorch_model.bin"),
+    ]
+
+
+def reset_category_model_cache() -> None:
+    """Clear DistilBERT load state (tests / opt-in reload)."""
+    global _cat_model_cache, _cat_tokenizer_cache, _cat_le_cache, _cat_load_error
+    _cat_model_cache = None
+    _cat_tokenizer_cache = None
+    _cat_le_cache = None
+    _cat_load_error = None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MODEL 1 — DistilBERT task classifier
+# MODEL 1 — DistilBERT task classifier (optional; off in production)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _load_category_model():
@@ -64,17 +116,28 @@ def _load_category_model():
     if _cat_load_error:
         return None, None, None
 
-    # Check weights exist before importing heavy deps
-    weights_candidates = [
-        os.path.join(_CATEGORY_MODEL_DIR, "model.safetensors"),
-        os.path.join(_CATEGORY_MODEL_DIR, "pytorch_model.bin"),
-    ]
-    if not any(os.path.exists(p) for p in weights_candidates):
-        _cat_load_error = (
-            "DistilBERT weights not found in model1_category/ "
-            "(model.safetensors / pytorch_model.bin missing). "
-            "Using keyword fallback."
-        )
+    if not distilbert_enabled():
+        _cat_load_error = DISTILBERT_DISABLED_REASON
+        logger.info(_cat_load_error)
+        return None, None, None
+
+    weights_candidates = category_weight_candidates()
+    usable = [p for p in weights_candidates if is_usable_weight_file(p)]
+    if not usable:
+        present = [p for p in weights_candidates if os.path.isfile(p)]
+        if present:
+            _cat_load_error = (
+                f"{os.path.basename(present[0])} is a Git LFS pointer or too "
+                "small to be DistilBERT weights (~268MB expected). "
+                "Using keyword fallback. Run git lfs pull only on a machine "
+                "that will set AI_ENABLE_DISTILBERT=true."
+            )
+        else:
+            _cat_load_error = (
+                "DistilBERT weights not found in model1_category/ "
+                "(model.safetensors / pytorch_model.bin missing). "
+                "Using keyword fallback."
+            )
         logger.warning(_cat_load_error)
         return None, None, None
 
@@ -117,7 +180,8 @@ def _load_category_model():
     except ImportError as exc:
         _cat_load_error = (
             f"transformers/torch not installed: {exc}. "
-            "Run: pip install transformers torch. Using keyword fallback."
+            "Keyword fallback is active. DistilBERT is opt-in "
+            "(AI_ENABLE_DISTILBERT=true) and is not deployed on Render."
         )
         logger.warning(_cat_load_error)
     except Exception as exc:
@@ -188,7 +252,8 @@ def classify_task(text: str) -> dict:
     Returns
     -------
     dict with keys: category, difficulty, required_skills, source.
-    source is "ml_model" when DistilBERT ran successfully, else "keyword_fallback".
+    Production always uses keyword_fallback unless AI_ENABLE_DISTILBERT=true
+    and DistilBERT was warmed at startup. source is "ml_model" only then.
     """
     if not text or not text.strip():
         return {
@@ -421,7 +486,13 @@ def get_assignment_model_status() -> dict:
 
 
 def startup_check() -> None:
-    """Warm-load task classifier so the first /classify-task request is fast."""
+    """Log DistilBERT availability. Production stays on keyword fallback."""
+    if not distilbert_enabled():
+        logger.info(
+            "Task category model using keyword fallback by design (%s)",
+            DISTILBERT_DISABLED_REASON,
+        )
+        return
     model, tokenizer, le = _load_category_model()
     if model is not None and tokenizer is not None:
         logger.info(
