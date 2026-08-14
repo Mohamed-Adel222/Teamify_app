@@ -87,13 +87,22 @@ class ApiUser {
   /// Skills summary for member cards.
   String get skillsSummary => skills.isEmpty ? '' : skills.take(6).join(', ');
 
-  /// Role label for project member lists (Owner / Member).
+  /// Role label for project member lists (Owner / Member / Admin).
   String get projectRoleLabel {
-    final pr = projectRole.isNotEmpty ? projectRole : role;
-    if (pr == 'owner' || pr == 'member') {
-      return pr[0].toUpperCase() + pr.substring(1);
+    final pr = (projectRole.isNotEmpty ? projectRole : role).toLowerCase();
+    switch (pr) {
+      case 'owner':
+        return 'Owner';
+      case 'admin':
+        return 'Admin';
+      case 'member':
+        return 'Member';
+      case 'guest':
+        return 'Guest';
+      default:
+        if (pr.isEmpty) return '';
+        return pr[0].toUpperCase() + pr.substring(1);
     }
-    return '';
   }
 
   bool get isAdmin =>

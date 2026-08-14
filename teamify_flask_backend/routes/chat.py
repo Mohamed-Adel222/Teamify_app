@@ -25,6 +25,41 @@ from services.chat_room_service import (
 chat_bp = Blueprint("chat", __name__, url_prefix="/api/chat")
 
 
+def _user_label(user: User | None) -> str:
+    if not user:
+        return "User"
+    return (user.full_name or user.display_name or user.email or "User").strip()
+
+
+def _project_role_for_user(user_id: int, project_id: int | None) -> str:
+    if not project_id:
+        return ""
+    pm = ProjectMember.query.filter_by(project_id=project_id, user_id=user_id).first()
+    if pm and pm.role:
+        return pm.role
+    project = db.session.get(Project, project_id)
+    if project and project.user_id == user_id:
+        return "owner"
+    return ""
+
+
+def _room_member_payload(user: User, membership: ChatRoomMember, project_id: int | None = None) -> dict:
+    project_role = _project_role_for_user(user.id, project_id)
+    return {
+        "id": user.id,
+        "user_id": user.id,
+        "display_name": user.display_name or "",
+        "full_name": user.full_name or user.display_name or "",
+        "email": user.email,
+        "user_type": user.user_type or "",
+        "avatar_file_id": user.avatar_file_id,
+        "professional_field": user.professional_field or "",
+        "role": project_role or (user.role or "member"),
+        "project_role": project_role,
+        "joined_at": membership.joined_at.isoformat() if membership.joined_at else None,
+    }
+
+
 def _dedupe_transcript(transcript: list) -> list:
     """Drop duplicate lines and browser-STT partial repeats."""
     out = []
@@ -403,15 +438,7 @@ def get_room(room_id):
         user = db.session.get(User, m.user_id)
         if not user:
             continue
-        members.append({
-            "id": user.id,
-            "user_id": user.id,
-            "display_name": user.full_name or user.display_name or user.email,
-            "full_name": user.full_name or "",
-            "email": user.email,
-            "user_type": user.user_type or "",
-            "joined_at": m.joined_at.isoformat() if m.joined_at else None,
-        })
+        members.append(_room_member_payload(user, m, project_id=room.project_id))
 
     return jsonify({
         "room": room.to_dict(include_last_message=True),
@@ -554,6 +581,62 @@ def _require_room_member(user_id: int, room_id: int):
     if not membership:
         return room, None, (jsonify({"error": "You are not a member of this room"}), 403)
     return room, membership, None
+
+
+def _meeting_list_item(session: MeetingSession) -> dict:
+    room = db.session.get(ChatRoom, session.room_id)
+    project = db.session.get(Project, session.project_id) if session.project_id else None
+    if project is None and room is not None and room.project_id:
+        project = db.session.get(Project, room.project_id)
+    host = db.session.get(User, session.started_by)
+
+    participant_ids = list(session.participant_ids or [])
+    if not participant_ids and room is not None:
+        participant_ids = [
+            m.user_id for m in ChatRoomMember.query.filter_by(room_id=room.id).all()
+        ]
+    names = []
+    seen: set[int] = set()
+    for uid in participant_ids:
+        if uid in seen:
+            continue
+        seen.add(uid)
+        names.append(_user_label(db.session.get(User, uid)))
+
+    summary = session.ai_summary if isinstance(session.ai_summary, dict) else {}
+    description = (summary.get("summary") or "").strip()
+    payload = session.to_dict()
+    payload.update({
+        "session_id": session.id,
+        "title": (room.name if room else None) or "Meeting",
+        "project_name": (project.name if project else None) or (room.name if room else "") or "",
+        "status": "Live" if session.is_active else "Ended",
+        "host_id": session.started_by,
+        "host_name": _user_label(host),
+        "participant_names": names,
+        "participant_count": len(names) or len(participant_ids),
+        "description": description[:280],
+    })
+    return payload
+
+
+# ── List meetings the current user can access ─────────────────────────────────
+@chat_bp.route("/meetings", methods=["GET"])
+@auth_required
+def list_meetings():
+    """List meeting sessions for rooms the caller belongs to."""
+    user_id = int(get_jwt_identity())
+    memberships = ChatRoomMember.query.filter_by(user_id=user_id).all()
+    room_ids = [m.room_id for m in memberships]
+    if not room_ids:
+        return jsonify({"meetings": []}), 200
+
+    sessions = (
+        MeetingSession.query.filter(MeetingSession.room_id.in_(room_ids))
+        .order_by(MeetingSession.started_at.desc())
+        .all()
+    )
+    return jsonify({"meetings": [_meeting_list_item(s) for s in sessions]}), 200
 
 
 # ── Meeting sessions (persisted transcript) ───────────────────────────────────

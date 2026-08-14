@@ -109,6 +109,13 @@ class AIRepository {
     return responseMap(response.data);
   }
 
+  Future<Map<String, dynamic>> getModelsStatus() async {
+    final response = await _client.get<Map<String, dynamic>>(
+      '/api/ai/models/status',
+    );
+    return responseMap(response.data);
+  }
+
   Future<Map<String, dynamic>> workload({String? userId}) async {
     final response = await _client.get<Map<String, dynamic>>(
       '/api/ai/workload',

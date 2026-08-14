@@ -471,6 +471,9 @@ class AIService with ServiceErrorHandler {
   Future<ApiResult<Map<String, dynamic>>> getDelayModelStatus() => _dedup
       .deduplicate('delay_model_status', () => guard(_ai.getDelayModelStatus));
 
+  Future<ApiResult<Map<String, dynamic>>> getModelsStatus() => _dedup
+      .deduplicate('ai_models_status', () => guard(_ai.getModelsStatus));
+
   // ── CV AI ─────────────────────────────────────────────────────────────
 
   Future<ApiResult<Map<String, dynamic>>> buildCVWithAI(

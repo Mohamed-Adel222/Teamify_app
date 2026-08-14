@@ -186,10 +186,7 @@ class AIHubScreen extends StatelessWidget {
             const Text('Your AI-powered workspace',
                 style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 20),
-            AIBanner(
-                title: 'AI is ready',
-                subtitle: 'All systems operational. 3 insights available.',
-                onTap: () => Navigator.pushNamed(context, R.aiInsights)),
+            const _AiModelsStatusBanner(),
             const SizedBox(height: 20),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -252,6 +249,284 @@ class AIHubScreen extends StatelessWidget {
       ),
       bottomNavigationBar:
           TBottomNav(current: 2, onTap: (i) => handleRoleNav(context, i)),
+    );
+  }
+}
+
+class _AiModelsStatusBanner extends StatefulWidget {
+  const _AiModelsStatusBanner();
+
+  @override
+  State<_AiModelsStatusBanner> createState() => _AiModelsStatusBannerState();
+}
+
+class _AiModelsStatusBannerState extends State<_AiModelsStatusBanner> {
+  Map<String, dynamic>? _status;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final result = await context.read<AppServices>().ai.getModelsStatus();
+    if (!mounted) return;
+    result.when(
+      success: (data) => setState(() {
+        _status = data;
+        _loading = false;
+      }),
+      failure: (_) => setState(() => _loading = false),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String title = 'AI models';
+    String subtitle = 'Checking runtime status…';
+    if (!_loading && _status != null) {
+      final real = _status!['real_model_count'] ?? 0;
+      final total = _status!['total'] ?? 0;
+      final fallback = _status!['fallback_count'] ?? 0;
+      final errors = _status!['error_count'] ?? 0;
+      title = '$real of $total running as REAL_MODEL';
+      if (errors > 0) {
+        subtitle = '$errors error · $fallback fallback. Tap for details.';
+      } else if (real == total && total > 0) {
+        subtitle = 'All trained models passed a live inference test.';
+      } else {
+        subtitle = '$fallback using heuristic fallback. Tap for details.';
+      }
+    } else if (!_loading) {
+      subtitle = 'Tap to open the model report.';
+    }
+    return AIBanner(
+      title: title,
+      subtitle: subtitle,
+      onTap: () => Navigator.pushNamed(context, R.aiModelsReport),
+    );
+  }
+}
+
+class AIModelsReportScreen extends StatefulWidget {
+  const AIModelsReportScreen({super.key});
+
+  @override
+  State<AIModelsReportScreen> createState() => _AIModelsReportScreenState();
+}
+
+class _AIModelsReportScreenState extends State<AIModelsReportScreen> {
+  bool _loading = true;
+  String? _error;
+  Map<String, dynamic>? _report;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await context.read<AppServices>().ai.getModelsStatus();
+    if (!mounted) return;
+    result.when(
+      success: (data) => setState(() {
+        _report = data;
+        _loading = false;
+      }),
+      failure: (err) => setState(() {
+        _error = err;
+        _loading = false;
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final models = (_report?['models'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('AI Models Report',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: AppColors.textSecondary)),
+                        const SizedBox(height: 12),
+                        TextButton(onPressed: _load, child: const Text('Retry')),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    TCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_report?['real_model_count'] ?? 0} of ${_report?['total'] ?? 0} REAL_MODEL',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_report?['fallback_count'] ?? 0} fallback · ${_report?['error_count'] ?? 0} error',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary, fontSize: 13),
+                          ),
+                          if (_report?['environment'] is Map) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _environmentLine(
+                                  Map<String, dynamic>.from(
+                                      _report!['environment'] as Map)),
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppColors.textHint),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ...models.map(_modelCard),
+                  ],
+                ),
+    );
+  }
+
+  String _environmentLine(Map<String, dynamic> env) {
+    final python = env['python_version']?.toString() ?? '';
+    final flaskEnv = env['flask_env']?.toString() ?? '';
+    final host = env['hostname']?.toString() ?? '';
+    final parts = <String>[
+      if (python.isNotEmpty) 'Python $python',
+      if (host.isNotEmpty) host,
+      if (flaskEnv.isNotEmpty) flaskEnv,
+    ];
+    return parts.join(' · ');
+  }
+
+  Widget _modelCard(Map<String, dynamic> model) {
+    final mode = model['mode']?.toString() ?? '';
+    final loaded = model['loaded'] == true;
+    final inference = model['inference_test'] == true;
+    final status = model['status']?.toString() ?? '';
+    final isReal = mode == 'REAL_MODEL' && loaded && inference;
+    final isError = !isReal && status == 'error';
+
+    late final String badge;
+    late final Color badgeBg;
+    late final Color badgeFg;
+    if (isReal) {
+      badge = '🟢 REAL MODEL ACTIVE';
+      badgeBg = AppColors.success.withValues(alpha: 0.15);
+      badgeFg = AppColors.success;
+    } else if (isError) {
+      badge = '🔴 MODEL ERROR';
+      badgeBg = AppColors.error.withValues(alpha: 0.12);
+      badgeFg = AppColors.error;
+    } else {
+      badge = '🟡 FALLBACK ACTIVE';
+      badgeBg = AppColors.warning.withValues(alpha: 0.15);
+      badgeFg = AppColors.warning;
+    }
+
+    final error = model['error']?.toString() ?? '';
+    return TCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            model['name']?.toString() ?? 'Model',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          const SizedBox(height: 8),
+          TChip(label: badge, bg: badgeBg, textColor: badgeFg, fontSize: 10),
+          const SizedBox(height: 8),
+          Text(
+            model['description']?.toString() ?? '',
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          _flagRow('File exists', model['file_exists'] == true ||
+              model['file_present'] == true),
+          _flagRow('Dependencies', model['dependencies_ok'] == true),
+          _flagRow('Loaded in memory', loaded),
+          _flagRow('Inference test', inference),
+          const SizedBox(height: 6),
+          Text(
+            'Mode: ${mode.isEmpty ? 'FALLBACK' : mode}',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isReal ? AppColors.success : badgeFg),
+          ),
+          if ((model['endpoint']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              model['endpoint'].toString(),
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+          if ((model['path']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              model['path'].toString(),
+              style: const TextStyle(fontSize: 11, color: AppColors.textHint),
+            ),
+          ],
+          if (error.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _flagRow(String label, bool ok) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text(
+        '${ok ? '✓' : '✗'} $label',
+        style: TextStyle(
+          fontSize: 12,
+          color: ok ? AppColors.success : AppColors.textSecondary,
+        ),
+      ),
     );
   }
 }

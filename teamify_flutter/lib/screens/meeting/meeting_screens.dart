@@ -13,6 +13,7 @@ import '../../core/files/file_downloader.dart';
 import '../../core/routes.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/theme.dart';
+import '../../data/models/models.dart';
 import '../../services/app_services.dart';
 import '../project/project_screens.dart' show AddTaskRouteArgs;
 import '../../config/app_config.dart';
@@ -144,7 +145,7 @@ class _MeetingScreenState extends State<MeetingScreen> {
       final session = context.read<SessionController>();
       final me = session.currentUser;
       final myId = me?.id ?? 'demo_me';
-      final myName = me?.fullName ?? me?.displayName ?? 'Alex Chen';
+          final myName = me?.fullName ?? me?.displayName ?? 'You';
       setState(() {
         _roomId = argRoomId ?? 'demo_room_1';
         _roomName = argRoomName ?? 'Sprint Planning & Sync';
@@ -155,27 +156,6 @@ class _MeetingScreenState extends State<MeetingScreen> {
             name: '$myName (Host)',
             email: me?.email ?? '',
             initials: _initials(myName),
-            isActive: true,
-          ),
-          _MeetingParticipant(
-            userId: 'demo_u2',
-            name: 'Sarah Miller',
-            email: 'sarah.m@example.com',
-            initials: 'SM',
-            isActive: true,
-          ),
-          _MeetingParticipant(
-            userId: 'demo_u3',
-            name: 'David Ross',
-            email: 'david.r@example.com',
-            initials: 'DR',
-            isActive: true,
-          ),
-          _MeetingParticipant(
-            userId: 'demo_u4',
-            name: 'Emily Watson',
-            email: 'emily.w@example.com',
-            initials: 'EW',
             isActive: true,
           ),
         ];
@@ -2138,6 +2118,9 @@ class _MeetingSummaryScreenState extends State<MeetingSummaryScreen> {
 // ── Demo Mode Meeting Model & Screens ──────────────────────────────────────────
 class DemoMeeting {
   final String id;
+  final String roomId;
+  final String? sessionId;
+  final String? projectId;
   final String title;
   final String projectName;
   final String dateTimeLabel;
@@ -2151,6 +2134,9 @@ class DemoMeeting {
 
   DemoMeeting({
     required this.id,
+    String? roomId,
+    this.sessionId,
+    this.projectId,
     required this.title,
     required this.projectName,
     required this.dateTimeLabel,
@@ -2161,82 +2147,60 @@ class DemoMeeting {
     required this.participantNames,
     required this.status,
     this.description = '',
-  });
+  }) : roomId = roomId ?? id;
+
+  factory DemoMeeting.fromApi(Map<String, dynamic> json) {
+    final hostName = json['host_name']?.toString() ?? '';
+    final startedRaw = json['started_at']?.toString() ?? '';
+    final startedAt = DateTime.tryParse(startedRaw) ?? DateTime.now();
+    final names = (json['participant_names'] as List?)
+            ?.map((e) => e.toString())
+            .where((n) => n.isNotEmpty)
+            .toList() ??
+        const <String>[];
+    final status = json['status']?.toString() ?? 'Ended';
+    final roomId = json['room_id']?.toString() ?? '';
+    final sessionId = json['session_id']?.toString() ?? json['id']?.toString();
+    return DemoMeeting(
+      id: sessionId ?? roomId,
+      roomId: roomId,
+      sessionId: sessionId,
+      projectId: json['project_id']?.toString(),
+      title: json['title']?.toString() ?? 'Meeting',
+      projectName: json['project_name']?.toString() ?? '',
+      dateTimeLabel: _formatMeetingWhen(startedAt, status),
+      scheduledAt: startedAt,
+      hostName: hostName,
+      hostInitials: _meetingInitials(hostName),
+      participantCount: (json['participant_count'] is num)
+          ? (json['participant_count'] as num).toInt()
+          : names.length,
+      participantNames: names,
+      status: status,
+      description: json['description']?.toString() ?? '',
+    );
+  }
 }
 
-final List<DemoMeeting> globalMockMeetings = [
-  DemoMeeting(
-    id: 'm1',
-    title: 'Sprint Planning & Sync',
-    projectName: 'Teamify Mobile App',
-    dateTimeLabel: 'Today, 2:00 PM',
-    scheduledAt: DateTime.now().add(const Duration(minutes: 10)),
-    hostName: 'Alex Chen',
-    hostInitials: 'AC',
-    participantCount: 4,
-    participantNames: [
-      'Alex Chen',
-      'Sarah Miller',
-      'David Ross',
-      'Emily Watson'
-    ],
-    status: 'Live',
-    description:
-        'Weekly team sprint alignment, backlog prioritization, and workload allocation.',
-  ),
-  DemoMeeting(
-    id: 'm2',
-    title: 'Frontend Architecture Review',
-    projectName: 'AI Smart Engine',
-    dateTimeLabel: 'Tomorrow, 10:30 AM',
-    scheduledAt: DateTime.now().add(const Duration(days: 1, hours: 2)),
-    hostName: 'Sarah Miller',
-    hostInitials: 'SM',
-    participantCount: 5,
-    participantNames: [
-      'Sarah Miller',
-      'Alex Chen',
-      'Michael Chang',
-      'Jessica Wu'
-    ],
-    status: 'Upcoming',
-    description:
-        'Deep dive into state management, web worker optimization, and widget modularity.',
-  ),
-  DemoMeeting(
-    id: 'm3',
-    title: 'AI Feature Demo & Q&A',
-    projectName: 'Teamify Mobile App',
-    dateTimeLabel: 'Jul 31, 2026, 4:00 PM',
-    scheduledAt: DateTime.now().add(const Duration(days: 2)),
-    hostName: 'David Ross',
-    hostInitials: 'DR',
-    participantCount: 3,
-    participantNames: ['David Ross', 'Emily Watson', 'Alex Chen'],
-    status: 'Upcoming',
-    description:
-        'Live demonstration of automated transcription and summary extraction pipeline.',
-  ),
-  DemoMeeting(
-    id: 'm4',
-    title: 'Weekly Team Retrospective',
-    projectName: 'Security Portal',
-    dateTimeLabel: 'Jul 28, 2026, 11:00 AM',
-    scheduledAt: DateTime.now().subtract(const Duration(days: 2)),
-    hostName: 'Emily Watson',
-    hostInitials: 'EW',
-    participantCount: 6,
-    participantNames: [
-      'Emily Watson',
-      'Sarah Miller',
-      'David Ross',
-      'Alex Chen'
-    ],
-    status: 'Ended',
-    description:
-        'Review of past sprint deliverables, friction points, and process improvements.',
-  ),
-];
+String _meetingInitials(String name) {
+  final parts =
+      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first[0].toUpperCase();
+  return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+}
+
+String _formatMeetingWhen(DateTime dt, String status) {
+  final local = dt.toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(local.year, local.month, local.day);
+  final hm =
+      '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  if (day == today) return 'Today, $hm';
+  if (day == today.subtract(const Duration(days: 1))) return 'Yesterday, $hm';
+  return '${local.day}/${local.month}/${local.year}, $hm';
+}
 
 class MeetingsListScreen extends StatefulWidget {
   const MeetingsListScreen({super.key});
@@ -2247,16 +2211,48 @@ class MeetingsListScreen extends StatefulWidget {
 
 class _MeetingsListScreenState extends State<MeetingsListScreen> {
   String _activeTab = 'All';
+  bool _loading = true;
+  String? _error;
+  List<DemoMeeting> _meetings = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMeetings());
+  }
+
+  Future<void> _loadMeetings() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await context.read<AppServices>().chat.listMeetings();
+    if (!mounted) return;
+    result.when(
+      success: (rows) {
+        setState(() {
+          _meetings = rows.map(DemoMeeting.fromApi).toList();
+          _loading = false;
+        });
+      },
+      failure: (err) {
+        setState(() {
+          _error = err;
+          _loading = false;
+        });
+      },
+    );
+  }
 
   List<DemoMeeting> get _filteredMeetings {
     if (_activeTab == 'Upcoming') {
-      return globalMockMeetings
+      return _meetings
           .where((m) => m.status == 'Upcoming' || m.status == 'Live')
           .toList();
     } else if (_activeTab == 'Ended') {
-      return globalMockMeetings.where((m) => m.status == 'Ended').toList();
+      return _meetings.where((m) => m.status == 'Ended').toList();
     }
-    return globalMockMeetings;
+    return _meetings;
   }
 
   void _openCreateMeeting() {
@@ -2264,9 +2260,11 @@ class _MeetingsListScreenState extends State<MeetingsListScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => CreateMeetingScreen(
-          onCreated: (newMeeting) {
-            setState(() {
-              globalMockMeetings.insert(0, newMeeting);
+          onCreated: (meeting) {
+            _loadMeetings();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _joinMeeting(meeting);
             });
           },
         ),
@@ -2318,15 +2316,51 @@ class _MeetingsListScreenState extends State<MeetingsListScreen> {
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                itemCount: _filteredMeetings.length,
-                itemBuilder: (context, index) {
-                  final m = _filteredMeetings[index];
-                  return _meetingCard(m);
-                },
-              ),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _error!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                      color: AppColors.textSecondary),
+                                ),
+                                const SizedBox(height: 12),
+                                TextButton(
+                                  onPressed: _loadMeetings,
+                                  child: const Text('Retry'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : _filteredMeetings.isEmpty
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text(
+                                  'No meetings yet. Start one from a project chat or tap Create Meeting.',
+                                  textAlign: TextAlign.center,
+                                  style:
+                                      TextStyle(color: AppColors.textSecondary),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              itemCount: _filteredMeetings.length,
+                              itemBuilder: (context, index) {
+                                final m = _filteredMeetings[index];
+                                return _meetingCard(m);
+                              },
+                            ),
             ),
           ],
         ),
@@ -2555,8 +2589,10 @@ class _MeetingsListScreenState extends State<MeetingsListScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => MeetingSummaryScreen(
-                          roomId: m.id,
+                          roomId: m.roomId,
                           roomName: m.title,
+                          sessionId: m.sessionId,
+                          projectId: m.projectId,
                         ),
                       ),
                     );
@@ -2590,27 +2626,23 @@ class CreateMeetingScreen extends StatefulWidget {
 class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String _selectedProject = 'Teamify Mobile App';
   DateTime _selectedDate = DateTime.now().add(const Duration(hours: 2));
   TimeOfDay _selectedTime =
       TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 2)));
   String _duration = '30 minutes';
-  final List<String> _selectedParticipants = ['Alex Chen', 'Sarah Miller'];
+  bool _loading = true;
+  bool _submitting = false;
+  String? _error;
+  List<ApiProject> _projects = [];
+  String? _selectedProjectId;
+  List<ApiUser> _members = [];
+  final Set<String> _selectedParticipantIds = {};
 
-  final List<String> _availableProjects = [
-    'Teamify Mobile App',
-    'AI Smart Engine',
-    'Security Portal',
-    'General Sync',
-  ];
-
-  final List<String> _availableUsers = [
-    'Alex Chen',
-    'Sarah Miller',
-    'David Ross',
-    'Emily Watson',
-    'Michael Chang',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProjects());
+  }
 
   @override
   void dispose() {
@@ -2619,7 +2651,57 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _loadProjects() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await context.read<AppServices>().projects.listProjects();
+    if (!mounted) return;
+    result.when(
+      success: (projects) {
+        setState(() {
+          _projects = projects;
+          _selectedProjectId =
+              projects.isNotEmpty ? projects.first.id : null;
+          _loading = false;
+        });
+        if (_selectedProjectId != null) {
+          _loadMembers(_selectedProjectId!);
+        }
+      },
+      failure: (err) {
+        setState(() {
+          _error = err;
+          _loading = false;
+        });
+      },
+    );
+  }
+
+  Future<void> _loadMembers(String projectId) async {
+    final result =
+        await context.read<AppServices>().projects.listMembers(projectId);
+    if (!mounted) return;
+    result.when(
+      success: (users) {
+        setState(() {
+          _members = users;
+          _selectedParticipantIds
+            ..clear()
+            ..addAll(users.map((u) => u.id));
+        });
+      },
+      failure: (_) {
+        setState(() {
+          _members = [];
+          _selectedParticipantIds.clear();
+        });
+      },
+    );
+  }
+
+  Future<void> _submit() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2627,53 +2709,76 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
       );
       return;
     }
-
-    final scheduled = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      _selectedTime.hour,
-      _selectedTime.minute,
-    );
-
-    if (scheduled
-        .isBefore(DateTime.now().subtract(const Duration(minutes: 5)))) {
+    if (_selectedProjectId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Meeting cannot be scheduled in the past')),
+        const SnackBar(content: Text('Select a project first')),
       );
       return;
     }
-
-    if (_selectedParticipants.isEmpty) {
+    if (_selectedParticipantIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('At least one participant is required')),
       );
       return;
     }
 
-    final newMeeting = DemoMeeting(
-      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
+    setState(() => _submitting = true);
+    final svc = context.read<AppServices>();
+    final session = context.read<SessionController>();
+    final me = session.currentUser;
+    final hostName = me?.fullName ?? me?.displayName ?? 'You';
+    final project = _projects.firstWhere(
+      (p) => p.id == _selectedProjectId,
+      orElse: () => _projects.first,
+    );
+
+    final roomResult = await svc.chat.createRoom({
+      'name': title,
+      'project_id': int.tryParse(_selectedProjectId!) ?? _selectedProjectId,
+      'is_group': true,
+    });
+    if (!mounted) return;
+    if (!roomResult.isSuccess || roomResult.data == null) {
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(roomResult.error ?? 'Could not open project chat')),
+      );
+      return;
+    }
+
+    final room = roomResult.data!;
+    final roomId = room['id']?.toString() ?? '';
+    final selectedNames = _members
+        .where((u) => _selectedParticipantIds.contains(u.id))
+        .map((u) => u.primaryName)
+        .toList();
+
+    final meeting = DemoMeeting(
+      id: roomId,
+      roomId: roomId,
+      projectId: _selectedProjectId,
       title: title,
-      projectName: _selectedProject,
+      projectName: project.name,
       dateTimeLabel:
           '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year} at ${_selectedTime.format(context)}',
-      scheduledAt: scheduled,
-      hostName: 'Alex Chen',
-      hostInitials: 'AC',
-      participantCount: _selectedParticipants.length,
-      participantNames: _selectedParticipants,
-      status: 'Upcoming',
+      scheduledAt: DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _selectedTime.hour,
+        _selectedTime.minute,
+      ),
+      hostName: hostName,
+      hostInitials: _meetingInitials(hostName),
+      participantCount: selectedNames.length,
+      participantNames: selectedNames,
+      status: 'Live',
       description: _descriptionController.text.trim(),
     );
 
-    widget.onCreated(newMeeting);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Meeting created successfully!'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+    widget.onCreated(meeting);
+    setState(() => _submitting = false);
+    if (!mounted) return;
     Navigator.pop(context);
   }
 
@@ -2682,11 +2787,43 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Schedule Meeting',
+        title: const Text('Start Meeting',
             style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
-        child: ListView(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_error!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary)),
+                          const SizedBox(height: 12),
+                          TextButton(
+                              onPressed: _loadProjects,
+                              child: const Text('Retry')),
+                        ],
+                      ),
+                    ),
+                  )
+                : _projects.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                            'Join or create a project before starting a meeting.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ),
+                      )
+                    : ListView(
           padding: const EdgeInsets.all(20),
           children: [
             TextField(
@@ -2699,15 +2836,19 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _selectedProject,
+              initialValue: _selectedProjectId,
               decoration: const InputDecoration(
                 labelText: 'Related Project',
                 border: OutlineInputBorder(),
               ),
-              items: _availableProjects
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+              items: _projects
+                  .map((p) => DropdownMenuItem(value: p.id, child: Text(p.name)))
                   .toList(),
-              onChanged: (v) => setState(() => _selectedProject = v!),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _selectedProjectId = v);
+                _loadMembers(v);
+              },
             ),
             const SizedBox(height: 16),
             Row(
@@ -2776,26 +2917,32 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _availableUsers.map((user) {
-                final sel = _selectedParticipants.contains(user);
-                return FilterChip(
-                  label: Text(user),
-                  selected: sel,
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedParticipants.add(user);
-                      } else {
-                        _selectedParticipants.remove(user);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-            ),
+            if (_members.isEmpty)
+              const Text(
+                'No members on this project yet.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _members.map((user) {
+                  final sel = _selectedParticipantIds.contains(user.id);
+                  return FilterChip(
+                    label: Text(user.primaryName),
+                    selected: sel,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedParticipantIds.add(user.id);
+                        } else {
+                          _selectedParticipantIds.remove(user.id);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
             const SizedBox(height: 16),
             TextField(
               controller: _descriptionController,
@@ -2808,7 +2955,7 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _submit,
+              onPressed: _submitting ? null : _submit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -2817,9 +2964,9 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'Schedule Meeting',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                _submitting ? 'Starting…' : 'Start Meeting',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -2979,9 +3126,9 @@ class _PermissionsPreviewSheetState extends State<PermissionsPreviewSheet> {
                     builder: (_) => const MeetingScreen(),
                     settings: RouteSettings(
                       arguments: {
-                        'roomId': widget.meeting.id,
+                        'roomId': widget.meeting.roomId,
                         'roomName': widget.meeting.title,
-                        'projectId': 'demo_project_1',
+                        'projectId': widget.meeting.projectId,
                       },
                     ),
                   ),

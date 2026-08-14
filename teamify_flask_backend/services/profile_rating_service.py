@@ -253,3 +253,14 @@ def recommend_teammates(
     except Exception as exc:
         logger.error("Teammate recommendation failed: %s", exc, exc_info=True)
         return []
+
+
+def get_profile_rating_model_status() -> dict:
+    """Report whether teamify_model.pkl is present and loaded."""
+    model = _load_model()
+    return {
+        "file_present": os.path.exists(_MODEL_PATH),
+        "loaded": model is not None,
+        "error": _model_load_error,
+        "path": os.path.abspath(_MODEL_PATH),
+    }

@@ -176,3 +176,14 @@ def detect_anomaly(data: dict) -> dict:
         "source": "fallback",
         "error": "user_id or explicit feature values are required",
     }
+
+
+def get_security_model_status() -> dict:
+    """Report whether security_model.pkl is present and loaded."""
+    bundle = _load_bundle()
+    return {
+        "file_present": os.path.exists(os.path.abspath(_MODEL_PATH)),
+        "loaded": bundle is not None,
+        "error": _load_error,
+        "path": os.path.abspath(_MODEL_PATH),
+    }

@@ -92,3 +92,43 @@ def test_meeting_session_start_stop(meeting_app):
         )
         assert get_resp.status_code == 200
         assert get_resp.get_json()["session"]["id"] == session_id
+
+
+@pytest.mark.integration
+def test_list_meetings_returns_real_session(meeting_app):
+    app, user_id, room_id = meeting_app
+    token = create_access_token(identity=str(user_id))
+
+    with app.test_client() as client:
+        headers = {"Authorization": f"Bearer {token}"}
+        start = client.post(
+            f"/api/chat/rooms/{room_id}/meetings/start", headers=headers
+        )
+        assert start.status_code == 201
+        session_id = start.get_json()["session"]["id"]
+
+        listed = client.get("/api/chat/meetings", headers=headers)
+        assert listed.status_code == 200
+        meetings = listed.get_json()["meetings"]
+        assert len(meetings) == 1
+        assert meetings[0]["session_id"] == session_id
+        assert meetings[0]["room_id"] == room_id
+        assert meetings[0]["status"] == "Live"
+        assert meetings[0]["host_name"]
+
+
+@pytest.mark.integration
+def test_get_room_members_use_real_display_name(meeting_app):
+    app, user_id, room_id = meeting_app
+    token = create_access_token(identity=str(user_id))
+
+    with app.test_client() as client:
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = client.get(f"/api/chat/rooms/{room_id}", headers=headers)
+        assert resp.status_code == 200
+        members = resp.get_json()["members"]
+        assert len(members) == 1
+        assert members[0]["display_name"] == "host"
+        assert members[0]["user_id"] == user_id
+        assert "sarah_m" not in str(members).lower()
+        assert "alex chen" not in str(members).lower()

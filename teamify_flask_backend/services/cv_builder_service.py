@@ -45,13 +45,28 @@ _loaded:     bool      = False
 # ─── reportlab stub (allows import even when reportlab is absent) ─────────────
 
 def _inject_reportlab_stubs() -> None:
-    """Install throwaway stub packages for reportlab.
+    """Install throwaway stub packages for reportlab when it is missing.
 
     ``ai_resume_builder (3).py`` imports reportlab at module level, but only
     ``generate_pdf()`` actually uses it.  We only call ``update_cv()``, so the
     stubs are enough to satisfy the name bindings during import.
+
+    Never replace a real reportlab install — that would break CV PDF export
+    in the same process after a status probe.
     """
+    try:
+        spec = importlib.util.find_spec("reportlab")
+        if spec is not None and spec.origin:
+            import reportlab  # noqa: F401
+            from reportlab.platypus import SimpleDocTemplate  # noqa: F401
+            return
+    except Exception:
+        pass
+
     def _mod(name: str) -> types.ModuleType:
+        existing = sys.modules.get(name)
+        if existing is not None and getattr(existing, "__file__", None):
+            return existing
         if name not in sys.modules:
             sys.modules[name] = types.ModuleType(name)
         return sys.modules[name]
@@ -78,6 +93,7 @@ def _inject_reportlab_stubs() -> None:
     for _cls in [
         "SimpleDocTemplate", "Paragraph", "Spacer",
         "HRFlowable", "Table", "TableStyle",
+        "ListFlowable", "ListItem",
     ]:
         setattr(platypus, _cls, _Noop)
 
@@ -475,3 +491,36 @@ def persist_cv_from_ai_build(user_id: int, ai_result: dict) -> None:
     cv.projects = projects
     cv.experience = []
     db.session.commit()
+
+
+def probe_cv_builder_inference(user_data: dict) -> dict:
+    """Run CV generation on in-memory sample data. Never reads or writes the DB."""
+    _load_pipeline()
+    if _cv_module is not None:
+        cv = _cv_module.update_cv(user_data)
+        if not isinstance(cv, dict):
+            raise TypeError("ai_resume_builder.update_cv() did not return a dict")
+        return {"ok": True, "backend": "pipeline", "source": "ai_pipeline"}
+    if _pkl_model is not None:
+        cv = _pkl_model.generate_cv_data(user_data)
+        if not isinstance(cv, dict):
+            raise TypeError("cv_builder.pkl generate_cv_data() did not return a dict")
+        return {"ok": True, "backend": "pkl", "source": "pkl_stub"}
+    raise RuntimeError(_load_error or "CV builder backends unavailable")
+
+
+def get_cv_builder_status() -> dict:
+    """Report CV builder pipeline / pkl availability without forcing a load."""
+    module_present = os.path.isfile(_MODULE_FILE)
+    pkl_present = os.path.isfile(_PKL_FILE)
+    return {
+        "file_present": module_present or pkl_present,
+        "loaded": _cv_module is not None or _pkl_model is not None,
+        "error": _load_error,
+        "path": _MODULE_FILE if module_present else _PKL_FILE,
+        "backend": (
+            "pipeline"
+            if _cv_module is not None
+            else ("pkl" if _pkl_model is not None else "unloaded")
+        ),
+    }

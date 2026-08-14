@@ -153,4 +153,11 @@ class ChatRepository {
     }
     return data;
   }
+
+  /// GET /api/chat/meetings
+  Future<List<Map<String, dynamic>>> listMeetings() async {
+    final response = await _client.get<dynamic>('/api/chat/meetings');
+    return responseList(response.data, ['meetings', 'data'])
+        .cast<Map<String, dynamic>>();
+  }
 }

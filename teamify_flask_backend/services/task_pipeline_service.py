@@ -393,6 +393,33 @@ def assign_best_members(task_info: dict, members_list: list) -> list:
     return scored
 
 
+def get_category_model_status() -> dict:
+    """Report DistilBERT task-category weights without forcing a torch load."""
+    weights_candidates = [
+        os.path.join(_CATEGORY_MODEL_DIR, "model.safetensors"),
+        os.path.join(_CATEGORY_MODEL_DIR, "pytorch_model.bin"),
+    ]
+    present = [p for p in weights_candidates if os.path.exists(p)]
+    return {
+        "file_present": bool(present),
+        "loaded": _cat_model_cache is not None,
+        "error": _cat_load_error,
+        "path": present[0] if present else weights_candidates[0],
+    }
+
+
+def get_assignment_model_status() -> dict:
+    """Report assignment GBR model file + whether it loaded."""
+    _load_assignment_model()
+    return {
+        "file_present": os.path.exists(_ASSIGNMENT_MODEL_PATH),
+        "loaded": _assign_model_cache is not None,
+        "error": _assign_load_error,
+        "path": os.path.abspath(_ASSIGNMENT_MODEL_PATH),
+        "feature_count": len(_assign_features_cache or []),
+    }
+
+
 def startup_check() -> None:
     """Warm-load task classifier so the first /classify-task request is fast."""
     model, tokenizer, le = _load_category_model()

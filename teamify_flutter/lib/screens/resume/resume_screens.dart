@@ -2381,34 +2381,26 @@ class _ResumePreviewScreenState extends State<ResumePreviewScreen> {
     } catch (_) {}
 
     final user = context.read<SessionController>().currentUser;
-    final fallbackUser = user != null
-        ? {
-            'name': user.fullName.isNotEmpty ? user.fullName : user.displayName,
-            'role': user.professionalField.isNotEmpty
-                ? user.professionalField
-                : user.displayRole,
-            'email': user.email,
-          }
-        : {
-            'name': 'Alex Chen',
-            'role': 'Senior Software Developer',
-            'email': 'alex.chen@example.com'
-          };
+    if (user == null) {
+      setState(() {
+        _cvData = null;
+        _loading = false;
+      });
+      return;
+    }
 
     setState(() {
       _cvData = {
-        'user': fallbackUser,
-        'summary':
-            'Experienced developer skilled in building high performance mobile and web applications.',
-        'skills': ['Flutter', 'Dart', 'React', 'TypeScript', 'Node.js'],
-        'experience': [
-          {
-            'role': 'Senior Developer',
-            'company': 'Tech Corp',
-            'duration': '2024 - Present',
-            'description': 'Leading team innovation and feature releases.',
-          }
-        ],
+        'user': {
+          'name': user.fullName.isNotEmpty ? user.fullName : user.displayName,
+          'role': user.professionalField.isNotEmpty
+              ? user.professionalField
+              : user.displayRole,
+          'email': user.email,
+        },
+        'summary': '',
+        'skills': user.skills,
+        'experience': const [],
       };
       _loading = false;
     });
