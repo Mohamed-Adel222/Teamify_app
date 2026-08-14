@@ -176,6 +176,17 @@ def _load_model() -> Any:
     return None
 
 
+def get_chat_summarization_model_status() -> dict:
+    """Report whether Chat_Summarization.pkl is present and usable."""
+    model = _load_model()
+    return {
+        "file_present": os.path.exists(os.path.abspath(_MODEL_PATH)),
+        "loaded": model is not None,
+        "error": _model_load_error,
+        "path": os.path.abspath(_MODEL_PATH),
+    }
+
+
 def startup_check() -> None:
     """Log a structured warning at boot when the chat summarization pkl is missing."""
     _load_model()

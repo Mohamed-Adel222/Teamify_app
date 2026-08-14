@@ -920,7 +920,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     ],
                     _profileCvSection(p),
                     _profileSectionTitle('Previous Projects'),
-                    _profilePreviousProjectsSection(p),
+                    _ProfilePreviousProjectsSection(user: p),
                     if (p.id !=
                         (context.read<SessionController>().currentUser?.id ??
                             '')) ...[
@@ -1093,74 +1093,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   /// CV section: only rendered when the user actually has a CV on the server.
   Widget _profileCvSection(api.ApiUser p) => _ProfileCvSection(user: p);
-
-  Widget _profilePreviousProjectsSection(api.ApiUser p) {
-    final mockProjects = [
-      {
-        'name': 'Teamify Mobile App',
-        'role': 'Lead Developer',
-        'status': 'Completed',
-        'progress': 100
-      },
-      {
-        'name': 'AI Smart Sync Engine',
-        'role': 'Contributor',
-        'status': 'In Progress',
-        'progress': 85
-      },
-    ];
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        children: mockProjects.map((item) {
-          final progress = (item['progress'] as int) / 100.0;
-          return TCard(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(item['name'] as String,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 13)),
-                    TChip(label: item['status'] as String),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text('Role: ${item['role']}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: AppColors.border,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.primary),
-                          minHeight: 6,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('${item['progress']}%',
-                        style: const TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 
   Widget _profileInfoRow(IconData icon, String label, String value) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -3441,6 +3373,128 @@ class _ProfileCvSectionState extends State<_ProfileCvSection> {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class _ProfilePreviousProjectsSection extends StatefulWidget {
+  const _ProfilePreviousProjectsSection({required this.user});
+
+  final api.ApiUser user;
+
+  @override
+  State<_ProfilePreviousProjectsSection> createState() =>
+      _ProfilePreviousProjectsSectionState();
+}
+
+class _ProfilePreviousProjectsSectionState
+    extends State<_ProfilePreviousProjectsSection> {
+  late final Future<List<api.ApiProject>> _projectsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _projectsFuture = _load();
+  }
+
+  Future<List<api.ApiProject>> _load() async {
+    final result = await context.read<AppServices>().projects.listProjects();
+    final projects = result.data ?? const <api.ApiProject>[];
+    final uid = widget.user.id;
+    return projects.where((p) {
+      if (p.ownerId == uid) return true;
+      if (p.members.contains(uid)) return true;
+      return false;
+    }).toList();
+  }
+
+  String _statusLabel(String status) {
+    if (status.isEmpty) return 'Active';
+    return status[0].toUpperCase() + status.substring(1).replaceAll('_', ' ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<api.ApiProject>>(
+      future: _projectsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        final projects = snapshot.data ?? const <api.ApiProject>[];
+        if (projects.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: Text(
+              'No shared projects yet.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            children: projects.map((project) {
+              final progress = (project.progress.clamp(0, 100)) / 100.0;
+              final role = project.ownerId == widget.user.id ? 'Owner' : 'Member';
+              return TCard(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(project.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13)),
+                        ),
+                        TChip(label: _statusLabel(project.status)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Role: $role',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              backgroundColor: AppColors.border,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                  AppColors.primary),
+                              minHeight: 6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('${project.progress}%',
+                            style: const TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
         );
       },
     );

@@ -289,10 +289,14 @@ def predict_task_delay(task_data: dict, user_data: dict | None = None) -> dict:
 def get_delay_model_status() -> dict:
     """Report whether Delay_Predictor.pkl is loaded and ready."""
     model = _load_model()
+    path = os.path.abspath(_MODEL_PATH)
     return {
         "model_available": model is not None,
+        "file_present": os.path.exists(path),
+        "loaded": model is not None,
         "model_name": "Delay_Predictor",
-        "model_path": os.path.abspath(_MODEL_PATH),
+        "model_path": path,
+        "path": path,
         "feature_count": len(_FEATURE_COLS),
         "error": _model_load_error,
     }

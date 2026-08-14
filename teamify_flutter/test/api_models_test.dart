@@ -19,6 +19,21 @@ void main() {
     expect(user.skills, ['Flutter', 'Dart']);
   });
 
+  test('ApiUser projectRoleLabel uses backend project_role', () {
+    final owner = ApiUser.fromJson({
+      'id': 1,
+      'display_name': 'm.adel01f',
+      'full_name': 'Mohamed Adel',
+      'email': 'm@example.com',
+      'role': 'member',
+      'project_role': 'owner',
+      'user_type': 'freelancer',
+    });
+    expect(owner.projectRoleLabel, 'Owner');
+    expect(owner.primaryName, 'Mohamed Adel');
+    expect(owner.displayName, 'm.adel01f');
+  });
+
   test('ApiProject and ApiTask tolerate nullable backend fields', () {
     final project = ApiProject.fromJson({
       'id': 7,

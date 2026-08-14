@@ -475,3 +475,20 @@ def persist_cv_from_ai_build(user_id: int, ai_result: dict) -> None:
     cv.projects = projects
     cv.experience = []
     db.session.commit()
+
+
+def get_cv_builder_status() -> dict:
+    """Report CV builder pipeline / pkl availability without forcing a load."""
+    module_present = os.path.isfile(_MODULE_FILE)
+    pkl_present = os.path.isfile(_PKL_FILE)
+    return {
+        "file_present": module_present or pkl_present,
+        "loaded": _cv_module is not None or _pkl_model is not None,
+        "error": _load_error,
+        "path": _MODULE_FILE if module_present else _PKL_FILE,
+        "backend": (
+            "pipeline"
+            if _cv_module is not None
+            else ("pkl" if _pkl_model is not None else "unloaded")
+        ),
+    }

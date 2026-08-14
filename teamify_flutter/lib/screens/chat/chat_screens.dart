@@ -504,6 +504,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String? _projectId;
   String _roomName = 'Chat';
   int _memberCount = 0;
+  List<ApiUser> _roomMembers = [];
   bool _sendingAttachment = false;
   final ScrollController _chatScroll = ScrollController();
 
@@ -581,7 +582,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
         _projectId ??= projectIdFromChatRoomPayload(roomData);
         final members =
             (roomData['members'] as List?)?.whereType<Map<String, dynamic>>();
-        _memberCount = members?.length ?? 0;
+        _roomMembers = [
+          for (final m in members ?? const <Map<String, dynamic>>[])
+            ApiUser.fromJson(m),
+        ];
+        _memberCount = _roomMembers.length;
         if (_projectId != null || _memberCount > 0) setState(() {});
       }
     } catch (_) {}
@@ -808,45 +813,30 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
     final session = context.read<SessionController>();
     final me = session.currentUser;
-    final hostName = me?.fullName ?? me?.displayName ?? 'Alex Chen';
-    final meetingId = 'm_${DateTime.now().millisecondsSinceEpoch}';
-    final meetingTitle = '$_roomName Sync';
-    final now = DateTime.now();
+    final hostName = me?.fullName ?? me?.displayName ?? 'You';
+    final participantNames = _roomMembers
+        .map((u) => u.primaryName)
+        .where((name) => name.isNotEmpty)
+        .toList();
+    if (participantNames.isEmpty) {
+      participantNames.add(hostName);
+    }
 
-    final systemMsg = ChatMessage(
-      id: 'msg_$meetingId',
-      senderId: me?.id ?? 'system',
-      senderName: hostName,
-      senderInitials: _initialsFromName(hostName),
-      message: '📹 $hostName started a meeting',
-      time: _formatMsgTimeFromDateTime(now),
-      isMe: true,
-      messageType: 'meeting',
-      fileId: meetingId,
-      fileName: meetingTitle,
-      mimeType: 'LIVE',
-      createdAt: now,
-    );
-
-    setState(() {
-      _messages.add(systemMsg);
-    });
-    _scrollChatToEnd();
-
-    final newDemoMeeting = DemoMeeting(
-      id: meetingId,
-      title: meetingTitle,
+    final meeting = DemoMeeting(
+      id: rid,
+      roomId: rid,
+      projectId: _projectId,
+      title: '$_roomName Sync',
       projectName: _roomName,
-      dateTimeLabel: 'Today, ${_formatMsgTimeFromDateTime(now)}',
-      scheduledAt: now,
+      dateTimeLabel: 'Today, ${_formatMsgTimeFromDateTime(DateTime.now())}',
+      scheduledAt: DateTime.now(),
       hostName: hostName,
       hostInitials: _initialsFromName(hostName),
-      participantCount: _memberCount > 0 ? _memberCount : 4,
-      participantNames: [hostName, 'Sarah Miller', 'David Ross'],
+      participantCount: participantNames.length,
+      participantNames: participantNames,
       status: 'Live',
-      description: 'Live meeting started directly from project chat.',
+      description: 'Live meeting from this chat.',
     );
-    globalMockMeetings.insert(0, newDemoMeeting);
 
     showModalBottomSheet<void>(
       context: context,
@@ -854,7 +844,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => PermissionsPreviewSheet(meeting: newDemoMeeting),
+      builder: (_) => PermissionsPreviewSheet(meeting: meeting),
     );
   }
 
@@ -961,20 +951,25 @@ class _ConversationScreenState extends State<ConversationScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
-                final targetMeeting = globalMockMeetings.firstWhere(
-                  (item) => item.id == m.fileId,
-                  orElse: () => DemoMeeting(
-                    id: m.fileId ?? 'm1',
-                    title: m.fileName ?? 'Project Meeting',
-                    projectName: _roomName,
-                    dateTimeLabel: m.time,
-                    scheduledAt: DateTime.now(),
-                    hostName: m.senderName,
-                    hostInitials: m.senderInitials,
-                    participantCount: 4,
-                    participantNames: [m.senderName, 'Sarah Miller'],
-                    status: isLive ? 'Live' : 'Ended',
-                  ),
+                final names = _roomMembers
+                    .map((u) => u.primaryName)
+                    .where((name) => name.isNotEmpty)
+                    .toList();
+                if (names.isEmpty) names.add(m.senderName);
+                final targetMeeting = DemoMeeting(
+                  id: _roomId ?? m.fileId ?? '',
+                  roomId: _roomId ?? m.fileId ?? '',
+                  sessionId: m.fileId,
+                  projectId: _projectId,
+                  title: m.fileName ?? 'Project Meeting',
+                  projectName: _roomName,
+                  dateTimeLabel: m.time,
+                  scheduledAt: DateTime.now(),
+                  hostName: m.senderName,
+                  hostInitials: m.senderInitials,
+                  participantCount: names.length,
+                  participantNames: names,
+                  status: isLive ? 'Live' : 'Ended',
                 );
                 showModalBottomSheet<void>(
                   context: context,
@@ -1859,36 +1854,22 @@ class _ConversationScreenState extends State<ConversationScreen> {
       } catch (_) {}
     }
     if (!mounted) return;
+    if (membersList.isEmpty && _roomMembers.isNotEmpty) {
+      membersList = List<ApiUser>.from(_roomMembers);
+    }
     if (membersList.isEmpty) {
-      final session = context.read<SessionController>();
-      final me = session.currentUser;
-      membersList = [
-        if (me != null) me,
-        const ApiUser(
-          id: 'mock_m1',
-          displayName: 'sarah_m',
-          fullName: 'Sarah Miller',
-          email: 'sarah@example.com',
-          role: 'admin',
-          userType: 'freelancer',
-          professionalField: 'UI/UX Design',
-        ),
-        const ApiUser(
-          id: 'mock_m2',
-          displayName: 'alex_dev',
-          fullName: 'Alex Chen',
-          email: 'alex@example.com',
-          role: 'member',
-          userType: 'student',
-          major: 'Software Engineering',
-        ),
-      ];
+      final me = context.read<SessionController>().currentUser;
+      if (me != null) membersList = [me];
     }
     final uniqueMembers = <String, ApiUser>{};
     for (final m in membersList) {
       if (m.id.isNotEmpty) uniqueMembers[m.id] = m;
     }
     final displayMembers = uniqueMembers.values.toList();
+    final isProject = pid != null && pid.isNotEmpty;
+    final title = isProject
+        ? 'Project Members (${displayMembers.length})'
+        : 'Chat Members (${displayMembers.length})';
 
     if (!mounted) return;
     showModalBottomSheet<void>(
@@ -1908,7 +1889,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Project Members (${displayMembers.length})',
+                  title,
                   style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -1921,56 +1902,48 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ],
             ),
             const Divider(),
-            Expanded(
-              child: ListView.builder(
-                itemCount: displayMembers.length,
-                itemBuilder: (_, i) {
-                  final u = displayMembers[i];
-                  final isOwner = i == 0;
-                  final projectRole = isOwner
-                      ? 'Owner'
-                      : (u.role == 'admin' ? 'Admin' : 'Member');
-                  final status = i % 2 == 0 ? 'Online' : 'Offline';
-                  final statusColor = status == 'Online'
-                      ? AppColors.success
-                      : AppColors.textHint;
-                  final handle =
-                      u.displayName.isNotEmpty ? '@${u.displayName}' : '';
+            if (displayMembers.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Text(
+                    'No members found for this chat.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  itemCount: displayMembers.length,
+                  itemBuilder: (_, i) {
+                    final u = displayMembers[i];
+                    final projectRole = u.projectRoleLabel.isNotEmpty
+                        ? u.projectRoleLabel
+                        : 'Member';
+                    final handle =
+                        u.displayName.isNotEmpty ? '@${u.displayName}' : '';
+                    final subtitle = [
+                      if (handle.isNotEmpty) handle,
+                      projectRole,
+                    ].join(' • ');
 
-                  return ListTile(
-                    leading: Stack(
-                      children: [
-                        TAvatar(initials: u.initials, radius: 20),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: statusColor,
-                              shape: BoxShape.circle,
-                              border:
-                                  Border.all(color: Colors.white, width: 1.5),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    title: Text(u.primaryName,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: Text('$handle • $projectRole • $status',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _showTeammateProfileInChat(u);
-                    },
-                  );
-                },
+                    return ListTile(
+                      leading: TAvatar(initials: u.initials, radius: 20),
+                      title: Text(u.primaryName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary)),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showTeammateProfileInChat(u);
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
           ],
         ),
       ),

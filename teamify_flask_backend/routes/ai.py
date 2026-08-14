@@ -67,6 +67,10 @@ def _ai_before_request():
     g.ai_request_start = time.time()
     from services.system_settings_service import is_ai_enabled
 
+    path = request.path.rstrip("/")
+    if path.endswith("/models/status") or path.endswith("/delay-model/status"):
+        return None
+
     if not is_ai_enabled():
         return jsonify({
             "error": "AI disabled",
@@ -894,6 +898,15 @@ def api_delay_model_status():
     from services.delay_predictor_service import get_delay_model_status
 
     return jsonify(get_delay_model_status()), 200
+
+
+@ai_bp.route("/models/status", methods=["GET"])
+@auth_required
+def api_ai_models_status():
+    """Report which on-disk ML models are present, loaded, or using fallbacks."""
+    from services.ai_models_status_service import get_ai_models_status
+
+    return jsonify(get_ai_models_status()), 200
 
 
 # ─── GET /api/ai/workload ─────────────────────────────────────────────────────

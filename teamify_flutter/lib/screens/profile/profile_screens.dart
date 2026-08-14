@@ -2773,7 +2773,7 @@ class _FeedbackDialogState extends State<_FeedbackDialog> {
     final session = context.read<SessionController>();
     final me = session.currentUser;
     final myId = me?.id ?? 'demo_user_me';
-    final myName = me?.fullName ?? me?.displayName ?? 'Alex Chen';
+    final myName = me?.fullName ?? me?.displayName ?? 'You';
     final myRole = me?.userType == 'client'
         ? 'Client'
         : (me?.role == 'admin' ? 'Manager' : 'Team Member');

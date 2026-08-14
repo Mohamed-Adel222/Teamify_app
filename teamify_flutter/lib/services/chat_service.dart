@@ -123,6 +123,12 @@ class ChatService with ServiceErrorHandler {
           String roomId, String sessionId) =>
       guard(() => _repo.getMeetingSession(roomId, sessionId));
 
+  Future<ApiResult<List<Map<String, dynamic>>>> listMeetings() =>
+      _dedup.deduplicate(
+        'chat_list_meetings',
+        () => guard(() => _repo.listMeetings()),
+      );
+
   Future<ApiResult<Map<String, dynamic>>> sendMessage(
       String roomId, Map<String, dynamic> payload) {
     final mutationPayload = Map<String, dynamic>.from(payload);

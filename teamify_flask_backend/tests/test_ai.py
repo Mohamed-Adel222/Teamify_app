@@ -128,3 +128,37 @@ class TestAIWorkload:
 
     def test_no_token_401(self, client):
         assert client.get(self.URL).status_code == 401
+
+
+class TestAIModelsStatus:
+    URL = "/api/ai/models/status"
+
+    def test_no_token_401(self, client):
+        assert client.get(self.URL).status_code == 401
+
+    @patch("services.ai_models_status_service.get_ai_models_status")
+    def test_member_200(self, m_status, client, member_headers):
+        m_status.return_value = {
+            "models": [
+                {
+                    "id": "delay_predictor",
+                    "name": "Delay Predictor",
+                    "linked": True,
+                    "loaded": False,
+                    "file_present": True,
+                    "uses_fallback": True,
+                    "endpoint": "POST /api/ai/delay",
+                }
+            ],
+            "total": 1,
+            "linked_count": 1,
+            "loaded_count": 0,
+            "fallback_count": 1,
+            "all_linked": True,
+            "all_loaded": False,
+        }
+        r = client.get(self.URL, headers=member_headers)
+        assert r.status_code == 200
+        body = r.get_json()
+        assert body["linked_count"] == 1
+        assert body["models"][0]["id"] == "delay_predictor"

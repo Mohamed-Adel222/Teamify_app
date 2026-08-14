@@ -201,6 +201,7 @@ class TeamifyApp extends StatelessWidget {
 
         // ── AI ────────────────────────────────────────────────────────────────
         R.aiHub: (_) => protected(const AIHubScreen()),
+        R.aiModelsReport: (_) => protected(const AIModelsReportScreen()),
         R.smartTodo: (_) => protected(const SmartTodoScreen()),
         R.aiTaskAllocation: (_) => protected(const AITaskAllocationScreen()),
         R.aiSuggestedResult: (_) => protected(const AISuggestedResultScreen()),

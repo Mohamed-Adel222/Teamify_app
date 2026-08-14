@@ -55,6 +55,7 @@ class R {
   static const aiDeadline = '/ai-deadline';
   static const pomodoro = '/pomodoro';
   static const aiInsights = '/ai-insights';
+  static const aiModelsReport = '/ai-models-report';
   static const aiMentor = '/ai-mentor';
   static const aiMentorChat = '/ai-mentor-chat';
   static const teamRecommendation = '/team-recommendation';
