@@ -1,6 +1,15 @@
-# Production deployment requirements — no torch/transformers
-# (Render free tier has 512 MB RAM; PyTorch alone is ~800 MB)
-# Set AI_ENABLE_LOCAL_MODELS=false in Render env vars to activate heuristic fallbacks.
+# Production deployment requirements — no torch/transformers.
+#
+# DistilBERT is NOT required in production. POST /api/ai/classify-task and
+# deferred task classification use the keyword fallback by design.
+# Do not add the full PyTorch package or a CPU wheel here:
+#   - Render typical RAM is 512 MB
+#   - torch CPU wheels are still hundreds of MB installed
+#   - DistilBERT weights are Git LFS (~268 MB) and are not materialized
+#     unless `git lfs pull` is run
+#   - loading both at gunicorn boot would OOM or miss the deploy timeout
+# Opt in only on a large local/dev machine: AI_ENABLE_DISTILBERT=true
+# See docs/AI_MODELS.md.
 
 # WSGI server (required for production)
 gunicorn>=22.0.0
@@ -59,6 +68,7 @@ reportlab>=4.0.0
 pyotp>=2.9.0
 qrcode[pil]>=8.0
 
-# NOTE: torch and transformers are intentionally excluded.
-# The DistilBERT task-category model falls back to keyword matching
-# when AI_ENABLE_LOCAL_MODELS=false or when the weights are absent.
+# NOTE: torch and transformers stay excluded.
+# DistilBERT is not a production dependency. The supported path is the
+# keyword fallback (AI_ENABLE_DISTILBERT defaults to false).
+# sklearn/joblib/pandas above ARE required for the .pkl models.
