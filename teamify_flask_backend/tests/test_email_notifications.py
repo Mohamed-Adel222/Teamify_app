@@ -345,7 +345,7 @@ class TestForgotPasswordOtp:
         u.generate_otp.return_value = "654321"
         with patch("routes.auth.User") as m_user:
             m_user.query.filter_by.return_value.first.return_value = u
-            with patch("services.email_service.send_password_reset_email") as send_otp:
+            with patch("routes.auth.send_password_reset_email") as send_otp:
                 send_otp.return_value = MagicMock(
                     success=True, status="sent", provider_message_id="otp_1", error=None
                 )
