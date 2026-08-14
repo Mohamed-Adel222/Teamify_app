@@ -37,6 +37,7 @@ pandas>=2.2.0
 
 # HTTP Client
 requests>=2.31.0
+resend>=2.0.0
 
 # Validation
 marshmallow>=3.21.0

@@ -127,6 +127,14 @@ class Config:
     # Optional: Anthropic Claude API key for mentor report generation
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+    # Resend transactional email. Replace re_xxxxxxxxx with your real API key.
+    # Leave unset (or keep the placeholder) to skip sending in local/dev.
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+    RESEND_FROM_EMAIL = os.getenv(
+        "RESEND_FROM_EMAIL",
+        "Teamify <onboarding@resend.dev>",
+    )
+
     # Redis (optional — falls back to in-memory when unset)
     REDIS_URL = os.getenv("REDIS_URL", "")
     CACHE_TYPE = "RedisCache" if REDIS_URL else "SimpleCache"

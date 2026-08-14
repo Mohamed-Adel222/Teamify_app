@@ -15,6 +15,7 @@ from models.log import Log
 from models.login_log import LoginLog
 from services.anomaly import check_login_anomalies
 from services.audit_log_service import log_security_event
+from services.email_service import send_password_reset_otp
 from app import limiter
 
 # ─── Lockout constants ────────────────────────────────────────────────────────────
@@ -691,7 +692,7 @@ def logout():
 @limiter.limit("3 per minute")
 def forgot_password():
     """
-    Request a password-reset OTP. In production the OTP is sent via email.
+    Request a password-reset OTP. The OTP is emailed via Resend when configured.
     ---
     tags:
       - Auth
@@ -739,9 +740,11 @@ def forgot_password():
     otp = user.generate_otp()
     db.session.commit()
 
-    from services.email_service import send_otp_email
-    send_otp_email(user, otp)
-
+    send_password_reset_otp(
+        to_email=user.email,
+        otp=otp,
+        display_name=user.full_name or user.display_name,
+    )
     return jsonify({
         "message": "If an account exists with this email, an OTP has been sent",
     }), 200
