@@ -141,6 +141,7 @@ def _apply_runtime_schema_patches(app: Flask) -> None:
         ("university_name", "VARCHAR(200)", "VARCHAR(200)"),
         ("is_custom_university", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT 0"),
         ("notification_prefs", "JSONB", "JSON"),
+        ("portfolio_url", "VARCHAR(300)", "VARCHAR(300)"),
     ):
         try:
             insp = inspect(db.engine)
@@ -172,10 +173,22 @@ def create_app(test_config=None):
     Migrate(app, db)          # enables: flask db init / migrate / upgrade
 
     # CORS — allow socket.io polling path too (needed during upgrade handshake)
-    _cors_origins = os.getenv(
-        "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:8080",
-    ).split(",")
+    # Default covers local dev plus the Firebase / Netlify hosts the Flutter
+    # web app deploys to; override with CORS_ORIGINS for a stricter list.
+    _cors_origins = [
+        o.strip()
+        for o in os.getenv(
+            "CORS_ORIGINS",
+            ",".join([
+                "http://localhost:3000",
+                "http://localhost:8080",
+                "https://*.web.app",
+                "https://*.firebaseapp.com",
+                "https://*.netlify.app",
+            ]),
+        ).split(",")
+        if o.strip()
+    ]
     cors_settings = {
         "origins": _cors_origins,
         "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -308,6 +321,7 @@ def create_app(test_config=None):
     from routes.disputes import disputes_bp
     from routes.chat import chat_bp
     from routes.universities import universities_bp
+    from routes.connections import connections_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
@@ -329,6 +343,7 @@ def create_app(test_config=None):
     app.register_blueprint(disputes_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(universities_bp)
+    app.register_blueprint(connections_bp)
 
     @app.before_request
     def enforce_maintenance_mode():
@@ -416,6 +431,7 @@ def create_app(test_config=None):
         from models.audit_log import AuditLog
         from models.dispute import Dispute
         from models.chat import ChatRoom, ChatRoomMember, Message
+        from models.connection import Connection  # noqa: F401
         from models.meeting_session import MeetingSession  # noqa: F401
         from models.mentor_chat_message import MentorChatMessage  # noqa: F401
         from models.token_blocklist import TokenBlocklist  # noqa: F401
