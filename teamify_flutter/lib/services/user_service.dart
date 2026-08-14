@@ -155,6 +155,9 @@ class UserService with ServiceErrorHandler {
   Future<ApiResult<Map<String, dynamic>>> getConnectionStatus(String userId) =>
       guard(() => _repo.getConnectionStatus(userId));
 
+  Future<ApiResult<Map<String, dynamic>>> listConnections() =>
+      guard(() => _repo.listConnections());
+
   Future<ApiResult<Map<String, dynamic>>> sendConnectionRequest(
           String userId) =>
       guard(() => _repo.sendConnectionRequest(userId));
@@ -164,6 +167,9 @@ class UserService with ServiceErrorHandler {
     required bool accept,
   }) =>
       guard(() => _repo.respondConnection(connectionId, accept: accept));
+
+  Future<ApiResult<Map<String, dynamic>>> getConnection(String connectionId) =>
+      guard(() => _repo.getConnection(connectionId));
 
   /// GET /api/users/<id>/profile — public view of another user.
   Future<ApiResult<ApiUser?>> getPublicProfile(String userId) {

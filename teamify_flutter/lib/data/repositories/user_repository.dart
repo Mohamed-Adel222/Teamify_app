@@ -54,6 +54,13 @@ class UserRepository {
 
   // ── Connections ────────────────────────────────────────────────────────────
 
+  // GET /api/connections
+  Future<Map<String, dynamic>> listConnections() async {
+    final response =
+        await _client.get<Map<String, dynamic>>('/api/connections');
+    return responseMap(response.data);
+  }
+
   // GET /api/connections/status/<user_id>
   Future<Map<String, dynamic>> getConnectionStatus(String userId) async {
     final response = await _client
@@ -79,6 +86,13 @@ class UserRepository {
       '/api/connections/$connectionId/respond',
       data: {'accept': accept},
     );
+    return responseMap(response.data);
+  }
+
+  // GET /api/connections/<id>
+  Future<Map<String, dynamic>> getConnection(String connectionId) async {
+    final response = await _client
+        .get<Map<String, dynamic>>('/api/connections/$connectionId');
     return responseMap(response.data);
   }
 }

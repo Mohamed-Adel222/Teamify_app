@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/notifications/notification_actions.dart';
 import '../../core/theme.dart';
 import '../../data/models/api_misc.dart';
 import '../../data/models/notification_preferences_model.dart';
@@ -19,6 +20,8 @@ class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
   bool _markedRead = false;
 
   String _actionButtonLabel(NotificationViewModel notif) {
+    final raw = notif.rawType.toLowerCase();
+    if (raw.contains('connection')) return 'View Profile';
     switch (notif.category) {
       case NotificationType.teamInvitation:
       case NotificationType.invitationAccepted:
@@ -41,21 +44,11 @@ class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
     }
   }
 
-  void _handlePrimaryAction(BuildContext context, NotificationViewModel notif) {
-    if (notif.actionRoute != null && notif.actionRoute!.isNotEmpty) {
-      try {
-        Navigator.pushNamed(context, notif.actionRoute!);
-        return;
-      } catch (_) {}
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('This notification has no linked workspace item.'),
-        backgroundColor: AppColors.primary,
-        duration: Duration(seconds: 2),
-      ),
-    );
+  Future<void> _handlePrimaryAction(
+    BuildContext context,
+    NotificationViewModel notif,
+  ) async {
+    await handleNotificationTap(context, notif.apiNotification);
   }
 
   /// Marks the notification read server-side the first time it is opened.

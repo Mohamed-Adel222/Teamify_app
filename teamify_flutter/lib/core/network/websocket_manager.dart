@@ -29,6 +29,45 @@ class SocketPayload {
   const SocketPayload({required this.event, this.data = const {}});
 }
 
+/// Whether a socket error is a low-level transport failure (not a chat error).
+bool isTransportSocketError(Object? err) {
+  final text = _socketErrorText(err).toLowerCase();
+  if (text.isEmpty) return false;
+  return text.contains('transport') ||
+      text.contains('websocket error') ||
+      text.contains('xhr poll error') ||
+      text.contains('minified:') ||
+      text.contains('connect_error') ||
+      text.contains('reconnect_exhausted');
+}
+
+/// User-facing socket error, or empty when the failure should stay silent.
+String userFacingSocketError(Object? err) {
+  if (isTransportSocketError(err)) return '';
+  final text = _socketErrorText(err).trim();
+  if (text.isEmpty) return '';
+  if (text.startsWith('Instance of ')) return '';
+  return text;
+}
+
+String _socketErrorText(Object? err) {
+  if (err == null) return '';
+  if (err is Map) {
+    final msg = err['msg'] ??
+        err['message'] ??
+        err['error'] ??
+        err['description'] ??
+        err['desc'];
+    if (msg != null && msg.toString().trim().isNotEmpty) {
+      return msg.toString();
+    }
+    final type = err['type']?.toString() ?? '';
+    if (type.isNotEmpty) return type;
+    return err.toString();
+  }
+  return err.toString();
+}
+
 /// Centralized WebSocket manager with auto-reconnect and event streaming.
 ///
 /// Design decisions
@@ -283,25 +322,32 @@ class WebSocketManager {
       if (_connectCompleter != null && !_connectCompleter!.isCompleted) {
         _connectCompleter!.complete(false);
       }
-      _emit(SocketEvent.connectError, {'message': err?.toString() ?? 'connect_error'});
+      final message = userFacingSocketError(err);
+      _emit(SocketEvent.connectError, {
+        'message': message.isEmpty ? 'connect_error' : message,
+        'silent': message.isEmpty,
+      });
       if (!_disposed) _scheduleReconnect();
     });
 
     socket.onError((err) {
       debugPrint('[WS] Socket error: $err');
       AppLogger.error('[WS] error', err);
-      _emit(SocketEvent.error, {'message': err?.toString() ?? 'socket error'});
+      final message = userFacingSocketError(err);
+      _emit(SocketEvent.error, {
+        'message': message.isEmpty ? 'socket error' : message,
+        'silent': message.isEmpty || isTransportSocketError(err),
+      });
     });
 
     socket.on('error', (data) {
-      final map = _asMap(data);
-      final message = map['message']?.toString() ??
-          map['error']?.toString() ??
-          'Chat error';
-      AppLogger.error('[WS] server error: $message');
+      final message = userFacingSocketError(data);
+      final silent = message.isEmpty || isTransportSocketError(data);
+      AppLogger.error('[WS] server error: ${message.isEmpty ? data : message}');
       _emit(SocketEvent.error, {
-        ...map,
-        'message': message,
+        ..._asMap(data),
+        'message': silent ? '' : message,
+        'silent': silent,
       });
     });
 
@@ -321,10 +367,6 @@ class WebSocketManager {
 
     socket.on('message_deleted', (data) {
       _emit(SocketEvent.messageDeleted, _asMap(data));
-    });
-
-    socket.on('error', (data) {
-      _emit(SocketEvent.error, _asMap(data));
     });
 
     socket.on('meeting_presence', (data) {

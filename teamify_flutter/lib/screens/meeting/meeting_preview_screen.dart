@@ -33,7 +33,10 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+      _load();
+    });
   }
 
   @override
@@ -135,6 +138,7 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
   Future<void> _join() async {
     final meeting = _meeting;
     if (meeting == null || _joining) return;
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     if (meeting.isEnded) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('This meeting has ended.')),

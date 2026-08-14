@@ -115,7 +115,7 @@ class _FreelancerHomeScreenState extends State<FreelancerHomeScreen> {
 
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 28),
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -163,7 +163,7 @@ class _FreelancerHomeScreenState extends State<FreelancerHomeScreen> {
                           Icons.flag_outlined,
                           '$inProg',
                           loc?.translate('in_progress') ?? 'In progress',
-                          AppColors.warning),
+                          AppColors.success),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -230,7 +230,14 @@ class _FreelancerHomeScreenState extends State<FreelancerHomeScreen> {
                   ),
                   const SizedBox(height: 10),
                   TSectionHeader(
-                      title: loc?.translate('recent_activity') ?? 'Recent Activity'),
+                    title: loc?.translate('recent_activity') ?? 'Recent Activity',
+                    action: 'See all',
+                    onAction: () async {
+                      await Navigator.pushNamed(context, R.notifications);
+                      if (!mounted) return;
+                      _bumpHomeData();
+                    },
+                  ),
                   const SizedBox(height: 12),
                   _HomeRecentActivityList(
                     key: ValueKey(_notifVersion),
@@ -1946,7 +1953,8 @@ class StudentHomeScreen extends StatelessWidget {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(10),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 28),
           children: [
             Text('Welcome Back',
                 style: TextStyle(
@@ -2050,7 +2058,7 @@ class StudentHomeScreen extends StatelessWidget {
                           AppColors.success),
                       const SizedBox(width: 10),
                       _stat(Icons.flag_outlined, '$inProg', 'Active tasks',
-                          AppColors.warning),
+                          AppColors.success),
                     ]),
                     const SizedBox(height: 6),
                     Container(
@@ -2271,11 +2279,11 @@ class StudentHomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text('Recent Activity',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: onSurface)),
+            TSectionHeader(
+              title: 'Recent Activity',
+              action: 'See all',
+              onAction: () => Navigator.pushNamed(context, R.notifications),
+            ),
             const SizedBox(height: 12),
             const _HomeRecentActivityList(),
           ],
@@ -3029,91 +3037,97 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
-/// Recent notifications on the home dashboard (tap opens task details when linked).
+/// Recent notifications on the home dashboard (tap opens the linked item).
 class _HomeRecentActivityList extends StatelessWidget {
   const _HomeRecentActivityList({super.key, this.onUpdated});
 
   final VoidCallback? onUpdated;
 
-  static const double _maxHeight = 180;
+  static const int _maxItems = 8;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: _maxHeight,
-      child: RepositoryLoader<List<api.ApiNotification>>(
-        load: () => context
-            .read<AppServices>()
-            .notifications
-            .listNotifications(forceRefresh: true)
-            .unwrap(),
-        isEmpty: (items) => items.isEmpty,
-        emptyMessage: 'No recent notifications',
-        builder: (context, items) => ListView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length > 3 ? 3 : items.length,
-          itemBuilder: (_, i) {
-            final a = items[i];
-            return TCard(
-              margin: const EdgeInsets.only(bottom: 10),
-              onTap: () => handleNotificationTap(
-                context,
-                a,
-                onUpdated: onUpdated,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+    return RepositoryLoader<List<api.ApiNotification>>(
+      load: () => context
+          .read<AppServices>()
+          .notifications
+          .listNotifications(forceRefresh: true)
+          .unwrap(),
+      isEmpty: (items) => items.isEmpty,
+      emptyMessage: 'No recent notifications',
+      builder: (context, items) {
+        final visible = items.length > _maxItems
+            ? items.take(_maxItems).toList()
+            : items;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final a in visible)
+              TCard(
+                margin: const EdgeInsets.only(bottom: 10),
+                onTap: () => handleNotificationTap(
+                  context,
+                  a,
+                  onUpdated: onUpdated,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            a.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            a.body,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          a.title,
+                          a.createdAt.isNotEmpty
+                              ? formatRelativeTime(a.createdAt)
+                              : '',
                           style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          a.body,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppColors.textSecondary,
                           ),
                         ),
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: AppColors.textHint,
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        a.createdAt.isNotEmpty
-                            ? formatRelativeTime(a.createdAt)
-                            : '',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                        size: 16,
-                        color: AppColors.textHint,
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            );
-          },
-        ),
-      ),
+            if (items.length > _maxItems)
+              TextButton(
+                onPressed: () => Navigator.pushNamed(context, R.notifications),
+                child: Text('See all ${items.length} notifications'),
+              ),
+          ],
+        );
+      },
     );
   }
 }

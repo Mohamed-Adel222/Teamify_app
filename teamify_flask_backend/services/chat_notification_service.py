@@ -84,8 +84,8 @@ def notify_chat_message(msg: Message, sender_id: int) -> list[tuple[int, bool]]:
                 notif_type="chat_mention" if is_mention else "message",
                 title=f"{sender_name} mentioned you" if is_mention else f"New message from {sender_name}",
                 body=preview or f"New message in {room_name}",
-                entity_type="Message",
-                entity_id=msg.id,
+                entity_type="ChatRoom",
+                entity_id=msg.room_id,
                 queue_email=False,
                 is_mention=is_mention,
             )

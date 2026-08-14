@@ -6,8 +6,10 @@ import 'package:provider/provider.dart';
 import '../routes.dart';
 import '../theme.dart';
 import '../../data/models/models.dart' as api;
+import '../../screens/chat/chat_room_utils.dart';
 import '../../screens/project/project_screens.dart';
 import '../../screens/meeting/meeting_preview_screen.dart';
+import '../../screens/profile/profile_screens.dart';
 import '../../services/app_services.dart';
 import '../../core/session/session_controller.dart';
 import '../../widgets/widgets.dart';
@@ -106,6 +108,28 @@ Future<void> handleNotificationTap(
   if (et == 'task' && notification.entityId.isNotEmpty) {
     await _openTaskDetailFromNotification(context, notification,
         onUpdated: onUpdated);
+    return;
+  }
+
+  if (et == 'project' && notification.entityId.isNotEmpty) {
+    await _openProjectFromNotification(context, notification,
+        onUpdated: onUpdated);
+    return;
+  }
+
+  if (et == 'connection' || type.contains('connection')) {
+    await _openConnectionFromNotification(context, notification);
+    return;
+  }
+
+  if (et == 'user' && notification.entityId.isNotEmpty) {
+    await _openUserProfileFromNotification(context, notification.entityId);
+    return;
+  }
+
+  if ((et == 'chatroom' || et == 'chat' || et == 'message') &&
+      notification.entityId.isNotEmpty) {
+    await _openChatFromNotification(context, notification);
     return;
   }
 
@@ -298,6 +322,319 @@ class _ProjectInvitationSheetBodyState
         ],
       ),
     );
+  }
+}
+
+Future<void> _openConnectionFromNotification(
+  BuildContext context,
+  api.ApiNotification n,
+) async {
+  if (n.entityId.isEmpty) {
+    await Navigator.pushNamed(context, R.search);
+    return;
+  }
+
+  Map<String, dynamic>? data;
+  try {
+    final result =
+        await context.read<AppServices>().users.getConnection(n.entityId);
+    data = result.isSuccess ? result.data : null;
+  } catch (_) {
+    data = null;
+  }
+  if (data == null) {
+    data = await _connectionPayloadFromList(context, n.entityId);
+  }
+  if (!context.mounted) return;
+  if (data == null) {
+    await Navigator.pushNamed(context, R.search);
+    return;
+  }
+  final status = data['status']?.toString() ?? '';
+  final conn = data['connection'] is Map
+      ? Map<String, dynamic>.from(data['connection'] as Map)
+      : data;
+  final myId = context.read<SessionController>().currentUser?.id ?? '';
+  final requesterId = conn['requester_id']?.toString() ?? '';
+  final addresseeId = conn['addressee_id']?.toString() ?? '';
+  final otherId = requesterId == myId ? addresseeId : requesterId;
+
+  if (status == 'pending_received') {
+    await _showConnectionRequestSheet(
+      context,
+      n,
+      connectionId: n.entityId,
+      otherUserId: otherId,
+    );
+    return;
+  }
+
+  if (otherId.isNotEmpty) {
+    await _openUserProfileFromNotification(context, otherId);
+    return;
+  }
+
+  await Navigator.pushNamed(context, R.search);
+}
+
+Future<Map<String, dynamic>?> _connectionPayloadFromList(
+  BuildContext context,
+  String connectionId,
+) async {
+  final listed = await context.read<AppServices>().users.listConnections();
+  if (!listed.isSuccess || listed.data == null) return null;
+  final rows = listed.data!['connections'];
+  if (rows is! List) return null;
+  final myId = context.read<SessionController>().currentUser?.id ?? '';
+  for (final row in rows) {
+    if (row is! Map) continue;
+    final map = Map<String, dynamic>.from(row);
+    if (map['id']?.toString() != connectionId) continue;
+    final requesterId = map['requester_id']?.toString() ?? '';
+    final addresseeId = map['addressee_id']?.toString() ?? '';
+    final statusRaw = map['status']?.toString() ?? '';
+    String status = statusRaw;
+    if (statusRaw == 'accepted') {
+      status = 'connected';
+    } else if (statusRaw == 'pending') {
+      status = requesterId == myId ? 'pending_sent' : 'pending_received';
+    }
+    final otherId = requesterId == myId ? addresseeId : requesterId;
+    return {
+      'status': status,
+      'connection': map,
+      'other_user_id': otherId,
+    };
+  }
+  return null;
+}
+
+Future<void> _showConnectionRequestSheet(
+  BuildContext context,
+  api.ApiNotification n, {
+  required String connectionId,
+  required String otherUserId,
+}) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetCtx) {
+      return _ConnectionRequestSheetBody(
+        notification: n,
+        connectionId: connectionId,
+        otherUserId: otherUserId,
+      );
+    },
+  );
+}
+
+class _ConnectionRequestSheetBody extends StatefulWidget {
+  const _ConnectionRequestSheetBody({
+    required this.notification,
+    required this.connectionId,
+    required this.otherUserId,
+  });
+
+  final api.ApiNotification notification;
+  final String connectionId;
+  final String otherUserId;
+
+  @override
+  State<_ConnectionRequestSheetBody> createState() =>
+      _ConnectionRequestSheetBodyState();
+}
+
+class _ConnectionRequestSheetBodyState
+    extends State<_ConnectionRequestSheetBody> {
+  bool _responding = false;
+  String? _error;
+
+  Future<void> _respond(bool accept) async {
+    if (_responding) return;
+    setState(() {
+      _responding = true;
+      _error = null;
+    });
+    final result = await context
+        .read<AppServices>()
+        .users
+        .respondConnection(widget.connectionId, accept: accept);
+    if (!mounted) return;
+    if (result.isSuccess) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            accept ? 'Connection accepted' : 'Connection declined',
+          ),
+          backgroundColor: accept ? AppColors.success : AppColors.textSecondary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _responding = false;
+      _error = result.error ?? 'Could not update connection request';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.notification;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 12,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            n.title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TChip(
+            label: 'Connection request',
+            bg: AppColors.primary.withValues(alpha: 0.08),
+            textColor: AppColors.primary,
+            fontSize: 11,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            n.body.isNotEmpty
+                ? n.body
+                : 'Someone wants to connect with you.',
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              style: TextStyle(fontSize: 13, color: Colors.red.shade700),
+            ),
+          ],
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: TButton(
+              label: _responding ? 'Please wait…' : 'Accept',
+              onTap: _responding ? null : () => _respond(true),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: TButton(
+              label: 'Decline',
+              outline: true,
+              onTap: _responding ? null : () => _respond(false),
+            ),
+          ),
+          if (widget.otherUserId.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: TButton(
+                label: 'View Profile',
+                outline: true,
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _openUserProfileFromNotification(
+                    context,
+                    widget.otherUserId,
+                  );
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _openUserProfileFromNotification(
+  BuildContext context,
+  String userId,
+) async {
+  if (userId.isEmpty) {
+    await Navigator.pushNamed(context, R.search);
+    return;
+  }
+  try {
+    final result =
+        await context.read<AppServices>().users.getPublicProfile(userId);
+    if (!context.mounted) return;
+    final user = result.data;
+    if (user == null) {
+      await Navigator.pushNamed(context, R.search);
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserProfileDetailScreen(user: user),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    await Navigator.pushNamed(context, R.search);
+  }
+}
+
+Future<void> _openChatFromNotification(
+  BuildContext context,
+  api.ApiNotification n,
+) async {
+  final et = n.entityType.toLowerCase();
+  if (et == 'message') {
+    await Navigator.pushNamed(context, R.chatList);
+    return;
+  }
+  try {
+    final roomData =
+        await context.read<AppServices>().chat.getRoom(n.entityId).unwrap();
+    if (!context.mounted) return;
+    final roomMap = roomData['room'] is Map
+        ? Map<String, dynamic>.from(roomData['room'] as Map)
+        : roomData;
+    final room = chatRoomFromApi(roomMap);
+    await Navigator.pushNamed(
+      context,
+      room.isGroup ? R.groupChat : R.directChat,
+      arguments: room,
+    );
+  } catch (_) {
+    if (!context.mounted) return;
+    await Navigator.pushNamed(context, R.chatList);
   }
 }
 
@@ -496,6 +833,13 @@ Future<void> _showNotificationSheet(
                         n,
                         onUpdated: onUpdated,
                       );
+                    } else if (et == 'connection' || et == 'user') {
+                      await handleNotificationTap(context, n,
+                          onUpdated: onUpdated);
+                    } else if (et == 'chatroom' ||
+                        et == 'chat' ||
+                        et == 'message') {
+                      await _openChatFromNotification(context, n);
                     }
                   },
                 ),

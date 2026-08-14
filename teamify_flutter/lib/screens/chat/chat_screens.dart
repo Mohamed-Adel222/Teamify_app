@@ -642,12 +642,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
         return;
       }
       if (payload.event == SocketEvent.error) {
+        if (payload.data['silent'] == true) return;
         final message = payload.data['message']?.toString() ??
             payload.data['error']?.toString() ??
-            'Chat error';
-        if (mounted) {
+            '';
+        if (message.isEmpty || isTransportSocketError(message)) return;
+        final pending = _messages.where((m) => m.isPending && m.isMe).toList();
+        if (pending.isNotEmpty) {
+          _failPending(pending.last.id, message);
+        } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
+            SnackBar(
+              content: Text(message),
+              behavior: SnackBarBehavior.floating,
+            ),
           );
         }
         return;
@@ -657,17 +665,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
         final msgRoom = d['room_id']?.toString();
         if (msgRoom != rid) return;
         _appendServerMessage(Map<String, dynamic>.from(d));
-      } else if (payload.event == SocketEvent.error) {
-        final message = payload.data['message']?.toString();
-        if (message == null || message.isEmpty) return;
-        final pending = _messages.where((m) => m.isPending && m.isMe).toList();
-        if (pending.isNotEmpty) {
-          _failPending(pending.last.id, message);
-        } else if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
-        }
       } else if (payload.event == SocketEvent.messageDeleted) {
         final d = payload.data;
         final msgRoom = d['room_id']?.toString();
@@ -934,6 +931,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
 
     setState(() => _openingMeeting = true);
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     try {
       final meeting = await context.read<AppServices>().meetings.createMeeting(
             chatRoomId: roomIdInt,
@@ -2335,6 +2333,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 onRefresh: _loadHistory,
                 child: ListView.builder(
                   controller: _chatScroll,
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   itemCount: chatItems.length,
                   itemBuilder: (_, i) {

@@ -102,6 +102,10 @@ class AppTheme {
             color: onSurface, fontSize: 18, fontWeight: FontWeight.bold),
         contentTextStyle: TextStyle(color: textSecondary, fontSize: 14),
       ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.textPrimary,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: isDark ? const Color(0xFF0F172A) : AppColors.background,

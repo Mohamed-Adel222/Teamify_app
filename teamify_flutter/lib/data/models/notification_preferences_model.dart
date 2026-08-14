@@ -58,14 +58,18 @@ extension NotificationTypeX on NotificationType {
       }
       return NotificationType.teamInvitation;
     }
+    if (clean.contains('deadline') ||
+        clean.contains('due') ||
+        clean.contains('overdue') ||
+        clean.contains('reminder')) {
+      return NotificationType.deadlineReminder;
+    }
     if (clean.contains('task')) {
       if (clean.contains('assign')) return NotificationType.taskAssigned;
-      if (clean.contains('due') ||
-          clean.contains('deadline') ||
-          clean.contains('reminder')) {
-        return NotificationType.deadlineReminder;
-      }
       return NotificationType.taskUpdated;
+    }
+    if (clean.contains('connection')) {
+      return NotificationType.systemNotification;
     }
     if (clean.contains('chat') ||
         clean.contains('message') ||

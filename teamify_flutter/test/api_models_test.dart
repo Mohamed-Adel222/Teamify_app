@@ -59,9 +59,12 @@ void main() {
       'type': 'task_assigned',
       'email_delivered': true,
       'email_status': 'sent',
+      'entity_type': 'Task',
+      'entity_id': 201,
     });
     expect(sent.emailDelivered, isTrue);
     expect(sent.emailStatus, 'sent');
+    expect(sent.hasLinkedEntity, isTrue);
 
     final inAppOnly = ApiNotification.fromJson({
       'id': 10,
@@ -69,5 +72,6 @@ void main() {
       'type': 'task_assigned',
     });
     expect(inAppOnly.emailDelivered, isFalse);
+    expect(inAppOnly.hasLinkedEntity, isFalse);
   });
 }

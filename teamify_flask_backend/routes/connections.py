@@ -74,6 +74,28 @@ def connection_status(other_id: int):
     return jsonify(_status_payload(conn, user_id)), 200
 
 
+# ── GET /api/connections/<id> — one connection the caller is part of ──────────
+@connections_bp.route("/<int:connection_id>", methods=["GET"])
+@auth_required
+def get_connection(connection_id: int):
+    """Return a connection row if the caller is requester or addressee."""
+    user_id = int(get_jwt_identity())
+    conn = db.session.get(Connection, connection_id)
+    if not conn:
+        return jsonify({"error": "Connection request not found"}), 404
+    if conn.requester_id != user_id and conn.addressee_id != user_id:
+        return jsonify({
+            "error": "Forbidden",
+            "message": "You are not part of this connection",
+        }), 403
+    payload = _status_payload(conn, user_id)
+    other_id = (
+        conn.addressee_id if conn.requester_id == user_id else conn.requester_id
+    )
+    payload["other_user_id"] = other_id
+    return jsonify(payload), 200
+
+
 # ── POST /api/connections — send a request ───────────────────────────────────
 @connections_bp.route("", methods=["POST"])
 @auth_required
@@ -121,7 +143,7 @@ def send_connection_request():
         notif_type="connection_request",
         title="New connection request",
         body=f"{_display_name(me)} wants to connect with you. "
-             "Open their profile from Search to accept.",
+             "Open this notification to accept.",
         entity_type="Connection",
         entity_id=conn.id,
     )
