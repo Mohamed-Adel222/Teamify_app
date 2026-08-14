@@ -1,8 +1,8 @@
 from unittest.mock import patch
-import sys
 import types
 
 from services.email_service import (
+    EmailResult,
     PLACEHOLDER_API_KEY,
     is_configured,
     send_email,
@@ -26,17 +26,22 @@ class TestIsConfigured:
 
     def test_empty_flask_config_overrides_env(self, monkeypatch):
         monkeypatch.setenv("RESEND_API_KEY", "re_from_env")
-        fake_flask = types.ModuleType("flask")
-        fake_flask.has_app_context = lambda: True
-        fake_flask.current_app = types.SimpleNamespace(config={"RESEND_API_KEY": ""})
-        monkeypatch.setitem(sys.modules, "flask", fake_flask)
+        monkeypatch.setattr(
+            "services.email_service.has_app_context", lambda: True
+        )
+        monkeypatch.setattr(
+            "services.email_service.current_app",
+            types.SimpleNamespace(config={"RESEND_API_KEY": ""}),
+        )
         assert is_configured() is False
 
 
 class TestSendEmail:
     def test_skips_when_unconfigured(self, monkeypatch):
         monkeypatch.delenv("RESEND_API_KEY", raising=False)
-        assert send_email(to="a@b.com", subject="Hi", html_body="<p>x</p>") is None
+        result = send_email(to="a@b.com", subject="Hi", html_body="<p>x</p>")
+        assert result.success is False
+        assert result.status == "skipped"
 
     @patch("resend.Emails.send")
     def test_sends_via_resend(self, m_send, monkeypatch):
@@ -50,7 +55,8 @@ class TestSendEmail:
             html_body="<p>Congrats on sending your <strong>first email</strong>!</p>",
         )
 
-        assert result == {"id": "email_123"}
+        assert result.success is True
+        assert result.provider_message_id == "email_123"
         m_send.assert_called_once()
         params = m_send.call_args[0][0]
         assert params["from"] == "Teamify <onboarding@resend.dev>"
@@ -59,29 +65,40 @@ class TestSendEmail:
         assert "first email" in params["html"]
 
     @patch("resend.Emails.send", side_effect=RuntimeError("network"))
-    def test_send_failure_returns_none(self, _m_send, monkeypatch):
+    def test_send_failure_returns_failed(self, _m_send, monkeypatch):
         monkeypatch.setenv("RESEND_API_KEY", "re_test_not_a_real_key")
-        assert send_email(to="a@b.com", subject="Hi", html_body="<p>x</p>") is None
+        monkeypatch.setenv("MAIL_FROM_ADDRESS", "teamify@example.com")
+        result = send_email(to="a@b.com", subject="Hi", html_body="<p>x</p>")
+        assert result.success is False
+        assert result.status == "failed"
 
-    def test_empty_recipient_returns_none(self, monkeypatch):
+    def test_empty_recipient_is_skipped(self, monkeypatch):
         monkeypatch.setenv("RESEND_API_KEY", "re_test_not_a_real_key")
-        assert send_email(to="  ", subject="Hi", html_body="<p>x</p>") is None
+        result = send_email(to="  ", subject="Hi", html_body="<p>x</p>")
+        assert result.success is False
+        assert result.status == "skipped"
 
 
 class TestTransactionalHelpers:
-    @patch("services.email_service.send_email", return_value={"id": "otp"})
+    @patch(
+        "services.email_service.send_email",
+        return_value=EmailResult(True, "sent", provider_message_id="otp"),
+    )
     def test_password_reset_otp_escapes_html(self, m_send):
         send_password_reset_otp(
             to_email="a@b.com",
             otp="123456",
             display_name="<script>alert(1)</script>",
         )
-        html_body = m_send.call_args.kwargs["html_body"]
+        html_body = m_send.call_args.kwargs["html"]
         assert "&lt;script&gt;" in html_body
         assert "123456" in html_body
         assert m_send.call_args.kwargs["to"] == "a@b.com"
 
-    @patch("services.email_service.send_email", return_value={"id": "invite"})
+    @patch(
+        "services.email_service.send_email",
+        return_value=EmailResult(True, "sent", provider_message_id="invite"),
+    )
     def test_project_invitation_escapes_html(self, m_send):
         send_project_invitation_email(
             to_email="invitee@example.com",
@@ -89,7 +106,7 @@ class TestTransactionalHelpers:
             inviter_name="Sam <admin>",
             project_name="Q2 & Launch",
         )
-        html_body = m_send.call_args.kwargs["html_body"]
+        html_body = m_send.call_args.kwargs["html"]
         assert "Sam &lt;admin&gt;" in html_body
         assert "Q2 &amp; Launch" in html_body
         assert "<admin>" not in html_body

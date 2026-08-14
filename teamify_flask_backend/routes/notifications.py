@@ -82,8 +82,18 @@ def get_notifications():
 
     unread_count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
 
+    deliveries = {}
+    try:
+        from models.email_delivery import EmailDelivery
+
+        deliveries = EmailDelivery.latest_by_notification_ids([n.id for n in notifications])
+    except Exception:
+        logger.debug("Could not load email delivery status", exc_info=True)
+
     return jsonify({
-        "notifications": [n.to_dict() for n in notifications],
+        "notifications": [
+            n.to_dict(email_delivery=deliveries.get(n.id)) for n in notifications
+        ],
         "total": len(notifications),
         "unread_count": unread_count,
     }), 200
@@ -164,7 +174,17 @@ def mark_as_read(notif_id):
 
     notif.is_read = True
     db.session.commit()
-    return jsonify({"message": "Marked as read", "notification": notif.to_dict()}), 200
+    delivery = None
+    try:
+        from models.email_delivery import EmailDelivery
+
+        delivery = EmailDelivery.latest_by_notification_ids([notif.id]).get(notif.id)
+    except Exception:
+        pass
+    return jsonify({
+        "message": "Marked as read",
+        "notification": notif.to_dict(email_delivery=delivery),
+    }), 200
 
 
 # ─── POST /api/notifications/mark-all-read ───────────────────────────────────
@@ -311,10 +331,17 @@ def create_notification(
     body: str | None = None,
     entity_type: str | None = None,
     entity_id: int | None = None,
+    *,
+    queue_email: bool = True,
+    email_idempotency_key: str | None = None,
+    is_mention: bool = False,
 ) -> Notification:
     """
     Persist a Notification row AND emit a real-time Socket.IO event to the
     user's personal room (``user_<user_id>``).
+
+    When ``queue_email`` is true, email delivery is scheduled after the HTTP
+    response (or spawned in background). Email failure never raises.
 
     The caller is responsible for calling ``db.session.commit()`` after this
     function returns (or the caller can rely on an enclosing commit).
@@ -337,6 +364,18 @@ def create_notification(
 
     # Emit real-time event to the user's personal Socket.IO room
     _emit_notification(user_id, notif)
+
+    if queue_email and getattr(notif, "id", None):
+        try:
+            from services.notification_email_service import queue_notification_email
+
+            queue_notification_email(
+                notif.id,
+                idempotency_key=email_idempotency_key,
+                is_mention=is_mention or notif_type == "chat_mention",
+            )
+        except Exception:
+            logger.warning("Failed to queue notification email", exc_info=True)
 
     return notif
 

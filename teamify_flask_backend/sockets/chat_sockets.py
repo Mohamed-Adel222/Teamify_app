@@ -52,6 +52,8 @@ logger = logging.getLogger(__name__)
 _sid_to_uid: dict[str, int] = {}
 # sid → set of room names joined (so we can leave them all on disconnect)
 _sid_to_rooms: dict[str, set[str]] = {}
+# user_id → last activity (connect / join / message / disconnect)
+_uid_last_seen: dict[int, float] = {}
 
 # RLock is greenlet-safe with gevent
 _lock = gevent.lock.RLock()
@@ -61,6 +63,35 @@ _registered = False
 
 # chat room_id → set of user_ids currently in an active meeting
 _meeting_active: dict[int, set[int]] = {}
+
+
+def is_user_connected(user_id: int) -> bool:
+    """True when the user currently has at least one Socket.IO connection."""
+    uid = int(user_id)
+    with _lock:
+        return uid in _sid_to_uid.values()
+
+
+def user_inactive_for(user_id: int, minutes: int) -> bool:
+    """True when the user has no live socket, or last seen is older than ``minutes``."""
+    import time
+
+    uid = int(user_id)
+    with _lock:
+        connected = uid in _sid_to_uid.values()
+        last = _uid_last_seen.get(uid)
+    if connected:
+        return False
+    if last is None:
+        return True
+    return (time.time() - last) >= (minutes * 60)
+
+
+def _touch_presence(user_id: int) -> None:
+    import time
+
+    with _lock:
+        _uid_last_seen[int(user_id)] = time.time()
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +210,7 @@ def register_chat_events(socketio) -> None:
         with _lock:
             _sid_to_uid[sid] = user_id
             _sid_to_rooms[sid] = set()
+        _touch_presence(user_id)
 
         # Auto-join the user's personal notification room.
         # Backend emits "new_notification" events to this room.
@@ -226,6 +258,7 @@ def register_chat_events(socketio) -> None:
                 pass  # already removed by engine
 
         if uid is not None:
+            _touch_presence(uid)
             _leave_all_meetings_for_user(socketio, uid)
 
         logger.info("[WS] ✗ Disconnected sid=%s user=%s", sid, uid)
@@ -275,6 +308,7 @@ def register_chat_events(socketio) -> None:
                 _sid_to_rooms[sid].add(room_name)
 
         emit("joined", {"room_id": room_id, "user_id": user_id}, to=room_name)
+        _touch_presence(user_id)
         logger.info("[WS] user=%s joined room=%s", user_id, room_name)
         return {"ok": True, "room_id": room_id}
 
@@ -422,6 +456,18 @@ def register_chat_events(socketio) -> None:
         room_name = f"chat_{room_id}"
         payload = msg.to_dict()
         emit("receive_message", payload, to=room_name)
+        _touch_presence(user_id)
+        try:
+            from services.chat_notification_service import (
+                notify_chat_message,
+                queue_chat_notification_emails,
+            )
+
+            created = notify_chat_message(msg, user_id)
+            db.session.commit()
+            queue_chat_notification_emails(created)
+        except Exception:
+            logger.warning("Chat notification after websocket send failed", exc_info=True)
         logger.info(
             "[WS] msg room=%s user=%s type=%s",
             room_id,

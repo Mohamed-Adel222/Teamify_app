@@ -8,9 +8,8 @@ from models.project import Project
 from models.project_invitation import ProjectInvitation
 from models.project_member import ProjectMember
 from models.user import User
-from routes.notifications import _merged_preferences, create_notification
+from routes.notifications import create_notification
 from services.chat_room_service import ensure_project_chat_room
-from services.email_service import send_project_invitation_email
 
 
 def _display_name(user: User | None) -> str:
@@ -94,18 +93,6 @@ def invite_users_to_project(
             entity_type="ProjectInvitation",
             entity_id=invitation.id,
         )
-        prefs = _merged_preferences(getattr(target, "notification_prefs", None))
-        if (
-            target.email
-            and prefs.get("masterEmailEnabled", True)
-            and prefs.get("emailTeamInvitations", True)
-        ):
-            send_project_invitation_email(
-                to_email=target.email,
-                invitee_name=target.full_name or target.display_name,
-                inviter_name=_display_name(inviter),
-                project_name=project.name,
-            )
         invited.append(mid)
 
     return invited, skipped

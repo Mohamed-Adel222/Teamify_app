@@ -73,7 +73,10 @@ class _NotificationDetailsScreenState extends State<NotificationDetailsScreen> {
     final notif = args is NotificationViewModel
         ? args
         : args is ApiNotification
-            ? NotificationViewModel(apiNotification: args)
+            ? NotificationViewModel(
+                apiNotification: args,
+                emailDelivered: args.emailDelivered,
+              )
             : null;
 
     if (notif == null) {

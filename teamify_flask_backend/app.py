@@ -216,6 +216,22 @@ def _apply_runtime_schema_patches(app: Flask) -> None:
     except Exception as exc:
         app.logger.warning("Schema patch messages.idempotency_key skipped: %s", exc)
 
+    try:
+        insp = inspect(db.engine)
+        if "users" in insp.get_table_names():
+            col = next(
+                (c for c in insp.get_columns("users") if c["name"] == "otp_code"),
+                None,
+            )
+            if col is not None:
+                col_type = str(col.get("type") or "")
+                if "6" in col_type and "128" not in col_type and db.engine.dialect.name == "postgresql":
+                    with db.engine.begin() as conn:
+                        conn.execute(text("ALTER TABLE users ALTER COLUMN otp_code TYPE VARCHAR(128)"))
+                    app.logger.info("Schema patch: widened users.otp_code")
+    except Exception as exc:
+        app.logger.warning("Schema patch users.otp_code skipped: %s", exc)
+
     _ensure_runtime_indexes(app)
 
 
@@ -582,6 +598,7 @@ def create_app(test_config=None):
             AdminSession,
         )
         from models.system_setting import SystemSetting  # noqa: F401
+        from models.email_delivery import EmailDelivery  # noqa: F401
 
         db.create_all()
         _apply_runtime_schema_patches(app)

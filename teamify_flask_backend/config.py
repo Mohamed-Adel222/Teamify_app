@@ -127,13 +127,20 @@ class Config:
     # Optional: Anthropic Claude API key for mentor report generation
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
-    # Resend transactional email. Replace re_xxxxxxxxx with your real API key.
-    # Leave unset (or keep the placeholder) to skip sending in local/dev.
-    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-    RESEND_FROM_EMAIL = os.getenv(
-        "RESEND_FROM_EMAIL",
-        "Teamify <onboarding@resend.dev>",
-    )
+    # ── Transactional email (Resend) ──────────────────────────────────────────
+    # One centralized Teamify sender. The project owner must verify the domain
+    # and from-address with the provider; the app cannot create them itself.
+    MAIL_PROVIDER = (os.getenv("MAIL_PROVIDER") or "resend").strip().lower()
+    RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
+    MAIL_FROM_NAME = (os.getenv("MAIL_FROM_NAME") or "Teamify").strip() or "Teamify"
+    _from_raw = (
+        os.getenv("MAIL_FROM_ADDRESS") or os.getenv("RESEND_FROM_EMAIL") or ""
+    ).strip()
+    if "<" in _from_raw and ">" in _from_raw:
+        _from_raw = _from_raw[_from_raw.find("<") + 1:_from_raw.find(">")].strip()
+    MAIL_FROM_ADDRESS = _from_raw
+    # Optional public app URL used in email CTA / preferences links.
+    MAIL_APP_BASE_URL = (os.getenv("MAIL_APP_BASE_URL") or "").strip().rstrip("/")
 
     # Redis (optional — falls back to in-memory when unset)
     REDIS_URL = os.getenv("REDIS_URL", "")

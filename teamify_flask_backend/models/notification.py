@@ -29,7 +29,12 @@ class Notification(db.Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def to_dict(self):
+    def to_dict(self, email_delivery=None):
+        email_status = None
+        email_delivered = False
+        if email_delivery is not None:
+            email_status = getattr(email_delivery, "public_status", lambda: None)()
+            email_delivered = bool(getattr(email_delivery, "is_sent", False))
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -39,7 +44,11 @@ class Notification(db.Model):
             "is_read": self.is_read,
             "entity_type": self.entity_type,
             "entity_id": self.entity_id,
+            "entity_id": self.entity_id,
             "created_at": utc_iso(self.created_at),
+            "email_delivered": email_delivered,
+            "emailDelivered": email_delivered,
+            "email_status": email_status,
         }
 
     def __repr__(self):

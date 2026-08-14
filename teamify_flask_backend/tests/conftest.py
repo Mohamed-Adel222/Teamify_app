@@ -238,6 +238,9 @@ def _make_notification(nid=NOTIFICATION_ID, user_id=MEMBER_USER_ID,
         "entity_type": None,
         "entity_id": None,
         "created_at": "2025-01-01T00:00:00+00:00",
+        "email_delivered": False,
+        "emailDelivered": False,
+        "email_status": None,
     }
     return notif
 

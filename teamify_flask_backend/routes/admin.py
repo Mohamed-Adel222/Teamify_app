@@ -153,6 +153,19 @@ def change_user_role(user_id):
         return jsonify({"error": "Invalid role. Must be 'admin', 'member', or 'guest'"}), 400
 
     user.role = role
+    try:
+        from routes.notifications import create_notification
+
+        create_notification(
+            user_id=user_id,
+            notif_type="role_changed",
+            title="Your role was updated",
+            body=f"Your Teamify role is now '{role}'.",
+            entity_type="User",
+            entity_id=user_id,
+        )
+    except Exception:
+        pass
     db.session.commit()
 
     admin_id = int(get_jwt_identity())

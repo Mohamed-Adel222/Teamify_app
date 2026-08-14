@@ -2377,7 +2377,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!mounted) return;
       setState(() {
         _items = list
-            .map((apiNotif) => NotificationViewModel(apiNotification: apiNotif))
+            .map((apiNotif) => NotificationViewModel(
+                  apiNotification: apiNotif,
+                  emailDelivered: apiNotif.emailDelivered,
+                ))
             .toList();
         _loading = false;
       });

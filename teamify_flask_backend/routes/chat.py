@@ -532,6 +532,18 @@ def send_message(room_id):
 
     _broadcast_message(msg)
 
+    try:
+        from services.chat_notification_service import (
+            notify_chat_message,
+            queue_chat_notification_emails,
+        )
+
+        created = notify_chat_message(msg, user_id)
+        db.session.commit()
+        queue_chat_notification_emails(created)
+    except Exception:
+        pass
+
     return jsonify({"message": "Message sent", "data": msg.to_dict()}), 201
 
 

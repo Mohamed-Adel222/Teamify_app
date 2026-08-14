@@ -49,4 +49,25 @@ void main() {
     expect(project.tasks.single.id, '3');
     expect(project.tasks.single.projectId, '7');
   });
+
+  test('ApiNotification maps email_delivered from the backend', () {
+    final sent = ApiNotification.fromJson({
+      'id': 9,
+      'title': 'Task assigned',
+      'body': 'You have a new task',
+      'is_read': false,
+      'type': 'task_assigned',
+      'email_delivered': true,
+      'email_status': 'sent',
+    });
+    expect(sent.emailDelivered, isTrue);
+    expect(sent.emailStatus, 'sent');
+
+    final inAppOnly = ApiNotification.fromJson({
+      'id': 10,
+      'title': 'Task assigned',
+      'type': 'task_assigned',
+    });
+    expect(inAppOnly.emailDelivered, isFalse);
+  });
 }

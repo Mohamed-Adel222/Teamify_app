@@ -168,19 +168,18 @@ class TestLogout:
 class TestForgotPassword:
     URL = "/api/auth/forgot-password"
 
-    @patch("routes.auth.send_password_reset_otp")
+    @patch("routes.auth.send_password_reset_email")
     @patch("routes.auth.User")
     def test_existing_email_200(self, m_user, m_send, client):
         u = _make_user(MEMBER_USER_ID); u.generate_otp.return_value = "123456"
         m_user.query.filter_by.return_value.first.return_value = u
         assert client.post(self.URL, json={"email": "a@b.com"}).status_code == 200
-        m_send.assert_called_once_with(
-            to_email=u.email,
-            otp="123456",
-            display_name=u.full_name or u.display_name,
-        )
+        m_send.assert_called_once()
+        kwargs = m_send.call_args.kwargs
+        assert kwargs["to"] == u.email
+        assert kwargs["otp"] == "123456"
 
-    @patch("routes.auth.send_password_reset_otp")
+    @patch("routes.auth.send_password_reset_email")
     @patch("routes.auth.User")
     def test_nonexistent_email_still_200(self, m_user, m_send, client):
         m_user.query.filter_by.return_value.first.return_value = None

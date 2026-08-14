@@ -126,9 +126,6 @@ def send_connection_request():
         entity_id=conn.id,
     )
 
-    from services.email_service import send_connection_request_email
-    send_connection_request_email(other, _display_name(me))
-
     db.session.commit()
     return jsonify(_status_payload(conn, user_id)), 201
 
