@@ -17,6 +17,7 @@ enum SocketEvent {
   notification,
   taskUpdate,
   projectUpdate,
+  error,
 }
 
 /// Payload delivered with every [SocketEvent].
@@ -264,6 +265,10 @@ class WebSocketManager {
       _emit(SocketEvent.messageDeleted, _asMap(data));
     });
 
+    socket.on('error', (data) {
+      _emit(SocketEvent.error, _asMap(data));
+    });
+
     socket.on('meeting_presence', (data) {
       _emit(SocketEvent.meetingPresence, _asMap(data));
     });
@@ -310,6 +315,7 @@ class WebSocketManager {
         'new_message',
         'message',
         'message_deleted',
+        'error',
         'new_notification',
         'notification',
         'task_update',

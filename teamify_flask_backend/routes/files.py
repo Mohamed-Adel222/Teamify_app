@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import logging
+import mimetypes
 import os
 import re
 import unicodedata
@@ -39,6 +40,8 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 # magic bytes to detect spoofed Content-Type headers.
 ALLOWED_MIME_PREFIXES: tuple[str, ...] = (
     "image/",
+    "audio/",
+    "video/",
     "application/pdf",
     "text/plain",
     "text/csv",
@@ -235,7 +238,15 @@ def upload_file():
         return jsonify({"error": f"File exceeds {limit_mb} MB limit"}), 413
 
     # ── 3. MIME validation (client-supplied header) ───────────────────────
-    mime = (upload.mimetype or "application/octet-stream").split(";")[0].strip()
+    # Flutter/Dio often sends application/octet-stream for byte uploads.
+    # Fall back to guessing from the sanitized filename in that case.
+    mime = (upload.mimetype or "").split(";")[0].strip().lower()
+    if not mime or mime == "application/octet-stream":
+        guessed, _ = mimetypes.guess_type(original_filename)
+        if guessed:
+            mime = guessed.split(";")[0].strip().lower()
+    if not mime:
+        mime = "application/octet-stream"
     if not _is_allowed_mime(mime):
         logger.warning(
             "Blocked upload with MIME '%s' by user %s", mime, get_jwt_identity()

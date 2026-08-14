@@ -21,13 +21,40 @@ _PASSWORD_PATTERNS = {
     ),
 }
 
+_LEGACY_DEFAULT_FILE_TYPES = frozenset({"pdf", "doc", "docx", "png", "jpg", "jpeg"})
+_DEFAULT_ALLOWED_FILE_TYPES = [
+    "pdf",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx",
+    "txt",
+    "csv",
+    "zip",
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "webp",
+    "heic",
+    "mp3",
+    "wav",
+    "m4a",
+    "ogg",
+    "webm",
+    "mp4",
+    "mov",
+]
+
 _SYSTEM_SETTING_DEFAULTS: dict[str, Any] = {
     "registrations_enabled": True,
     "maintenance_mode": False,
     "ai_mentorship_enabled": True,
     "ai_daily_limit_per_user": 100,
-    "max_upload_size_mb": 5,
-    "allowed_file_types": ["pdf", "doc", "docx", "png", "jpg", "jpeg"],
+    "max_upload_size_mb": 10,
+    "allowed_file_types": list(_DEFAULT_ALLOWED_FILE_TYPES),
     "session_timeout_minutes": 60,
     "password_policy": "medium",
     "email_notifications": True,
@@ -114,7 +141,7 @@ def get_system_settings() -> dict[str, Any]:
         "ai_enabled": ai_enabled,
         "ai_mentorship_enabled": ai_enabled,
         "ai_limits": _coerce_int(settings.get("ai_daily_limit_per_user"), 100),
-        "max_upload_size_mb": _coerce_int(settings.get("max_upload_size_mb"), 5),
+        "max_upload_size_mb": _coerce_int(settings.get("max_upload_size_mb"), 10),
         "allowed_file_types": file_types,
         "session_timeout_min": session_timeout,
         "session_timeout_minutes": session_timeout,
@@ -204,12 +231,22 @@ def get_session_timeout_minutes() -> int:
 
 
 def get_upload_max_bytes() -> int:
-    mb = max(1, _coerce_int(get_system_settings().get("max_upload_size_mb"), 5))
+    mb = max(1, _coerce_int(get_system_settings().get("max_upload_size_mb"), 10))
     return mb * 1024 * 1024
 
 
 def get_allowed_file_extensions() -> set[str]:
-    return set(_parse_file_types(get_system_settings().get("allowed_file_types")))
+    stored = {
+        ext
+        for ext in _parse_file_types(get_system_settings().get("allowed_file_types"))
+        if ext.replace("+", "").replace("-", "").isalnum() and 1 <= len(ext) <= 8
+    }
+    # Existing installs were seeded with a list that blocked chat attachments
+    # (camera photos as webp/heic, documents, audio, video). Expand only when
+    # the stored value is still that original default.
+    if not stored or stored == _LEGACY_DEFAULT_FILE_TYPES:
+        return set(_DEFAULT_ALLOWED_FILE_TYPES)
+    return stored
 
 
 def get_public_settings() -> dict[str, Any]:

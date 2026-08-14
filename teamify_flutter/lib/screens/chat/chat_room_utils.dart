@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,6 +17,10 @@ ChatRoom chatRoomFromApi(Map<String, dynamic> json) {
   var time = '';
   if (last is Map<String, dynamic>) {
     lastMessage = last['content']?.toString() ?? lastMessage;
+    lastMessage = _previewChatContent(
+      lastMessage,
+      last['message_type']?.toString(),
+    );
     final sender = last['sender_name']?.toString();
     if (sender != null && sender.isNotEmpty) {
       lastMessage = '$sender: $lastMessage';
@@ -49,6 +55,31 @@ String? projectIdFromChatRoomPayload(Map<String, dynamic> data) {
   final flat = data['project_id']?.toString();
   if (flat != null && flat.isNotEmpty) return flat;
   return null;
+}
+
+String _previewChatContent(String content, String? messageType) {
+  switch (messageType) {
+    case 'image':
+      return 'Photo';
+    case 'video':
+      return 'Video';
+    case 'audio':
+      return 'Voice message';
+    case 'file':
+      return 'Document';
+    case 'poll':
+    case 'event':
+      try {
+        final decoded = jsonDecode(content);
+        if (decoded is Map) {
+          return (decoded['question'] ?? decoded['title'] ?? messageType)
+              .toString();
+        }
+      } catch (_) {}
+      return messageType ?? content;
+    default:
+      return content;
+  }
 }
 
 /// Opens (or creates) the team chat room for a project and navigates to it.

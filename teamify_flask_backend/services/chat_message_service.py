@@ -1,6 +1,7 @@
 """Create chat messages (text + file attachments)."""
 from __future__ import annotations
 
+import json
 from typing import Any, Optional, Tuple
 
 from flask import jsonify
@@ -8,6 +9,28 @@ from flask import jsonify
 from models import db
 from models.chat import ChatRoom, Message
 from models.file_metadata import FileMetadata
+
+_ALLOWED_MESSAGE_TYPES = frozenset(
+    {"text", "image", "file", "audio", "video", "poll", "event"}
+)
+_FILE_MESSAGE_TYPES = frozenset({"image", "file", "audio", "video"})
+_STRUCTURED_MESSAGE_TYPES = frozenset({"poll", "event"})
+
+
+def _looks_like_json_object(value: Any) -> bool:
+    text = str(value).strip()
+    return text.startswith("{") and text.endswith("}")
+
+
+def _infer_type_from_mime(mime: str) -> str:
+    mime = (mime or "").lower()
+    if mime.startswith("image/"):
+        return "image"
+    if mime.startswith("audio/"):
+        return "audio"
+    if mime.startswith("video/"):
+        return "video"
+    return "file"
 
 
 def create_chat_message(
@@ -21,12 +44,35 @@ def create_chat_message(
     """
     content = (data.get("content") or "").strip()
     message_type = (data.get("message_type") or "text").strip().lower()
-    if message_type not in ("text", "image", "file"):
+    if message_type not in _ALLOWED_MESSAGE_TYPES:
         message_type = "text"
 
-    file_id: Optional[int] = None
     raw_file = data.get("file_id")
-    if raw_file is not None and str(raw_file).strip() != "":
+    file_id: Optional[int] = None
+
+    # Polls/events are JSON in `content`. Older clients stuffed that JSON into
+    # `file_id` and put a plain title/question in `content`.
+    if message_type in _STRUCTURED_MESSAGE_TYPES:
+        if raw_file is not None and _looks_like_json_object(raw_file):
+            content = str(raw_file).strip()
+        if not content:
+            return None, (
+                jsonify({"error": f"{message_type} content is required"}),
+                400,
+            )
+        try:
+            parsed = json.loads(content)
+            if not isinstance(parsed, dict):
+                return None, (
+                    jsonify({"error": f"Invalid {message_type} payload"}),
+                    400,
+                )
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None, (
+                jsonify({"error": f"Invalid {message_type} payload"}),
+                400,
+            )
+    elif raw_file is not None and str(raw_file).strip() != "":
         try:
             file_id = int(raw_file)
         except (TypeError, ValueError):
@@ -39,12 +85,11 @@ def create_chat_message(
         if not content:
             content = (meta.original_filename or "Attachment").strip()
         if message_type == "text":
-            mime = (meta.mime_type or "").lower()
-            message_type = "image" if mime.startswith("image/") else "file"
+            message_type = _infer_type_from_mime(meta.mime_type or "")
 
     if message_type == "text" and not content:
         return None, (jsonify({"error": "content is required"}), 400)
-    if message_type in ("image", "file") and file_id is None:
+    if message_type in _FILE_MESSAGE_TYPES and file_id is None:
         return None, (jsonify({"error": "file_id is required for attachments"}), 400)
 
     room = db.session.get(ChatRoom, room_id)

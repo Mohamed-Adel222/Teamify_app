@@ -108,7 +108,7 @@ class ChatMessage {
   final bool isMe;
   final bool isPending;
 
-  /// text | image | file
+  /// text | image | file | audio | video | poll | event
   final String messageType;
   final String? fileId;
   final String? fileName;

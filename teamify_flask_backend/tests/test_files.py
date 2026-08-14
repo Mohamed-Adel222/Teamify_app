@@ -189,8 +189,46 @@ class TestUploadFileSecurity:
         r = client.post(self.URL, headers=headers, data=data, content_type="multipart/form-data")
         assert r.status_code == 201
 
+    @patch("routes.files.FileMetadata")
+    @patch("routes.files.encrypt_bytes")
+    @patch("routes.files.sha256_hex")
+    @patch("routes.files.os")
+    def test_allowed_audio_mime_201(self, m_os, m_sha, m_enc, m_fm, client, member_headers):
+        """audio/* MIME types pass the allowlist."""
+        m_sha.return_value = "eeff"
+        m_enc.return_value = b"enc"
+        m_os.path.join.return_value = "/tmp/f.enc"
+        m_os.O_WRONLY = 1; m_os.O_CREAT = 2; m_os.O_EXCL = 4
+        m_os.open.return_value = 99
+        m_os.fdopen.return_value.__enter__ = MagicMock()
+        m_os.fdopen.return_value.__exit__ = MagicMock(return_value=False)
+        fm = _make_file_meta()
+        m_fm.return_value = fm
+        data = {"file": (io.BytesIO(b"ID3" + b"\x00" * 100), "voice_note.mp3", "audio/mpeg")}
+        headers = {"Authorization": member_headers["Authorization"]}
+        r = client.post(self.URL, headers=headers, data=data, content_type="multipart/form-data")
+        assert r.status_code == 201
 
-# ── Unit tests: security helpers (no HTTP, no mocking needed) ─────────────────
+    @patch("routes.files.FileMetadata")
+    @patch("routes.files.encrypt_bytes")
+    @patch("routes.files.sha256_hex")
+    @patch("routes.files.os")
+    def test_octet_stream_guessed_from_filename_201(self, m_os, m_sha, m_enc, m_fm, client, member_headers):
+        """Byte uploads that send application/octet-stream are typed from the filename."""
+        m_sha.return_value = "1122"
+        m_enc.return_value = b"enc"
+        m_os.path.join.return_value = "/tmp/f.enc"
+        m_os.O_WRONLY = 1; m_os.O_CREAT = 2; m_os.O_EXCL = 4
+        m_os.open.return_value = 99
+        m_os.fdopen.return_value.__enter__ = MagicMock()
+        m_os.fdopen.return_value.__exit__ = MagicMock(return_value=False)
+        fm = _make_file_meta()
+        m_fm.return_value = fm
+        data = {"file": (io.BytesIO(b"\xff\xd8\xff" + b"x" * 100), "camera_photo.jpg", "application/octet-stream")}
+        headers = {"Authorization": member_headers["Authorization"]}
+        r = client.post(self.URL, headers=headers, data=data, content_type="multipart/form-data")
+        assert r.status_code == 201
+
 
 class TestFileSecurityHelpers:
     """Pure-unit tests for the security validation helpers in routes/files.py."""
