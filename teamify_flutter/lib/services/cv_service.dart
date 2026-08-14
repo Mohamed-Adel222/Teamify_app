@@ -111,10 +111,24 @@ class CVService with ServiceErrorHandler {
     return result;
   }
 
+  /// CV of another user (profile view). Failure when the user has no CV.
+  Future<ApiResult<ApiCV>> getUserCv(String userId) => _dedup.deduplicate(
+      'cv_user_$userId', () => guard(() => _repo.getCvByUser(userId)));
+
   // ── Exports ────────────────────────────────────────────────────────────────
 
   Future<ApiResult<String>> generateExportToken(String id) =>
       guard(() => _repo.generateExportToken(id));
+
+  /// Download another user's CV as PDF bytes.
+  Future<ApiResult<({Uint8List bytes, String filename})>> exportUserPdf(
+    String userId, {
+    String filename = 'resume.pdf',
+  }) =>
+      guard(() async {
+        final response = await _repo.exportPdfByUser(userId);
+        return _parsePdfResponse(response, filename);
+      });
 
   Future<ApiResult<({Uint8List bytes, String filename})>> exportPdf(
     String id, {
@@ -122,32 +136,39 @@ class CVService with ServiceErrorHandler {
   }) =>
       guard(() async {
         final response = await _repo.exportPdf(id);
-        final dynamic raw = response.data;
-        final Uint8List bytes;
-        if (raw is Uint8List) {
-          bytes = raw;
-        } else if (raw is List<int>) {
-          bytes = Uint8List.fromList(raw);
-        } else if (raw is String && raw.isNotEmpty) {
-          // Dio on web may return binary PDF bodies as a Latin-1 string.
-          bytes = Uint8List.fromList(raw.codeUnits);
-        } else {
-          bytes = Uint8List(0);
-        }
-        if (bytes.isEmpty) {
-          throw Exception('PDF export returned empty file');
-        }
-        if (bytes.length < 4 || String.fromCharCodes(bytes.take(4)) != '%PDF') {
-          throw Exception('Server did not return a valid PDF');
-        }
-        var name = filename;
-        final cd = response.headers.value('content-disposition');
-        if (cd != null) {
-          final match = RegExp(r'filename="?([^";\n]+)"?').firstMatch(cd);
-          if (match != null) {
-            name = match.group(1)!.trim();
-          }
-        }
-        return (bytes: bytes, filename: name);
+        return _parsePdfResponse(response, filename);
       });
+
+  ({Uint8List bytes, String filename}) _parsePdfResponse(
+    dynamic response,
+    String filename,
+  ) {
+    final dynamic raw = response.data;
+    final Uint8List bytes;
+    if (raw is Uint8List) {
+      bytes = raw;
+    } else if (raw is List<int>) {
+      bytes = Uint8List.fromList(raw);
+    } else if (raw is String && raw.isNotEmpty) {
+      // Dio on web may return binary PDF bodies as a Latin-1 string.
+      bytes = Uint8List.fromList(raw.codeUnits);
+    } else {
+      bytes = Uint8List(0);
+    }
+    if (bytes.isEmpty) {
+      throw Exception('PDF export returned empty file');
+    }
+    if (bytes.length < 4 || String.fromCharCodes(bytes.take(4)) != '%PDF') {
+      throw Exception('Server did not return a valid PDF');
+    }
+    var name = filename;
+    final cd = response.headers.value('content-disposition');
+    if (cd != null) {
+      final match = RegExp(r'filename="?([^";\n]+)"?').firstMatch(cd);
+      if (match != null) {
+        name = match.group(1)!.trim();
+      }
+    }
+    return (bytes: bytes, filename: name);
+  }
 }

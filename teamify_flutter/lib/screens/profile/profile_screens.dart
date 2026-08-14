@@ -708,6 +708,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _email;
   final _phone = TextEditingController();
   final _bio = TextEditingController();
+  final _portfolio = TextEditingController();
   UniversityOption? _selectedUniversity;
   final _customUniCtrl = TextEditingController();
 
@@ -750,6 +751,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _email.dispose();
     _phone.dispose();
     _bio.dispose();
+    _portfolio.dispose();
     _customUniCtrl.dispose();
     super.dispose();
   }
@@ -764,6 +766,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _email.text = user.email;
         _phone.text = user.phone;
         _bio.text = user.bio;
+        _portfolio.text = user.portfolioUrl;
         _avatarFileId =
             user.avatarFileId.isNotEmpty ? user.avatarFileId : null;
         _initUniversity(user);
@@ -797,6 +800,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _email.text = user.email;
         _phone.text = user.phone;
         _bio.text = user.bio;
+        _portfolio.text = user.portfolioUrl;
         _avatarFileId = user.avatarFileId.isNotEmpty ? user.avatarFileId : null;
         _avatarBytes = null;
         setState(() => _loadingProfile = false);
@@ -923,6 +927,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           email: _email.text.trim(),
           phone: _phone.text.trim(),
           bio: _bio.text.trim(),
+          portfolioUrl: _portfolio.text.trim(),
           avatarFileId: _avatarFileId ?? current.avatarFileId,
           universityId: uniToSend?.id ?? current.universityId,
           universityName: uniToSend?.name ?? current.universityName,
@@ -947,6 +952,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       'email': _email.text.trim(),
       'phone': _phone.text.trim(),
       'bio': _bio.text.trim(),
+      'portfolio_url': _portfolio.text.trim(),
     };
     if (_avatarFileId != null) {
       payload['avatar_file_id'] = int.tryParse(_avatarFileId!) ?? _avatarFileId;
@@ -1126,6 +1132,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             style: TextStyle(color: onSurface),
                             maxLines: 3,
                             decoration: _inputDec('About you')),
+                        const SizedBox(height: 12),
+                        Text('GitHub / Portfolio Link',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, color: onSurface)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Shown on your public profile so others can view your work',
+                          style: TextStyle(fontSize: 12, color: secColor),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                            controller: _portfolio,
+                            style: TextStyle(color: onSurface),
+                            decoration:
+                                _inputDec('e.g. github.com/your_username'),
+                            keyboardType: TextInputType.url,
+                            autocorrect: false,
+                            enableSuggestions: false),
                       ]);
                 })),
                 const SizedBox(height: 16),

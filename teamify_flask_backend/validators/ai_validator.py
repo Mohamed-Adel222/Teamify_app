@@ -62,12 +62,12 @@ class AssignTaskSchema(Schema):
         return data
 
     @validates("project_id")
-    def validate_project_id(self, value):
+    def validate_project_id(self, value, **kwargs):
         if value <= 0:
             raise ValidationError("project_id must be a positive integer")
 
     @validates("task_id")
-    def validate_task_id(self, value):
+    def validate_task_id(self, value, **kwargs):
         if value is not None and value <= 0:
             raise ValidationError("task_id must be a positive integer")
 
@@ -100,12 +100,12 @@ class DelayRequestSchema(Schema):
             )
 
     @validates("project_id")
-    def validate_project_id(self, value):
+    def validate_project_id(self, value, **kwargs):
         if value is not None and value <= 0:
             raise ValidationError("project_id must be a positive integer")
 
     @validates("task_id")
-    def validate_task_id(self, value):
+    def validate_task_id(self, value, **kwargs):
         if value is not None and value <= 0:
             raise ValidationError("task_id must be a positive integer")
 

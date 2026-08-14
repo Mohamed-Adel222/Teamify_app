@@ -93,6 +93,11 @@ def invite_users_to_project(
             entity_type="ProjectInvitation",
             entity_id=invitation.id,
         )
+
+        from services.email_service import send_project_invitation_email
+        send_project_invitation_email(
+            target, _display_name(inviter), project.name
+        )
         invited.append(mid)
 
     return invited, skipped

@@ -97,22 +97,7 @@ String _getPresenceLabel(MockUserPresence presence) {
   }
 }
 
-DateTime? _parseMessageDate(String? iso) {
-  if (iso == null || iso.isEmpty) return null;
-  var parsed = DateTime.tryParse(iso);
-  if (parsed != null) return parsed.toLocal();
-  // SQLite / API sometimes returns "2026-05-25 10:00:00" without "T".
-  final normalized = iso.contains(' ') && !iso.contains('T')
-      ? iso.replaceFirst(' ', 'T')
-      : iso;
-  parsed = DateTime.tryParse(normalized);
-  if (parsed != null) return parsed.toLocal();
-  if (!iso.endsWith('Z') && !iso.contains('+')) {
-    parsed = DateTime.tryParse('${normalized}Z');
-    if (parsed != null) return parsed.toLocal();
-  }
-  return null;
-}
+DateTime? _parseMessageDate(String? iso) => parseApiDateTime(iso);
 
 String _formatChatDateLabel(DateTime dt) {
   final now = DateTime.now();
@@ -548,30 +533,50 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (!mounted) return;
     _ws = context.read<WebSocketManager>();
     final args = ModalRoute.of(context)?.settings.arguments;
-    final room = args is ChatRoom
-        ? args
-        : (args is ApiUser
-            ? ChatRoom(
-                id: 'dm_${args.id}',
-                name: args.primaryName,
-                lastMessage: 'Tap to message',
-                time: 'Just now',
-                initials: args.initials,
-                isGroup: false,
-              )
-            : null);
+    ChatRoom? room = args is ChatRoom ? args : null;
+    if (room == null && args is ApiUser) {
+      // Direct message: resolve (or create) the real 1:1 room on the server.
+      final res =
+          await context.read<AppServices>().chat.openDirectRoom(args.id);
+      if (!mounted) return;
+      if (res.isSuccess && res.data != null) {
+        room = chatRoomFromApi(res.data!);
+        // Show the peer's name, not the stored room name.
+        room = ChatRoom(
+          id: room.id,
+          name: args.primaryName,
+          lastMessage: room.lastMessage,
+          time: room.time,
+          initials: args.initials,
+          isGroup: false,
+          projectId: room.projectId,
+        );
+      } else {
+        setState(() => _loadingHistory = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.error ?? 'Could not open chat'),
+          ),
+        );
+        return;
+      }
+    }
     if (room == null) {
       setState(() => _loadingHistory = false);
       return;
     }
+    final resolvedRoom = room;
     setState(() {
-      _roomId = room.id;
-      _roomName = room.name;
-      _projectId = room.projectId;
+      _roomId = resolvedRoom.id;
+      _roomName = resolvedRoom.name;
+      _projectId = resolvedRoom.projectId;
     });
     try {
-      final roomData =
-          await context.read<AppServices>().chat.getRoom(room.id).unwrap();
+      final roomData = await context
+          .read<AppServices>()
+          .chat
+          .getRoom(resolvedRoom.id)
+          .unwrap();
       if (mounted) {
         _projectId ??= projectIdFromChatRoomPayload(roomData);
         final members =
@@ -3240,8 +3245,11 @@ class _SmartQAScreenState extends State<SmartQAScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Request failed: $e')),
+        SnackBar(
+          content: Text('Could not get an answer from the server: $msg'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _asking = false);

@@ -284,6 +284,89 @@ def create_room():
     return jsonify({"message": "Room created", "room": room.to_dict()}), 201
 
 
+# ── Find or create a 1:1 direct-message room ─────────────────────────────────
+@chat_bp.route("/rooms/direct", methods=["POST"])
+@auth_required
+def open_direct_room():
+    """
+    Find (or create) the private 1:1 room between the caller and another user.
+    Direct messages do not require a shared project — any member can DM
+    another member (e.g. from the freelancer search screen).
+    ---
+    tags: [Chat]
+    security: [{Bearer: []}]
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            user_id: {type: integer}
+    responses:
+      200:
+        description: Existing or newly created DM room
+      404:
+        description: Target user not found
+    """
+    user_id = int(get_jwt_identity())
+    data = request.get_json(silent=True) or {}
+
+    try:
+        other_id = int(data.get("user_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "user_id is required"}), 400
+
+    if other_id == user_id:
+        return jsonify({"error": "Cannot open a chat with yourself"}), 400
+
+    other = db.session.get(User, other_id)
+    if not other:
+        return jsonify({"error": "User not found"}), 404
+
+    # Existing non-group, non-project room whose members are exactly the pair.
+    my_room_ids = [
+        m.room_id
+        for m in ChatRoomMember.query.filter_by(user_id=user_id).all()
+    ]
+    if my_room_ids:
+        candidates = ChatRoom.query.filter(
+            ChatRoom.id.in_(my_room_ids),
+            ChatRoom.is_group.is_(False),
+            ChatRoom.project_id.is_(None),
+        ).all()
+        for room in candidates:
+            member_ids = {
+                m.user_id
+                for m in ChatRoomMember.query.filter_by(room_id=room.id).all()
+            }
+            if member_ids == {user_id, other_id}:
+                return jsonify({
+                    "message": "Existing direct chat",
+                    "room": room.to_dict(include_last_message=True),
+                }), 200
+
+    me = db.session.get(User, user_id)
+    my_name = (me.full_name or me.display_name) if me else "User"
+    other_name = other.full_name or other.display_name or "User"
+
+    room = ChatRoom(
+        name=f"{my_name} & {other_name}",
+        project_id=None,
+        is_group=False,
+    )
+    db.session.add(room)
+    db.session.flush()
+    add_room_member(room.id, user_id)
+    add_room_member(room.id, other_id)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Direct chat created",
+        "room": room.to_dict(include_last_message=True),
+    }), 201
+
+
 # ── Get a single room with member profiles ────────────────────────────────────
 @chat_bp.route("/rooms/<int:room_id>", methods=["GET"])
 @auth_required

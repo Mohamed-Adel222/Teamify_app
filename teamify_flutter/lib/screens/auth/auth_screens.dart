@@ -89,6 +89,22 @@ void _navigateFromSession(BuildContext context, {bool isNew = false}) {
     return;
   }
 
+  // OAuth (Google/GitHub) accounts start with an empty extended profile —
+  // force them through the same requirements as email registration before
+  // they can reach the app. Applies to login, OAuth return, and session
+  // restore alike.
+  final user = session.currentUser;
+  final isGuest =
+      (user?.systemRole ?? user?.role ?? '').toLowerCase() == 'guest';
+  if (user != null && !user.isAdmin && !isGuest && user.needsProfileSetup) {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      R.oauthProfileSetup,
+      (_) => false,
+    );
+    return;
+  }
+
   Navigator.pushNamedAndRemoveUntil(
       context, _homeRouteForSession(session), (_) => false);
 }

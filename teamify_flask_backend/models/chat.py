@@ -1,6 +1,7 @@
 """Chat models: ChatRoom, ChatRoomMember, and Message."""
 from datetime import datetime, timezone
 from models import db
+from utils.timeutils import utc_iso
 
 
 class ChatRoom(db.Model):
@@ -35,7 +36,7 @@ class ChatRoom(db.Model):
             "name": self.name,
             "project_id": self.project_id,
             "is_group": self.is_group,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": utc_iso(self.created_at),
             "member_ids": [
                 m.user_id
                 for m in ChatRoomMember.query.filter_by(room_id=self.id).all()
@@ -143,7 +144,7 @@ class Message(db.Model):
             "message_type": self.message_type or "text",
             "file_id": self.file_id,
             "attachment": attachment,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": utc_iso(self.created_at),
         }
 
     def __repr__(self):

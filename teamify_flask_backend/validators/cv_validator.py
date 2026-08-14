@@ -214,7 +214,7 @@ class SkillSchema(Schema):
         return cleaned
 
     @validates("name")
-    def validate_skill_name(self, value):
+    def validate_skill_name(self, value, **kwargs):
         """Allow standard whitelist skills (max 80 chars)."""
         if not _canonical_skill_name(value):
             raise ValidationError(
@@ -293,17 +293,17 @@ class CVCreateSchema(Schema):
         return data
 
     @validates("skills")
-    def validate_skills_count(self, value):
+    def validate_skills_count(self, value, **kwargs):
         if len(value) > 50:
             raise ValidationError("A CV may contain at most 50 skills.")
 
     @validates("experience")
-    def validate_experience_count(self, value):
+    def validate_experience_count(self, value, **kwargs):
         if len(value) > 30:
             raise ValidationError("A CV may contain at most 30 experience entries.")
 
     @validates("projects")
-    def validate_projects_count(self, value):
+    def validate_projects_count(self, value, **kwargs):
         if len(value) > 30:
             raise ValidationError("A CV may contain at most 30 project entries.")
 

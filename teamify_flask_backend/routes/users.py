@@ -204,6 +204,17 @@ def update_profile():
         else:
             user.bio = bio or None
 
+    if "portfolio_url" in data:
+        url = (data["portfolio_url"] or "").strip()
+        if url and "://" not in url:
+            url = f"https://{url}"
+        if url and len(url) > 300:
+            errors.append("portfolio_url exceeds 300 characters")
+        elif url and not re.match(r'^https?://[^\s]+\.[^\s]+$', url):
+            errors.append("portfolio_url must be a valid URL")
+        else:
+            user.portfolio_url = url or None
+
     if "avatar_file_id" in data:
         from models.file_metadata import FileMetadata
 
@@ -386,6 +397,7 @@ def get_public_profile(user_id):
         "availability":       user.availability,
         "skills":             user.skills if user.skills else [],
         "bio":                user.bio,
+        "portfolio_url":      user.portfolio_url,
         "current_level":      user.current_level,
         "major":              user.major,
         "university_id":      user.university_id,
