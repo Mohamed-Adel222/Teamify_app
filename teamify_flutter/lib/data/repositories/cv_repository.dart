@@ -62,6 +62,26 @@ class CVRepository {
     );
   }
 
+  // GET /api/cv/by-user/<user_id> — another member's CV (profile view)
+  Future<ApiCV> getCvByUser(String userId) async {
+    final response =
+        await _client.get<Map<String, dynamic>>('/api/cv/by-user/$userId');
+    final data = responseMap(response.data);
+    final cv = responseMap(data['cv']);
+    return ApiCV.fromJson(cv.isNotEmpty ? cv : data);
+  }
+
+  // GET /api/cv/by-user/<user_id>/export/pdf — download another member's CV
+  Future<Response<List<int>>> exportPdfByUser(String userId) {
+    return _client.get<List<int>>(
+      '/api/cv/by-user/$userId/export/pdf',
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: const {'Accept': '*/*'},
+      ),
+    );
+  }
+
   // POST /api/cv/<id>/export — generate a secure download token
   Future<String> generateExportToken(String id) async {
     final response =

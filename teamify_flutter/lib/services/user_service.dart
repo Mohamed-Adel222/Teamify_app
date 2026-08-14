@@ -148,6 +148,23 @@ class UserService with ServiceErrorHandler {
     await _cache.invalidate('users', 'user_stats_$userId');
   }
 
+  // ── Connections ────────────────────────────────────────────────────────────
+
+  /// Viewer-relative status: none | pending_sent | pending_received |
+  /// connected | declined (plus the raw connection row when present).
+  Future<ApiResult<Map<String, dynamic>>> getConnectionStatus(String userId) =>
+      guard(() => _repo.getConnectionStatus(userId));
+
+  Future<ApiResult<Map<String, dynamic>>> sendConnectionRequest(
+          String userId) =>
+      guard(() => _repo.sendConnectionRequest(userId));
+
+  Future<ApiResult<Map<String, dynamic>>> respondConnection(
+    String connectionId, {
+    required bool accept,
+  }) =>
+      guard(() => _repo.respondConnection(connectionId, accept: accept));
+
   /// GET /api/users/<id>/profile — public view of another user.
   Future<ApiResult<ApiUser?>> getPublicProfile(String userId) {
     final key = 'user_pub_$userId';

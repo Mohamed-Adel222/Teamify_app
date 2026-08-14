@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../core/files/file_downloader.dart';
 import '../../core/network/api_result.dart';
 import '../../core/theme.dart';
 import '../../core/routes.dart';
@@ -364,23 +366,6 @@ class _SearchScreenState extends State<SearchScreen> {
   List<api.ApiTask> _remoteTasks = const [];
   Object? _loadError;
   bool _loadingSuggestions = true;
-  final Map<String, String> _connectStates = {};
-
-  String _getConnectState(String uid) => _connectStates[uid] ?? 'Connect';
-
-  void _toggleConnectState(String uid) {
-    setState(() {
-      final current = _getConnectState(uid);
-      if (current == 'Connect') {
-        _connectStates[uid] = 'Request Sent';
-      } else if (current == 'Request Sent') {
-        _connectStates[uid] = 'Connected';
-      } else {
-        _connectStates[uid] = 'Connect';
-      }
-    });
-  }
-
   void _sendDirectMessage(api.ApiUser user) {
     Navigator.pushNamed(context, R.directChat, arguments: user);
   }
@@ -929,9 +914,10 @@ class _SearchScreenState extends State<SearchScreen> {
                           '${(p.memberOnTimeRate * 100).round()}%',
                         ),
                     ],
-                    _profileSectionTitle('Portfolio'),
-                    _profilePortfolioSection(p),
-                    _profileSectionTitle('CV & Resume'),
+                    if (p.portfolioUrl.trim().isNotEmpty) ...[
+                      _profileSectionTitle('Portfolio'),
+                      _profilePortfolioSection(p),
+                    ],
                     _profileCvSection(p),
                     _profileSectionTitle('Previous Projects'),
                     _profilePreviousProjectsSection(p),
@@ -942,28 +928,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                setSheetState(() {
-                                  _toggleConnectState(p.id);
-                                });
-                              },
-                              icon: Icon(
-                                _getConnectState(p.id) == 'Connected'
-                                    ? Icons.check
-                                    : _getConnectState(p.id) == 'Request Sent'
-                                        ? Icons.hourglass_top
-                                        : Icons.person_add_outlined,
-                                size: 18,
-                              ),
-                              label: Text(_getConnectState(p.id)),
-                              style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
-                              ),
-                            ),
+                            child: _ProfileConnectButton(userId: p.id),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1064,103 +1029,70 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  Future<void> _openPortfolioLink(String url) async {
+    final uri = Uri.tryParse(url.contains('://') ? url : 'https://$url');
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the link')),
+      );
+    }
+  }
+
   Widget _profilePortfolioSection(api.ApiUser p) {
+    final url = p.portfolioUrl.trim();
+    final displayUrl = url.replaceFirst(RegExp(r'^https?://'), '');
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TCard(
-        margin: EdgeInsets.zero,
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: () => _openPortfolioLink(url),
+        borderRadius: BorderRadius.circular(12),
+        child: TCard(
+          margin: EdgeInsets.zero,
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child:
+                    const Icon(Icons.link, color: AppColors.primary, size: 18),
               ),
-              child: const Icon(Icons.link, color: AppColors.primary, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${p.primaryName}\'s Portfolio',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  Text(
-                    'github.com/${p.displayName.isNotEmpty ? p.displayName : 'user'}',
-                    style:
-                        const TextStyle(fontSize: 12, color: AppColors.primary),
-                  ),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${p.primaryName}\'s Portfolio',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    Text(
+                      displayUrl,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.primary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Icon(Icons.open_in_new,
-                size: 16, color: AppColors.textSecondary),
-          ],
+              const Icon(Icons.open_in_new,
+                  size: 16, color: AppColors.textSecondary),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _profileCvSection(api.ApiUser p) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TCard(
-        margin: EdgeInsets.zero,
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.picture_as_pdf,
-                  color: AppColors.accent, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${p.primaryName}_Resume.pdf',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const Text(
-                    'PDF Document · Updated recently',
-                    style:
-                        TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text('Downloading ${p.primaryName}\'s CV...')),
-                );
-              },
-              icon: const Icon(Icons.download, size: 14),
-              label: const Text('CV', style: TextStyle(fontSize: 12)),
-              style: OutlinedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                minimumSize: Size.zero,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  /// CV section: only rendered when the user actually has a CV on the server.
+  Widget _profileCvSection(api.ApiUser p) => _ProfileCvSection(user: p);
 
   Widget _profilePreviousProjectsSection(api.ApiUser p) {
     final mockProjects = [
@@ -1954,33 +1886,8 @@ class _SearchScreenState extends State<SearchScreen> {
               if (!isMe) ...[
                 SizedBox(
                   height: 44,
-                  width: 140,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _toggleConnectState(u.id),
-                    icon: Icon(
-                      _getConnectState(u.id) == 'Connected'
-                          ? Icons.check
-                          : _getConnectState(u.id) == 'Request Sent'
-                              ? Icons.hourglass_top
-                              : Icons.person_add_outlined,
-                      size: 20,
-                    ),
-                    label: Text(
-                      _getConnectState(u.id),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
+                  width: 160,
+                  child: _ProfileConnectButton(userId: u.id),
                 ),
                 SizedBox(
                   height: 44,
@@ -3271,6 +3178,271 @@ class _HomeRecentActivityList extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// "Connect" button backed by the connections API.
+///
+/// States: Connect → Request Sent | Accept Request → Connected.
+class _ProfileConnectButton extends StatefulWidget {
+  const _ProfileConnectButton({required this.userId});
+
+  final String userId;
+
+  @override
+  State<_ProfileConnectButton> createState() => _ProfileConnectButtonState();
+}
+
+class _ProfileConnectButtonState extends State<_ProfileConnectButton> {
+  String _status = 'loading';
+  String _connectionId = '';
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final res = await context
+        .read<AppServices>()
+        .users
+        .getConnectionStatus(widget.userId);
+    if (!mounted) return;
+    setState(() {
+      _status = res.data?['status']?.toString() ?? 'none';
+      _connectionId =
+          (res.data?['connection'] as Map?)?['id']?.toString() ?? '';
+    });
+  }
+
+  Future<void> _onPressed() async {
+    if (_busy) return;
+    final users = context.read<AppServices>().users;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+
+    if (_status == 'pending_received' && _connectionId.isNotEmpty) {
+      final res = await users.respondConnection(_connectionId, accept: true);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        if (res.isSuccess) _status = 'connected';
+      });
+      if (!res.isSuccess) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(res.error ?? 'Could not accept request')),
+        );
+      }
+      return;
+    }
+
+    final res = await users.sendConnectionRequest(widget.userId);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (res.isSuccess) {
+        _status = res.data?['status']?.toString() ?? 'pending_sent';
+        _connectionId =
+            (res.data?['connection'] as Map?)?['id']?.toString() ?? '';
+      }
+    });
+    if (!res.isSuccess) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(res.error ?? 'Could not send request')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String label;
+    final IconData icon;
+    bool enabled = !_busy;
+    switch (_status) {
+      case 'loading':
+        label = 'Connect';
+        icon = Icons.person_add_outlined;
+        enabled = false;
+        break;
+      case 'pending_sent':
+        label = 'Request Sent';
+        icon = Icons.hourglass_top;
+        enabled = false;
+        break;
+      case 'pending_received':
+        label = 'Accept Request';
+        icon = Icons.how_to_reg_outlined;
+        break;
+      case 'connected':
+        label = 'Connected';
+        icon = Icons.check;
+        enabled = false;
+        break;
+      default:
+        label = 'Connect';
+        icon = Icons.person_add_outlined;
+    }
+
+    return OutlinedButton.icon(
+      onPressed: enabled ? _onPressed : null,
+      icon: _busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+}
+
+/// "CV & Resume" block on the teammate profile sheet.
+///
+/// Fetches the target user's real CV; hidden entirely when they have none.
+class _ProfileCvSection extends StatefulWidget {
+  const _ProfileCvSection({required this.user});
+
+  final api.ApiUser user;
+
+  @override
+  State<_ProfileCvSection> createState() => _ProfileCvSectionState();
+}
+
+class _ProfileCvSectionState extends State<_ProfileCvSection> {
+  late final Future<api.ApiCV?> _cvFuture;
+  bool _downloading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cvFuture = context
+        .read<AppServices>()
+        .cvs
+        .getUserCv(widget.user.id)
+        .then((r) => r.data);
+  }
+
+  Future<void> _downloadCv() async {
+    if (_downloading) return;
+    setState(() => _downloading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await context.read<AppServices>().cvs.exportUserPdf(
+          widget.user.id,
+          filename: '${widget.user.primaryName}_Resume.pdf',
+        );
+    if (!mounted) return;
+    setState(() => _downloading = false);
+    if (result.isSuccess && result.data != null) {
+      final file = result.data!;
+      await saveDownloadedBytes(
+        filename: file.filename,
+        bytes: file.bytes,
+        mimeType: 'application/pdf',
+      );
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('CV downloaded'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(content: Text(result.error ?? 'Download failed')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return FutureBuilder<api.ApiCV?>(
+      future: _cvFuture,
+      builder: (context, snap) {
+        final cv = snap.data;
+        if (cv == null) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 10),
+              child: Text(
+                'CV & Resume',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TCard(
+                margin: EdgeInsets.zero,
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.picture_as_pdf,
+                          color: AppColors.accent, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${widget.user.primaryName}_Resume.pdf',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Text(
+                            'PDF Document',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _downloading ? null : _downloadCv,
+                      icon: _downloading
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.download, size: 14),
+                      label: const Text('CV', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

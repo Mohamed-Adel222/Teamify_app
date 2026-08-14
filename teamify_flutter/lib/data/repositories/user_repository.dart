@@ -51,4 +51,34 @@ class UserRepository {
         await _client.get<Map<String, dynamic>>('/api/users/$id/stats');
     return responseMap(response.data);
   }
+
+  // ── Connections ────────────────────────────────────────────────────────────
+
+  // GET /api/connections/status/<user_id>
+  Future<Map<String, dynamic>> getConnectionStatus(String userId) async {
+    final response = await _client
+        .get<Map<String, dynamic>>('/api/connections/status/$userId');
+    return responseMap(response.data);
+  }
+
+  // POST /api/connections
+  Future<Map<String, dynamic>> sendConnectionRequest(String userId) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/api/connections',
+      data: {'user_id': int.tryParse(userId) ?? userId},
+    );
+    return responseMap(response.data);
+  }
+
+  // POST /api/connections/<id>/respond
+  Future<Map<String, dynamic>> respondConnection(
+    String connectionId, {
+    required bool accept,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/api/connections/$connectionId/respond',
+      data: {'accept': accept},
+    );
+    return responseMap(response.data);
+  }
 }
