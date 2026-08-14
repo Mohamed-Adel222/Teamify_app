@@ -104,7 +104,10 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor:
+            isDark ? const Color(0xFF334155) : AppColors.textPrimary,
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13),
+        actionTextColor: AppColors.accent,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -179,12 +182,6 @@ class AppTheme {
         color: surface,
         surfaceTintColor: Colors.transparent,
         textStyle: TextStyle(color: onSurface, fontSize: 14),
-      ),
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor:
-            isDark ? const Color(0xFF334155) : AppColors.textPrimary,
-        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13),
-        actionTextColor: AppColors.accent,
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: AppColors.primary,
