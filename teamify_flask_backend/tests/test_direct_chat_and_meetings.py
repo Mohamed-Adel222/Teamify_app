@@ -175,6 +175,7 @@ def test_create_meeting_and_authorization(chat_meeting_app):
 
         got = client.get(f"/api/meetings/{public_id}", headers=_headers(app, peer_id))
         assert got.status_code == 200
+        assert "video_available" in got.get_json()["meeting"]
 
         hidden = client.get(
             f"/api/meetings/{public_id}", headers=_headers(app, outsider_id)
@@ -203,9 +204,15 @@ def test_create_meeting_and_authorization(chat_meeting_app):
 @pytest.mark.integration
 def test_meeting_token_requires_livekit_config(chat_meeting_app, monkeypatch):
     app, host_id, _, _, room_id = chat_meeting_app
-    monkeypatch.delenv("LIVEKIT_URL", raising=False)
-    monkeypatch.delenv("LIVEKIT_API_KEY", raising=False)
-    monkeypatch.delenv("LIVEKIT_API_SECRET", raising=False)
+    for name in (
+        "LIVEKIT_URL",
+        "LIVEKIT_HOST",
+        "LIVEKIT_API_KEY",
+        "LIVEKIT_KEY",
+        "LIVEKIT_API_SECRET",
+        "LIVEKIT_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)
     with app.test_client() as client:
         created = client.post(
             "/api/meetings",
@@ -218,7 +225,30 @@ def test_meeting_token_requires_livekit_config(chat_meeting_app, monkeypatch):
             headers=_headers(app, host_id),
         )
         assert token.status_code == 503
-        assert "LiveKit" in token.get_json()["error"]
+        body = token.get_json()
+        assert "LiveKit" in body["error"]
+        assert body["code"] == "livekit_not_configured"
+
+
+@pytest.mark.integration
+def test_meeting_token_normalizes_https_livekit_url(chat_meeting_app, monkeypatch):
+    app, host_id, _, _, room_id = chat_meeting_app
+    monkeypatch.setenv("LIVEKIT_URL", "https://example.livekit.cloud/")
+    monkeypatch.setenv("LIVEKIT_API_KEY", "devkey")
+    monkeypatch.setenv("LIVEKIT_API_SECRET", "secretsecretsecretsecret")
+    with app.test_client() as client:
+        created = client.post(
+            "/api/meetings",
+            headers=_headers(app, host_id),
+            json={"chat_room_id": room_id},
+        )
+        public_id = created.get_json()["meeting"]["public_id"]
+        token = client.post(
+            f"/api/meetings/{public_id}/token",
+            headers=_headers(app, host_id),
+        )
+        assert token.status_code == 200
+        assert token.get_json()["url"] == "wss://example.livekit.cloud"
 
 
 @pytest.mark.integration

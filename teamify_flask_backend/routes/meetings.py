@@ -7,6 +7,7 @@ from flask_jwt_extended import get_jwt_identity
 from middleware.auth import auth_required
 from models import db
 from models.meeting_session import MeetingSession
+from services.livekit_token_service import livekit_configured
 from services.meeting_service import (
     create_instant_meeting,
     end_meeting,
@@ -82,6 +83,7 @@ def get_meeting(public_id: str):
         .first()
     )
     payload["session"] = session.to_dict() if session else None
+    payload["video_available"] = livekit_configured()
     return jsonify({"meeting": payload}), 200
 
 
@@ -94,7 +96,13 @@ def meeting_token(public_id: str):
         return err
     body, error, status = issue_join_token(meeting, user_id)
     if error:
-        return jsonify({"error": error}), status
+        payload = {"error": error, "message": error}
+        if status == 503 and "LiveKit" in error:
+            payload["code"] = "livekit_not_configured"
+            payload["message"] = (
+                "Video meetings are unavailable. LiveKit is not configured on the server."
+            )
+        return jsonify(payload), status
     return jsonify(body), status
 
 

@@ -28,6 +28,34 @@ class AppConfig {
     defaultValue: '',
   );
 
+  /// Convert an HTTPS LiveKit Cloud URL to the websocket form the client needs.
+  static String normalizeLiveKitUrl(String url) {
+    var value = url.trim();
+    while (value.endsWith('/')) {
+      value = value.substring(0, value.length - 1);
+    }
+    if (value.startsWith('https://')) {
+      return 'wss://${value.substring(8)}';
+    }
+    if (value.startsWith('http://')) {
+      return 'ws://${value.substring(7)}';
+    }
+    if (value.startsWith('wss://') || value.startsWith('ws://')) {
+      return value;
+    }
+    if (value.isNotEmpty) {
+      return 'wss://$value';
+    }
+    return '';
+  }
+
+  /// Prefer the join-token URL from Flask, then the compile-time fallback.
+  static String resolveLiveKitUrl(String apiUrl) {
+    final fromApi = normalizeLiveKitUrl(apiUrl);
+    if (fromApi.isNotEmpty) return fromApi;
+    return normalizeLiveKitUrl(livekitUrl);
+  }
+
   static const Duration connectTimeout = Duration(seconds: 20);
   static const Duration receiveTimeout = Duration(seconds: 60);
   static const Duration messageAckTimeout = Duration(seconds: 8);

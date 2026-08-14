@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/config/app_config.dart';
+import '../../core/network/api_result.dart';
 import '../../core/observability/app_logger.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/theme.dart';
@@ -28,6 +30,7 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
   bool _micOn = true;
   bool _cameraOn = true;
   String? _cameraError;
+  String? _videoUnavailable;
   LocalVideoTrack? _previewTrack;
 
   @override
@@ -91,6 +94,9 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
     setState(() {
       _meeting = result.data;
       _loading = false;
+      _videoUnavailable = (result.data?.videoAvailable ?? true)
+          ? null
+          : 'Video meetings are unavailable. LiveKit is not configured on the server.';
     });
     await _startCameraPreview();
   }
@@ -145,6 +151,12 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
       );
       return;
     }
+    if (_videoUnavailable != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_videoUnavailable!)),
+      );
+      return;
+    }
     setState(() => _joining = true);
     final meetings = context.read<AppServices>().meetings;
     await _stopPreview();
@@ -152,20 +164,19 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
     if (!mounted) return;
     if (!tokenResult.isSuccess || tokenResult.data == null) {
       setState(() => _joining = false);
-      final msg = tokenResult.statusCode == 503
-          ? 'LiveKit is not configured on the server. Video meetings are unavailable.'
-          : (tokenResult.error ?? 'Could not join meeting');
+      final msg = _joinErrorMessage(tokenResult);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       if (_cameraOn) await _startCameraPreview();
       return;
     }
     final token = tokenResult.data!;
-    if (token.url.isEmpty || token.token.isEmpty) {
+    final livekitUrl = AppConfig.resolveLiveKitUrl(token.url);
+    if (livekitUrl.isEmpty || token.token.isEmpty || token.configured == false) {
       setState(() => _joining = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'LiveKit is not configured on the server. Video meetings are unavailable.',
+            'Video meetings are unavailable. LiveKit is not configured on the server.',
           ),
         ),
       );
@@ -304,11 +315,25 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                        if (_videoUnavailable != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              _videoUnavailable!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFFFCA5A5),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: _joining ? null : _join,
+                            onPressed: (_joining || _videoUnavailable != null)
+                                ? null
+                                : _join,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.success,
                               foregroundColor: Colors.white,
@@ -331,6 +356,17 @@ class _MeetingPreviewScreenState extends State<MeetingPreviewScreen> {
                   ),
                 ),
     );
+  }
+
+  String _joinErrorMessage(ApiResult<MeetingJoinToken> tokenResult) {
+    final server = (tokenResult.error ?? '').trim();
+    final lowered = server.toLowerCase();
+    if (lowered.contains('livekit') ||
+        lowered.contains('video meetings are unavailable')) {
+      return 'Video meetings are unavailable. LiveKit is not configured on the server.';
+    }
+    if (server.isNotEmpty) return server;
+    return 'Could not join meeting';
   }
 
   String _initials(String name) {

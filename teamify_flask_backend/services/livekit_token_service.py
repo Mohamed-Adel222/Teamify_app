@@ -13,17 +13,64 @@ import jwt
 
 logger = logging.getLogger(__name__)
 
+_URL_NAMES = ("LIVEKIT_URL", "LIVEKIT_HOST")
+_KEY_NAMES = ("LIVEKIT_API_KEY", "LIVEKIT_KEY")
+_SECRET_NAMES = ("LIVEKIT_API_SECRET", "LIVEKIT_SECRET")
 
-def livekit_configured() -> bool:
-    return bool(
-        os.getenv("LIVEKIT_URL", "").strip()
-        and os.getenv("LIVEKIT_API_KEY", "").strip()
-        and os.getenv("LIVEKIT_API_SECRET", "").strip()
-    )
+
+def _clean_env(value: Any) -> str:
+    text = str(value or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+        text = text[1:-1].strip()
+    return text
+
+
+def _read_setting(*names: str) -> str:
+    for name in names:
+        value = _clean_env(os.getenv(name, ""))
+        if value:
+            return value
+    try:
+        from flask import current_app, has_app_context
+
+        if has_app_context():
+            for name in names:
+                value = _clean_env(current_app.config.get(name, ""))
+                if value:
+                    return value
+    except Exception:
+        pass
+    return ""
+
+
+def normalize_livekit_url(url: str) -> str:
+    """Return a websocket URL the LiveKit client can connect to."""
+    value = _clean_env(url).rstrip("/")
+    if value.startswith("https://"):
+        return "wss://" + value[8:]
+    if value.startswith("http://"):
+        return "ws://" + value[7:]
+    if value.startswith("wss://") or value.startswith("ws://"):
+        return value
+    if value:
+        return "wss://" + value.lstrip("/")
+    return ""
 
 
 def livekit_url() -> str:
-    return os.getenv("LIVEKIT_URL", "").strip()
+    return normalize_livekit_url(_read_setting(*_URL_NAMES))
+
+
+def livekit_api_key() -> str:
+    return _read_setting(*_KEY_NAMES)
+
+
+def livekit_api_secret() -> str:
+    return _read_setting(*_SECRET_NAMES)
+
+
+def livekit_configured() -> bool:
+    return bool(livekit_url() and livekit_api_key() and livekit_api_secret())
 
 
 def livekit_http_url() -> str:
@@ -47,8 +94,8 @@ def create_meeting_access_token(
     """
     Return (token, error). error is set when LiveKit is not configured.
     """
-    api_key = os.getenv("LIVEKIT_API_KEY", "").strip()
-    api_secret = os.getenv("LIVEKIT_API_SECRET", "").strip()
+    api_key = livekit_api_key()
+    api_secret = livekit_api_secret()
     if not api_key or not api_secret or not livekit_url():
         return None, "LiveKit is not configured on this server"
 
@@ -81,8 +128,8 @@ def create_meeting_access_token(
 
 def create_livekit_server_token(ttl_seconds: int = 60) -> tuple[str | None, str | None]:
     """Mint a short-lived server JWT for LiveKit RoomService (never sent to Flutter)."""
-    api_key = os.getenv("LIVEKIT_API_KEY", "").strip()
-    api_secret = os.getenv("LIVEKIT_API_SECRET", "").strip()
+    api_key = livekit_api_key()
+    api_secret = livekit_api_secret()
     if not api_key or not api_secret or not livekit_url():
         return None, "LiveKit is not configured on this server"
     now = int(time.time())
