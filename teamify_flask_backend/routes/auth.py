@@ -739,8 +739,9 @@ def forgot_password():
     otp = user.generate_otp()
     db.session.commit()
 
-    # In production: send OTP via email service (e.g. SendGrid, SES).
-    # For development, the OTP is stored in DB and can be retrieved for testing.
+    from services.email_service import send_otp_email
+    send_otp_email(user, otp)
+
     return jsonify({
         "message": "If an account exists with this email, an OTP has been sent",
     }), 200
