@@ -199,6 +199,14 @@ class AIRepository {
     return responseMap(response.data);
   }
 
+  /// GET /api/ai/mentor/status — mentor pipeline + course catalog
+  Future<Map<String, dynamic>> mentorStatus() async {
+    final response = await _client.get<Map<String, dynamic>>(
+      '/api/ai/mentor/status',
+    );
+    return responseMap(response.data);
+  }
+
   /// GET /api/ai/mentor/analyse/<id> — full mentor analysis
   Future<Map<String, dynamic>> mentorAnalyse(String userId) async {
     final response = await _client.get<Map<String, dynamic>>(

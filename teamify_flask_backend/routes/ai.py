@@ -67,6 +67,10 @@ def _ai_before_request():
     g.ai_request_start = time.time()
     from services.system_settings_service import is_ai_enabled
 
+    path = request.path.rstrip("/")
+    if path.endswith("/mentor/status") or path.endswith("/delay-model/status"):
+        return None
+
     if not is_ai_enabled():
         return jsonify({
             "error": "AI disabled",
@@ -896,6 +900,15 @@ def api_delay_model_status():
     return jsonify(get_delay_model_status()), 200
 
 
+@ai_bp.route("/mentor/status", methods=["GET"])
+@auth_required
+def api_mentor_model_status():
+    """Whether the AI Career Mentor pipeline (ai_mentor_csv + courses.csv) is live."""
+    from services.ai_mentor_service import get_mentor_model_status
+
+    return jsonify(get_mentor_model_status()), 200
+
+
 # ─── GET /api/ai/workload ─────────────────────────────────────────────────────
 
 @ai_bp.route("/workload", methods=["GET"])
@@ -1098,7 +1111,13 @@ def api_mentor_courses(user_id: int):
         return jsonify(report), 404
 
     courses = report.get("top_courses", [])
-    return jsonify({"recommended_courses": courses, "courses": courses}), 200
+    mentor_model = report.get("mentor_model") or {}
+    return jsonify({
+        "recommended_courses": courses,
+        "courses": courses,
+        "source": mentor_model.get("catalog_source") or "mentor_model",
+        "mentor_model": mentor_model,
+    }), 200
 
 
 # ─── POST /api/ai/chat/summarize ─────────────────────────────────────────────
@@ -1230,8 +1249,11 @@ def api_mentor_insights(user_id: int):
         "courses": {
             "courses": courses,
             "recommended_courses": courses,
+            "source": (report.get("mentor_model") or {}).get("catalog_source"),
+            "catalog_size": (report.get("mentor_model") or {}).get("catalog_size"),
         },
         "ml": report.get("ml_rating") or {},
+        "mentor_model": report.get("mentor_model") or {},
     }), 200
 
 

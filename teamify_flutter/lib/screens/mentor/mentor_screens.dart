@@ -561,12 +561,18 @@ class _DetailedCoursesTabState extends State<_DetailedCoursesTab> {
       children: [
         const Text('Courses',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        const Text('AI-recommended for you',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        Text(
+          widget.insights.usesMentorCatalog
+              ? 'Ranked by the AI Career Mentor model from the live course catalog'
+              : 'AI-recommended for you',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
         const SizedBox(height: 16),
-        const AIBanner(
+        AIBanner(
             title: 'Personalized Learning',
-            subtitle: 'These courses are selected based on your goals'),
+            subtitle: widget.insights.usesMentorCatalog
+                ? 'Matched to your skill gaps from the mentor course catalog'
+                : 'These courses are selected based on your goals'),
         const SizedBox(height: 24),
         const Text('Recommended for You',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
@@ -575,11 +581,20 @@ class _DetailedCoursesTabState extends State<_DetailedCoursesTab> {
           const Text(
               'No courses yet — complete your profile skills so the ML catalog can match gaps.')
         else ...[
-          if (widget.insights.mlRating['source'] == 'ml_model')
+          if (widget.insights.usesMentorCatalog)
             const Padding(
               padding: EdgeInsets.only(bottom: 8),
               child: Text(
-                'Ranked by teamify_model.pkl + course catalog (stored in backend)',
+                'Source: ai_mentor_csv.py + courses.csv',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ),
+          if (!widget.insights.usesMentorCatalog &&
+              widget.insights.mlRating['source'] == 'ml_model')
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Ranked by teamify_model.pkl + built-in catalog',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ),
@@ -1267,6 +1282,17 @@ class _MentorOverviewTab extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ]),
             if (mlBanner != null) mlBanner,
+            if (insights.usesMentorCatalog)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Courses from AI Career Mentor catalog (courses.csv)',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary),
+                ),
+              ),
             const SizedBox(height: 12),
             Text(
               insights.careerSummary,

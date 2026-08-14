@@ -114,13 +114,16 @@ class AIService with ServiceErrorHandler {
     final payload = await _ai.mentorInsights(userId);
     final analysis = payload['analysis'] is Map
         ? Map<String, dynamic>.from(payload['analysis'] as Map)
-        : payload;
+        : Map<String, dynamic>.from(payload);
     final performance = payload['performance'] is Map
         ? Map<String, dynamic>.from(payload['performance'] as Map)
         : <String, dynamic>{};
     final courses = payload['courses'] is Map
         ? Map<String, dynamic>.from(payload['courses'] as Map)
         : <String, dynamic>{};
+    if (payload['mentor_model'] is Map && analysis['mentor_model'] == null) {
+      analysis['mentor_model'] = payload['mentor_model'];
+    }
 
     final insights = _mentorInsightsFromParts(analysis, performance, courses);
 
@@ -222,6 +225,12 @@ class AIService with ServiceErrorHandler {
     final mlRating = analysis['ml_rating'] is Map
         ? Map<String, dynamic>.from(analysis['ml_rating'] as Map)
         : <String, dynamic>{};
+    final mentorModel = analysis['mentor_model'] is Map
+        ? Map<String, dynamic>.from(analysis['mentor_model'] as Map)
+        : <String, dynamic>{};
+    if (mentorModel.isEmpty && courses['source'] != null) {
+      mentorModel['catalog_source'] = courses['source'];
+    }
 
     final dbSummary = analysis['db_summary']?.toString().trim() ?? '';
     final summary = analysis['summary']?.toString().trim() ?? '';
@@ -269,6 +278,7 @@ class AIService with ServiceErrorHandler {
       tasksAssigned: (profile['tasks_assigned'] as num?)?.toInt() ?? 0,
       tasksCompleted: (profile['tasks_completed'] as num?)?.toInt() ?? 0,
       generatedAt: analysis['generated_at']?.toString() ?? '',
+      mentorModel: mentorModel,
     );
   }
 
@@ -578,6 +588,7 @@ class MentorInsights {
   final int tasksAssigned;
   final int tasksCompleted;
   final String generatedAt;
+  final Map<String, dynamic> mentorModel;
 
   const MentorInsights({
     required this.careerScore,
@@ -603,6 +614,7 @@ class MentorInsights {
     this.tasksAssigned = 0,
     this.tasksCompleted = 0,
     this.generatedAt = '',
+    this.mentorModel = const {},
   });
 
   /// Back-compat alias for career score used in progress bars.
@@ -629,6 +641,10 @@ class MentorInsights {
       feedbackCount > 0 ||
       ratingCount > 0 ||
       performanceHistory['source']?.toString() == 'peer_feedback';
+
+  bool get usesMentorCatalog =>
+      mentorModel['catalog_source']?.toString() == 'mentor_model' ||
+      mentorModel['mode']?.toString() == 'REAL_MODEL';
 }
 
 class MentorChatReply {

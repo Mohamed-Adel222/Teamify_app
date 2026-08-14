@@ -4,7 +4,8 @@ AI Mentor Service
 Generates career progression and mentoring reports for a user.
 
 Adapts the ai_mentor_csv.py pipeline from ml_models/ to read live data
-from the SQLAlchemy ORM instead of CSV files. The four-layer pipeline:
+from the SQLAlchemy ORM instead of per-user CSV files. Course ranking
+uses the model's recommend_courses() against ml_models/data/courses.csv.
 
   Layer 1 — Rule-based career scoring and weakness/strength detection
   Layer 2 — Simple sentiment analysis on feedback text
@@ -17,6 +18,8 @@ the model is unavailable.
 """
 from __future__ import annotations
 
+import csv
+import importlib.util
 import logging
 import os
 import time
@@ -28,15 +31,20 @@ logger = logging.getLogger(__name__)
 
 from utils.skills import normalize_skills_list
 
+_ML_MODELS_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "ml_models")
+)
+_MENTOR_MODULE_FILE = os.path.join(_ML_MODELS_DIR, "ai_mentor_csv.py")
+_COURSES_CSV = os.path.join(_ML_MODELS_DIR, "data", "courses.csv")
 _RATING_MODEL_PATH = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__), "..", "ml_models",
-        "Profiles&AI Rating", "teamify_model.pkl"
-    )
+    os.path.join(_ML_MODELS_DIR, "Profiles&AI Rating", "teamify_model.pkl")
 )
 
 _REPORT_CACHE: dict[int, tuple[float, dict]] = {}
 _REPORT_TTL_SECONDS = 600
+_mentor_csv_mod: Any = None
+_course_catalog_cache: dict[str, dict] | None = None
+_course_catalog_error: str | None = None
 
 
 def invalidate_mentor_cache(user_id: int | None = None) -> None:
@@ -167,6 +175,125 @@ def _course_enroll_url(platform: str, title: str) -> str:
     if "frontend masters" in platform_l:
         return f"https://frontendmasters.com/search/?q={q}"
     return f"https://www.google.com/search?q={q}+online+course"
+
+
+def _load_mentor_csv_module():
+    """Import ml_models/ai_mentor_csv.py (the career-mentor model)."""
+    global _mentor_csv_mod
+    if _mentor_csv_mod is not None:
+        return _mentor_csv_mod
+    if not os.path.isfile(_MENTOR_MODULE_FILE):
+        raise FileNotFoundError(_MENTOR_MODULE_FILE)
+    spec = importlib.util.spec_from_file_location(
+        "teamify_ai_mentor_csv", _MENTOR_MODULE_FILE
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("Cannot load ai_mentor_csv.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _mentor_csv_mod = module
+    return module
+
+
+def _load_course_catalog() -> tuple[dict[str, dict], str]:
+    """Load the mentor model's courses.csv; fall back to the built-in list."""
+    global _course_catalog_cache, _course_catalog_error
+    if _course_catalog_cache is not None:
+        source = "mentor_model" if not _course_catalog_error else "fallback_catalog"
+        return _course_catalog_cache, source
+
+    catalog: dict[str, dict] = {}
+    if os.path.isfile(_COURSES_CSV):
+        try:
+            with open(_COURSES_CSV, encoding="utf-8") as fh:
+                for row in csv.DictReader(fh):
+                    cid = (row.get("course_id") or row.get("id") or "").strip()
+                    if not cid:
+                        continue
+                    catalog[cid] = {
+                        "id": cid,
+                        "course_id": cid,
+                        "title": row.get("title") or "",
+                        "platform": row.get("platform") or "",
+                        "skills_covered": row.get("skills_covered") or "",
+                        "rating": row.get("rating") or "0",
+                        "market_demand": row.get("market_demand") or "0",
+                        "duration_hrs": row.get("duration_hrs") or "0",
+                        "level": row.get("level") or "Recommended",
+                    }
+            if catalog:
+                _course_catalog_cache = catalog
+                _course_catalog_error = None
+                logger.info(
+                    "Mentor course catalog loaded from %s (%d courses)",
+                    _COURSES_CSV,
+                    len(catalog),
+                )
+                return catalog, "mentor_model"
+        except Exception as exc:
+            _course_catalog_error = str(exc)
+            logger.warning("Failed to load mentor courses.csv: %s", exc)
+
+    _course_catalog_error = _course_catalog_error or "courses.csv missing or empty"
+    catalog = {
+        c["id"]: {
+            "id": c["id"],
+            "course_id": c["id"],
+            "title": c["title"],
+            "platform": c["platform"],
+            "skills_covered": c["skills_covered"],
+            "rating": c["rating"],
+            "market_demand": c["market_demand"],
+            "duration_hrs": c["duration_hrs"],
+            "level": "Recommended",
+        }
+        for c in COURSE_CATALOG
+    }
+    _course_catalog_cache = catalog
+    return catalog, "fallback_catalog"
+
+
+def get_mentor_model_status() -> dict:
+    """Runtime status of the AI mentor pipeline (no user/DB writes)."""
+    module_ok = os.path.isfile(_MENTOR_MODULE_FILE)
+    csv_ok = os.path.isfile(_COURSES_CSV)
+    catalog, source = _load_course_catalog()
+    loaded = False
+    inference_ok = False
+    error: str | None = None
+    try:
+        _load_mentor_csv_module()
+        loaded = module_ok and bool(catalog)
+        sample_gaps = {
+            "missing_skills": ["System Design", "AWS", "Docker"],
+            "target_role": "Senior Developer",
+        }
+        recs = _recommend_courses(sample_gaps, top_n=3)
+        inference_ok = bool(recs) and source == "mentor_model"
+        if not recs:
+            error = "Mentor catalog produced no course matches for sample gaps"
+    except Exception as exc:
+        error = str(exc)
+        loaded = False
+        inference_ok = False
+
+    real = bool(module_ok and csv_ok and loaded and inference_ok)
+    return {
+        "id": "ai_mentor",
+        "name": "AI Career Mentor",
+        "file_exists": module_ok and csv_ok,
+        "file_present": module_ok and csv_ok,
+        "path": os.path.relpath(_MENTOR_MODULE_FILE, os.path.join(_ML_MODELS_DIR, "..")),
+        "catalog_path": os.path.relpath(_COURSES_CSV, os.path.join(_ML_MODELS_DIR, "..")),
+        "catalog_size": len(catalog),
+        "catalog_source": source,
+        "loaded": loaded,
+        "inference_test": inference_ok,
+        "mode": "REAL_MODEL" if real else "FALLBACK",
+        "status": "loaded" if real else "fallback",
+        "error": error,
+        "endpoint": "GET /api/ai/mentor/insights/<user_id>",
+    }
 
 
 COURSE_CATALOG = [
@@ -500,34 +627,64 @@ def _generate_report(user, scores, weaknesses, strengths, nlp, gaps, tasks=None)
 # ── Course recommendations ─────────────────────────────────────────────────────
 
 def _recommend_courses(gaps, top_n=5) -> list:
+    """Score courses with the mentor model (ai_mentor_csv.recommend_courses)."""
+    catalog, source = _load_course_catalog()
+    recs: list[dict] = []
+    try:
+        mod = _load_mentor_csv_module()
+        raw = mod.recommend_courses(gaps, catalog, top_n=top_n)
+        recs = list(raw or [])
+    except Exception as exc:
+        logger.warning("ai_mentor_csv.recommend_courses failed: %s", exc)
+
+    if not recs:
+        recs = _heuristic_course_recs(gaps, catalog, top_n)
+
+    enriched = []
+    for c in recs:
+        title = c.get("title") or ""
+        platform = c.get("platform") or ""
+        hours = str(c.get("hours") or c.get("duration_hrs") or "")
+        relevance = float(c.get("relevance") or 0)
+        enriched.append({
+            **c,
+            "id": c.get("id") or c.get("course_id") or title,
+            "url": c.get("url") or _course_enroll_url(platform, title),
+            "match_percent": c.get("match_percent") or round(relevance * 100, 1),
+            "match": c.get("match") or round(relevance * 100),
+            "progress": c.get("progress") or 0,
+            "hours": hours,
+            "duration": c.get("duration") or (f"{hours} hrs" if hours else "Self-paced"),
+            "level": c.get("level") or "Recommended",
+            "source": source,
+        })
+    return enriched
+
+
+def _heuristic_course_recs(gaps, catalog: dict, top_n: int) -> list:
     missing = {s.lower() for s in (gaps.get("missing_skills") or [])}
     recs = []
-    for c in COURSE_CATALOG:
-        covered = {s.strip().lower() for s in c["skills_covered"].split("|")}
+    for c in catalog.values():
+        covered = {s.strip().lower() for s in str(c.get("skills_covered") or "").split("|") if s.strip()}
         overlap = covered & missing
         if not overlap:
             continue
         gap_match = len(overlap) / max(len(missing), 1)
-        rating_norm = float(c["rating"]) / 5
-        demand = float(c["market_demand"])
+        rating_norm = float(c.get("rating") or 0) / 5
+        demand = float(c.get("market_demand") or 0)
         relevance = gap_match * 0.50 + rating_norm * 0.30 + demand * 0.20
         recs.append({
-            "id": c.get("id", ""),
-            "title": c["title"],
-            "platform": c["platform"],
-            "url": _course_enroll_url(c["platform"], c["title"]),
+            "id": c.get("id") or c.get("course_id"),
+            "title": c.get("title"),
+            "platform": c.get("platform"),
             "relevance": round(relevance, 3),
-            "match_percent": round(relevance * 100, 1),
-            "match": round(relevance * 100),
-            "progress": 0,
             "fills": sorted(overlap),
-            "rating": c["rating"],
-            "hours": c["duration_hrs"],
-            "duration": f"{c['duration_hrs']} hrs",
-            "level": "Recommended",
+            "rating": c.get("rating"),
+            "hours": c.get("duration_hrs"),
+            "level": c.get("level") or "Recommended",
             "market_demand": demand,
         })
-    recs.sort(key=lambda x: (x["relevance"], x["market_demand"]), reverse=True)
+    recs.sort(key=lambda x: x["relevance"], reverse=True)
     return recs[:top_n]
 
 
@@ -811,6 +968,7 @@ def _generate_mentor_report_uncached(user_id: int) -> dict:
         "mentor_report": report,
         "performance_snapshot": perf_snapshot,
         "ml_rating": _safe_ml_rating(user_id),
+        "mentor_model": get_mentor_model_status(),
     }
 
 
