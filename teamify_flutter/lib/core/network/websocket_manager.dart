@@ -19,7 +19,6 @@ enum SocketEvent {
   notification,
   taskUpdate,
   projectUpdate,
-  error,
 }
 
 /// Payload delivered with every [SocketEvent].

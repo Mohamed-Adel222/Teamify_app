@@ -1317,7 +1317,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     required FileType type,
     List<String>? allowedExtensions,
   }) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: type,
       allowedExtensions: allowedExtensions,
       allowMultiple: false,
@@ -3569,7 +3569,7 @@ class _FileSharingScreenState extends State<FileSharingScreen> {
     if (_uploading) return;
     final fileSvc = context.read<AppServices>().files;
     final messenger = ScaffoldMessenger.of(context);
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.any,
       allowMultiple: false,
       withData: true,
