@@ -215,7 +215,10 @@ def test_find_secret_leaks_detects_credential_keys():
 
 
 def test_live_status_file_exists_is_not_loaded_and_hides_secrets():
-    report = get_ai_models_status()
+    with patch(
+        "services.system_settings_service.is_ai_enabled", return_value=True
+    ):
+        report = get_ai_models_status()
     assert find_secret_leaks(report) == []
     blob = str(report).upper()
     for secret in ("JWT_SECRET", "DATABASE_URL", "ANTHROPIC_API_KEY"):
@@ -235,3 +238,16 @@ def test_live_status_file_exists_is_not_loaded_and_hides_secrets():
             assert model["loaded"] is True
             assert model["inference_test"] is True
             assert model["error"] is None
+
+
+def test_cv_status_probe_does_not_clobber_reportlab():
+    from reportlab.platypus import ListFlowable
+
+    with patch(
+        "services.system_settings_service.is_ai_enabled", return_value=True
+    ):
+        get_ai_models_status()
+    from reportlab.platypus import ListFlowable as again
+
+    assert again is ListFlowable
+    assert getattr(again, "__module__", "").startswith("reportlab")

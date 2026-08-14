@@ -45,13 +45,28 @@ _loaded:     bool      = False
 # ─── reportlab stub (allows import even when reportlab is absent) ─────────────
 
 def _inject_reportlab_stubs() -> None:
-    """Install throwaway stub packages for reportlab.
+    """Install throwaway stub packages for reportlab when it is missing.
 
     ``ai_resume_builder (3).py`` imports reportlab at module level, but only
     ``generate_pdf()`` actually uses it.  We only call ``update_cv()``, so the
     stubs are enough to satisfy the name bindings during import.
+
+    Never replace a real reportlab install — that would break CV PDF export
+    in the same process after a status probe.
     """
+    try:
+        spec = importlib.util.find_spec("reportlab")
+        if spec is not None and spec.origin:
+            import reportlab  # noqa: F401
+            from reportlab.platypus import SimpleDocTemplate  # noqa: F401
+            return
+    except Exception:
+        pass
+
     def _mod(name: str) -> types.ModuleType:
+        existing = sys.modules.get(name)
+        if existing is not None and getattr(existing, "__file__", None):
+            return existing
         if name not in sys.modules:
             sys.modules[name] = types.ModuleType(name)
         return sys.modules[name]
@@ -78,6 +93,7 @@ def _inject_reportlab_stubs() -> None:
     for _cls in [
         "SimpleDocTemplate", "Paragraph", "Spacer",
         "HRFlowable", "Table", "TableStyle",
+        "ListFlowable", "ListItem",
     ]:
         setattr(platypus, _cls, _Noop)
 

@@ -11,6 +11,18 @@ from tests.conftest import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _ai_platform_enabled():
+    """Keep AI routes reachable; mocked DB rows are not real setting values."""
+    with patch(
+        "services.system_settings_service.is_ai_enabled", return_value=True
+    ), patch(
+        "services.system_settings_service.is_maintenance_mode",
+        return_value=False,
+    ):
+        yield
+
+
 class TestAIAssign:
     URL = "/api/ai/assign"
 
@@ -132,16 +144,6 @@ class TestAIWorkload:
 
 class TestAIModelsStatus:
     URL = "/api/ai/models/status"
-
-    @pytest.fixture(autouse=True)
-    def _platform_available(self):
-        with patch(
-            "services.system_settings_service.is_ai_enabled", return_value=True
-        ), patch(
-            "services.system_settings_service.is_maintenance_mode",
-            return_value=False,
-        ):
-            yield
 
     def test_no_token_401(self, client):
         assert client.get(self.URL).status_code == 401
