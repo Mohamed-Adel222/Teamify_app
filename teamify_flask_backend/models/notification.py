@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from models import db
+from utils.timeutils import utc_iso
 
 
 class Notification(db.Model):
@@ -38,7 +39,7 @@ class Notification(db.Model):
             "is_read": self.is_read,
             "entity_type": self.entity_type,
             "entity_id": self.entity_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": utc_iso(self.created_at),
         }
 
     def __repr__(self):
