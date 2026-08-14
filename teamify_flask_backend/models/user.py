@@ -31,6 +31,8 @@ class User(db.Model):
     reason_for_joining = db.Column(db.String(50), nullable=True)   # guest: Reviewing project, Viewer, etc.
     phone = db.Column(db.String(30), nullable=True)
     bio = db.Column(db.Text, nullable=True)
+    # Public GitHub / portfolio URL shown on the user's profile
+    portfolio_url = db.Column(db.String(300), nullable=True)
     preferred_language = db.Column(db.String(10), nullable=True)
     university_id = db.Column(db.String(64), nullable=True)        # student: catalog id or custom slug
     university_name = db.Column(db.String(200), nullable=True)
@@ -176,6 +178,7 @@ class User(db.Model):
             "reason_for_joining": self.reason_for_joining,
             "phone": self.phone,
             "bio": self.bio,
+            "portfolio_url": self.portfolio_url,
             "preferred_language": self.preferred_language,
             "university_id": self.university_id,
             "university_name": self.university_name,
