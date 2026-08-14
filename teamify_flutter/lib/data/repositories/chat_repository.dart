@@ -28,6 +28,20 @@ class ChatRepository {
     return data;
   }
 
+  /// POST /api/chat/rooms/direct — find or create a 1:1 DM room
+  Future<Map<String, dynamic>> openDirectRoom(String userId) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/api/chat/rooms/direct',
+      data: {'user_id': int.tryParse(userId) ?? userId},
+    );
+    final data = responseMap(response.data);
+    final room = data['room'];
+    if (room is Map) {
+      return Map<String, dynamic>.from(room);
+    }
+    return data;
+  }
+
   /// GET /api/chat/rooms/<roomId>
   Future<Map<String, dynamic>> getRoom(String roomId) async {
     final response = await _client.get<Map<String, dynamic>>(
