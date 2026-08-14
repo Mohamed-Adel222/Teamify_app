@@ -237,6 +237,111 @@ def get_cv(cv_id: int):
     return jsonify(cv.to_dict(public_only=public_only)), 200
 
 
+# ─── GET /api/cv/by-user/<user_id>  — Read another member's CV ───────────────
+
+def _can_view_member_cv(caller_role: str, cv: CV) -> bool:
+    """Members and admins can view each other's CVs (talent discovery);
+    guests only public ones."""
+    if caller_role in ("admin", "member"):
+        return True
+    return cv.is_public
+
+
+@cv_bp.route("/by-user/<int:user_id>", methods=["GET"])
+@jwt_required()
+def get_cv_by_user(user_id: int):
+    """
+    Retrieve the CV belonging to a given user (for profile views).
+    ---
+    tags: [CV]
+    security: [{Bearer: []}]
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: CV data
+      403:
+        description: Access denied
+      404:
+        description: User has no CV
+    """
+    try:
+        caller_id, caller_role = _resolve_caller()
+    except ValueError as exc:
+        return jsonify({"error": "Unauthorized", "message": str(exc)}), 401
+
+    cv = CV.query.filter_by(user_id=user_id).first()
+    if not cv:
+        return jsonify({"error": "Not Found", "message": "This user has no CV."}), 404
+
+    if not _can_view_member_cv(caller_role, cv):
+        return jsonify({"error": "Forbidden", "message": "Access denied."}), 403
+
+    public_only = caller_role == "guest" or caller_id != cv.user_id
+    return jsonify(cv.to_dict(public_only=public_only)), 200
+
+
+@cv_bp.route("/by-user/<int:user_id>/export/pdf", methods=["GET"])
+@jwt_required()
+@limiter.limit("5 per minute; 20 per hour")
+def export_cv_pdf_by_user(user_id: int):
+    """
+    Generate and stream another member's CV as a PDF (profile download).
+    ---
+    tags: [CV]
+    security: [{Bearer: []}]
+    parameters:
+      - in: path
+        name: user_id
+        type: integer
+        required: true
+    responses:
+      200:
+        description: PDF file download
+      403:
+        description: Forbidden
+      404:
+        description: User has no CV
+    """
+    try:
+        caller_id, caller_role = _resolve_caller()
+    except ValueError as exc:
+        return jsonify({"error": "Unauthorized", "message": str(exc)}), 401
+
+    if caller_role == "guest":
+        return jsonify({"error": "Forbidden", "message": "Guests cannot export PDFs."}), 403
+
+    cv = CV.query.filter_by(user_id=user_id).first()
+    if not cv:
+        return jsonify({"error": "Not Found", "message": "This user has no CV."}), 404
+
+    try:
+        pdf_buffer = build_cv_pdf(cv.to_dict())
+    except Exception as exc:
+        return jsonify({
+            "error": "PDF Generation Failed",
+            "message": str(exc),
+        }), 500
+
+    log_security_event(
+        "CV_EXPORTED_PDF",
+        user_id=caller_id,
+        ip=request.remote_addr or "unknown",
+        details={"cv_id": cv.id, "owner_id": cv.user_id, "role": caller_role},
+    )
+
+    owner_name = (cv.personal_info.get("full_name") or f"user_{cv.user_id}").replace(" ", "_")
+    return send_file(
+        pdf_buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"cv_{owner_name}.pdf",
+    )
+
+
 # ─── PATCH /api/cv/<id>  — Partial update ────────────────────────────────────
 
 @cv_bp.route("/<int:cv_id>", methods=["PATCH"])
