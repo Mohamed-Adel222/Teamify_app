@@ -17,6 +17,7 @@ class ApiUser {
   final String joinedAt;
   final String phone;
   final String bio;
+  final String portfolioUrl;
   final String avatarFileId;
   final String accountStatus;
   final String major;
@@ -50,6 +51,7 @@ class ApiUser {
     this.joinedAt = '',
     this.phone = '',
     this.bio = '',
+    this.portfolioUrl = '',
     this.avatarFileId = '',
     this.accountStatus = 'approved',
     this.major = '',
@@ -149,6 +151,7 @@ class ApiUser {
     String? experienceLevel,
     String? phone,
     String? bio,
+    String? portfolioUrl,
     String? avatarFileId,
     String? major,
     String? currentLevel,
@@ -175,6 +178,7 @@ class ApiUser {
       joinedAt: joinedAt,
       phone: phone ?? this.phone,
       bio: bio ?? this.bio,
+      portfolioUrl: portfolioUrl ?? this.portfolioUrl,
       avatarFileId: avatarFileId ?? this.avatarFileId,
       accountStatus: accountStatus,
       major: major ?? this.major,
@@ -227,6 +231,7 @@ class ApiUser {
       ),
       phone: asString(json['phone']),
       bio: asString(json['bio']),
+      portfolioUrl: asString(json['portfolio_url'] ?? json['portfolioUrl']),
       avatarFileId: asString(json['avatar_file_id'] ?? json['avatarFileId']),
       accountStatus: asString(
         json['account_status'] ?? json['accountStatus'],
@@ -284,6 +289,7 @@ class ApiUser {
         'joined_at': joinedAt,
         'phone': phone,
         'bio': bio,
+        'portfolio_url': portfolioUrl.isEmpty ? null : portfolioUrl,
         'avatar_file_id': avatarFileId.isEmpty ? null : avatarFileId,
         'account_status': accountStatus,
       };
