@@ -47,7 +47,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     _registrationEnabled = res['registration_enabled'] == true;
     _aiEnabled = res['ai_enabled'] == true;
     _aiLimitsCtrl.text = (res['ai_limits'] ?? 100).toString();
-    _maxUploadCtrl.text = (res['max_upload_size_mb'] ?? 5).toString();
+    _maxUploadCtrl.text = (res['max_upload_size_mb'] ?? 10).toString();
     _allowedTypesCtrl.text =
         (res['allowed_file_types'] as List? ?? []).join(', ');
     _sessionTimeoutCtrl.text = (res['session_timeout_min'] ?? 60).toString();
@@ -90,7 +90,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       'registration_enabled': _registrationEnabled,
       'ai_enabled': _aiEnabled,
       'ai_limits': int.tryParse(_aiLimitsCtrl.text) ?? 100,
-      'max_upload_size_mb': int.tryParse(_maxUploadCtrl.text) ?? 5,
+      'max_upload_size_mb': int.tryParse(_maxUploadCtrl.text) ?? 10,
       'allowed_file_types': fileTypes,
       'session_timeout_min': int.tryParse(_sessionTimeoutCtrl.text) ?? 60,
       'password_policy': _passwordPolicy,

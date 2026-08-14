@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/audio/meeting_browser_speech.dart';
 import '../../core/audio/meeting_speech_recorder.dart';
+import '../../core/files/chat_capture.dart';
 import '../../core/files/file_downloader.dart';
 import '../../core/files/file_actions.dart';
 import '../../core/network/api_result.dart';
@@ -23,6 +24,7 @@ import '../../config/app_config.dart';
 import '../../services/app_services.dart';
 import '../../widgets/widgets.dart';
 import '../meeting/meeting_screens.dart';
+import 'chat_attachment_utils.dart';
 import 'chat_room_utils.dart';
 
 String _initialsFromName(String name) {
@@ -197,17 +199,7 @@ String _formatMsgTimeFromDateTime(DateTime dt) {
   return '$h:$m:$s';
 }
 
-String _mimeForFilename(String? name) {
-  final n = (name ?? '').toLowerCase();
-  if (n.endsWith('.pdf')) return 'application/pdf';
-  if (n.endsWith('.png')) return 'image/png';
-  if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg';
-  if (n.endsWith('.gif')) return 'image/gif';
-  if (n.endsWith('.webp')) return 'image/webp';
-  if (n.endsWith('.txt')) return 'text/plain';
-  if (n.endsWith('.csv')) return 'text/csv';
-  return 'application/octet-stream';
-}
+String _mimeForFilename(String? name) => mimeForFilename(name);
 
 ChatMessage _messageFromRow(Map<String, dynamic> m, String? myId) {
   final senderId = m['sender_id']?.toString() ?? '';
@@ -606,6 +598,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
         final msgRoom = d['room_id']?.toString();
         if (msgRoom != rid) return;
         _appendServerMessage(Map<String, dynamic>.from(d));
+      } else if (payload.event == SocketEvent.error) {
+        final message = payload.data['message']?.toString();
+        if (message == null || message.isEmpty) return;
+        final pending = _messages.where((m) => m.isPending && m.isMe).toList();
+        if (pending.isNotEmpty) {
+          _failPending(pending.last.id, message);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        }
       } else if (payload.event == SocketEvent.messageDeleted) {
         final d = payload.data;
         final msgRoom = d['room_id']?.toString();
@@ -1196,229 +1199,198 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<PlatformFile?> _pickChatFile({
+    required FileType type,
+    List<String>? allowedExtensions,
+  }) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: type,
+      allowedExtensions: allowedExtensions,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return null;
+    return result.files.single;
+  }
+
   Future<void> _pickDocument() async {
     if (_sendingAttachment) return;
     try {
-      final result = await FilePicker.pickFiles(
+      final file = await _pickChatFile(
         type: FileType.custom,
-        allowedExtensions: [
-          'pdf',
-          'doc',
-          'docx',
-          'xls',
-          'xlsx',
-          'ppt',
-          'pptx',
-          'txt',
-          'zip'
-        ],
-        withData: true,
+        allowedExtensions: kChatDocumentExtensions,
       );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.single;
-
-      final sizeInMb = file.size / (1024 * 1024);
-      if (sizeInMb > 50) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('File is too large. Maximum size is 50 MB.')),
-        );
-        return;
-      }
-
-      final sizeStr = file.size > 1024 * 1024
-          ? '${(file.size / (1024 * 1024)).toStringAsFixed(1)} MB'
-          : '${(file.size / 1024).toStringAsFixed(0)} KB';
-
-      if (!mounted) return;
-
-      await _sendAttachmentMessage(
-        fileId: file.name,
+      if (file == null) return;
+      await _uploadAndSendFile(
+        filename: file.name,
+        bytes: file.bytes,
+        path: file.path,
         messageType: 'file',
         caption: 'Shared document: ${file.name}',
-        displayName: file.name,
-        mimeType: sizeStr,
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not pick document: $e')),
-      );
+      _toast('Could not pick document: $e');
     }
   }
 
   Future<void> _pickMedia() async {
     if (_sendingAttachment) return;
     try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.media,
-        withData: true,
+      // FileType.media is not supported on Flutter web; use extensions instead.
+      final file = await _pickChatFile(
+        type: FileType.custom,
+        allowedExtensions: kChatMediaExtensions,
       );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.single;
-      final ext = file.extension?.toLowerCase() ?? '';
-      final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
-
-      final captionCtrl = TextEditingController();
-      if (!mounted) return;
-      final send = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(isVideo ? 'Send Video' : 'Send Photo'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.black12,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Icon(
-                    isVideo ? Icons.movie_outlined : Icons.image_outlined,
-                    size: 48,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(file.name,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: captionCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Caption (Optional)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white),
-              child: const Text('Send'),
-            ),
-          ],
-        ),
+      if (file == null) return;
+      final isVideo = isVideoFilename(file.name);
+      final caption = await _promptAttachmentCaption(
+        title: isVideo ? 'Send Video' : 'Send Photo',
+        filename: file.name,
+        isVideo: isVideo,
+        previewBytes: !isVideo ? file.bytes : null,
       );
-
-      if (send != true || !mounted) return;
-
-      final captionText = captionCtrl.text.trim();
-      await _sendAttachmentMessage(
-        fileId: file.name,
+      if (caption == null) return;
+      await _uploadAndSendFile(
+        filename: file.name,
+        bytes: file.bytes,
+        path: file.path,
         messageType: isVideo ? 'video' : 'image',
-        caption: captionText.isNotEmpty
-            ? captionText
-            : (isVideo ? 'Video' : 'Photo'),
-        displayName: file.name,
-        mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+        caption: caption.isNotEmpty ? caption : (isVideo ? 'Video' : 'Photo'),
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not pick media: $e')),
-      );
+      _toast('Could not pick photo or video: $e');
     }
   }
 
   Future<void> _openCamera() async {
     if (_sendingAttachment) return;
     try {
-      final captionCtrl = TextEditingController();
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.camera_alt, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text('Camera Capture'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                height: 150,
+      var captured = await captureCameraImage();
+      if (!mounted) return;
+      if (captured == null && !kIsWeb) {
+        captured = await _pickImageFromGallery();
+      }
+      if (captured == null) return;
+
+      final caption = await _promptAttachmentCaption(
+        title: 'Send Photo',
+        filename: captured.name,
+        isVideo: false,
+        previewBytes: captured.bytes,
+      );
+      if (caption == null) return;
+      await _uploadAndSendFile(
+        filename: captured.name,
+        bytes: captured.bytes,
+        messageType: 'image',
+        caption: caption.isNotEmpty ? caption : 'Camera Photo',
+        mimeType: captured.mimeType,
+      );
+    } catch (e) {
+      _toast('Camera error: $e');
+    }
+  }
+
+  Future<CapturedChatFile?> _pickImageFromGallery() async {
+    try {
+      final file = await _pickChatFile(type: FileType.image);
+      if (file == null) return null;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        _toast('Could not read the selected photo.');
+        return null;
+      }
+      return CapturedChatFile(
+        name: file.name,
+        bytes: bytes,
+        mimeType: mimeForFilename(file.name),
+      );
+    } catch (e) {
+      _toast('Could not pick photo: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _promptAttachmentCaption({
+    required String title,
+    required String filename,
+    required bool isVideo,
+    List<int>? previewBytes,
+  }) async {
+    final captionCtrl = TextEditingController();
+    if (!mounted) return null;
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: 140,
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.camera, color: Colors.white, size: 48),
-                    SizedBox(height: 8),
-                    Text('Camera Active (Simulated)',
-                        style: TextStyle(color: Colors.white70, fontSize: 13)),
-                  ],
-                ),
+                child: previewBytes != null && previewBytes.isNotEmpty
+                    ? Image.memory(
+                        Uint8List.fromList(previewBytes),
+                        fit: BoxFit.cover,
+                      )
+                    : ColoredBox(
+                        color: Colors.black12,
+                        child: Icon(
+                          isVideo ? Icons.movie_outlined : Icons.image_outlined,
+                          size: 48,
+                          color: AppColors.primary,
+                        ),
+                      ),
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: captionCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Caption (Optional)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx, false);
-                await _pickMedia();
-              },
-              child: const Text('Choose Photo'),
             ),
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white),
-              child: const Text('Take & Send'),
+            const SizedBox(height: 12),
+            Text(
+              filename,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: captionCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Caption (Optional)',
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
         ),
-      );
-
-      if (result != true || !mounted) return;
-
-      final captionText = captionCtrl.text.trim();
-      await _sendAttachmentMessage(
-        fileId: 'camera_photo.jpg',
-        messageType: 'image',
-        caption: captionText.isNotEmpty ? captionText : 'Camera Photo',
-        displayName: 'camera_photo.jpg',
-        mimeType: 'image/jpeg',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Camera error: $e')),
-      );
-    }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    final text = captionCtrl.text.trim();
+    captionCtrl.dispose();
+    if (send != true) return null;
+    return text;
   }
 
   Future<void> _openAudioRecorder() async {
     if (_sendingAttachment) return;
-    final recordedDuration = await showModalBottomSheet<String>(
+    final captured = await showModalBottomSheet<CapturedChatFile>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1426,14 +1398,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ),
       builder: (_) => const _AudioRecorderSheet(),
     );
-    if (recordedDuration == null || !mounted) return;
-
-    await _sendAttachmentMessage(
-      fileId: 'voice_note.mp3',
+    if (captured == null || !mounted) return;
+    if (captured.bytes.isEmpty) {
+      _toast('No audio was captured. Try again.');
+      return;
+    }
+    await _uploadAndSendFile(
+      filename: captured.name,
+      bytes: captured.bytes,
       messageType: 'audio',
-      caption: 'Voice message ($recordedDuration)',
-      displayName: recordedDuration,
-      mimeType: 'audio/mp3',
+      caption: 'Voice message',
+      mimeType: captured.mimeType,
+      displayName: captured.name,
     );
   }
 
@@ -1455,12 +1431,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
             'totalVotes': 0,
             'userVoted': <int>[],
           };
-
-          await _sendAttachmentMessage(
-            fileId: jsonEncode(pollData),
+          await _sendStructuredMessage(
             messageType: 'poll',
-            caption: question,
-            displayName: question,
+            payload: pollData,
           );
         },
       ),
@@ -1486,26 +1459,95 @@ class _ConversationScreenState extends State<ConversationScreen> {
             'goingCount': 1,
             'isGoing': true,
           };
-
-          await _sendAttachmentMessage(
-            fileId: jsonEncode(eventData),
+          await _sendStructuredMessage(
             messageType: 'event',
-            caption: title,
-            displayName: title,
+            payload: eventData,
           );
         },
       ),
     );
   }
 
+  Future<void> _uploadAndSendFile({
+    required String filename,
+    List<int>? bytes,
+    String? path,
+    required String messageType,
+    String? caption,
+    String? mimeType,
+    String? displayName,
+  }) async {
+    if (bytes == null || bytes.isEmpty) {
+      if (path == null || path.isEmpty) {
+        _toast('Could not read the selected file. Please try again.');
+        return;
+      }
+    } else if (bytes.length > kChatMaxUploadBytes) {
+      _toast('File is too large. Maximum size is 10 MB.');
+      return;
+    }
+
+    if (_sendingAttachment) return;
+    setState(() => _sendingAttachment = true);
+
+    String? uploadedId;
+    try {
+      if (!AppConfig.isDemoMode) {
+        final result = await context.read<AppServices>().files.uploadFile(
+              filePath: path ?? '',
+              filename: filename,
+              projectId: _projectId,
+              fileBytes: bytes,
+            );
+        if (!mounted) return;
+        if (!result.isSuccess || result.data == null) {
+          _toast(result.error ?? 'Could not upload file.');
+          return;
+        }
+        uploadedId = result.data!.id;
+        if (parseNumericFileId(uploadedId) == null) {
+          _toast('Upload succeeded but the file id was invalid.');
+          return;
+        }
+      } else {
+        uploadedId = 'demo_${DateTime.now().millisecondsSinceEpoch}';
+      }
+
+      await _sendAttachmentMessage(
+        fileId: uploadedId,
+        messageType: messageType,
+        caption: caption,
+        displayName: displayName ?? filename,
+        mimeType: mimeType ?? mimeForFilename(filename),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _sendingAttachment = false);
+      }
+    }
+  }
+
+  Future<void> _sendStructuredMessage({
+    required String messageType,
+    required Map<String, dynamic> payload,
+  }) async {
+    final encoded = jsonEncode(payload);
+    await _sendAttachmentMessage(
+      messageType: messageType,
+      caption: encoded,
+      displayName: payload['question']?.toString() ??
+          payload['title']?.toString() ??
+          messageType,
+    );
+  }
+
   Future<void> _sendAttachmentMessage({
-    required String fileId,
+    String? fileId,
     required String messageType,
     String? caption,
     String? displayName,
     String? mimeType,
   }) async {
-    if (_sendingAttachment) return;
     final session = context.read<SessionController>();
     final me = session.currentUser;
     final myId = me?.id ?? 'me';
@@ -1513,6 +1555,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final label = caption ?? displayName ?? 'Attachment';
     final now = DateTime.now();
     final pendingId = 'att_${now.millisecondsSinceEpoch}';
+    final numericFileId = parseNumericFileId(fileId);
 
     setState(() {
       _sendingAttachment = true;
@@ -1524,7 +1567,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         message: label,
         time: _formatMsgTimeFromDateTime(now),
         isMe: true,
-        isPending: false,
+        isPending: true,
         messageType: messageType,
         fileId: fileId,
         fileName: displayName ?? fileId,
@@ -1537,26 +1580,40 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final rid = _roomId;
       if (rid != null && rid.isNotEmpty && !AppConfig.isDemoMode) {
-        final ws = _ws ?? context.read<WebSocketManager>();
-        final payload = {
+        final payload = <String, dynamic>{
           'content': label,
           'message_type': messageType,
-          'file_id': int.tryParse(fileId) ?? fileId,
+          if (numericFileId != null) 'file_id': numericFileId,
         };
 
-        if (!ws.isConnected) {
-          await ws.connect();
-        }
-        if (mounted && ws.isConnected) {
-          ws.sendChatPayload(rid, payload);
-          unawaited(_confirmPendingViaRestIfNeeded(pendingId, rid, payload));
-        } else if (mounted) {
-          final result =
-              await context.read<AppServices>().chat.sendMessage(rid, payload);
-          _handleSendResult(pendingId, result);
-        }
+        final result =
+            await context.read<AppServices>().chat.sendMessage(rid, payload);
+        _handleSendResult(pendingId, result);
+      } else if (mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == pendingId);
+          if (idx >= 0) {
+            final current = _messages[idx];
+            _messages[idx] = ChatMessage(
+              id: current.id,
+              senderId: current.senderId,
+              senderName: current.senderName,
+              senderInitials: current.senderInitials,
+              message: current.message,
+              time: current.time,
+              isMe: current.isMe,
+              isPending: false,
+              messageType: current.messageType,
+              fileId: current.fileId,
+              fileName: current.fileName,
+              mimeType: current.mimeType,
+              createdAt: current.createdAt,
+            );
+          }
+        });
       }
-    } catch (_) {
+    } catch (e) {
+      _failPending(pendingId, 'Could not send attachment: $e');
     } finally {
       if (mounted) {
         setState(() => _sendingAttachment = false);
@@ -2236,7 +2293,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
       return _EventCardWidget(message: m);
     }
     if (m.messageType == 'audio') {
-      return _AudioCardWidget(message: m);
+      return _AudioCardWidget(
+        message: m,
+        onOpen: () => _openAttachment(m),
+      );
     }
     if (m.messageType == 'video') {
       return _VideoCardWidget(message: m);
@@ -2389,7 +2449,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Future<void> _openAttachment(ChatMessage m) async {
     final fid = m.fileId;
-    if (fid == null || fid.isEmpty) return;
+    if (fid == null || fid.isEmpty || parseNumericFileId(fid) == null) return;
 
     if (m.isImage) {
       await showDialog<void>(
@@ -2644,7 +2704,9 @@ class _ChatAttachmentBodyState extends State<_ChatAttachmentBody> {
   @override
   void initState() {
     super.initState();
-    if (widget.message.isImage && widget.message.fileId != null) {
+    if (widget.message.isImage &&
+        widget.message.fileId != null &&
+        parseNumericFileId(widget.message.fileId) != null) {
       _loadThumb();
     }
   }
@@ -3377,7 +3439,7 @@ class _FileSharingScreenState extends State<FileSharingScreen> {
     if (_uploading) return;
     final fileSvc = context.read<AppServices>().files;
     final messenger = ScaffoldMessenger.of(context);
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: false,
       withData: true,
@@ -3705,26 +3767,47 @@ class _AudioRecorderSheet extends StatefulWidget {
 }
 
 class _AudioRecorderSheetState extends State<_AudioRecorderSheet> {
+  final MeetingSpeechRecorder _recorder = MeetingSpeechRecorder();
   bool _isRecording = false;
   bool _isPaused = false;
+  bool _starting = true;
   int _seconds = 0;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
+    _begin();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    unawaited(_recorder.dispose());
     super.dispose();
   }
 
+  Future<void> _begin() async {
+    final micOk = await _recorder.ensurePermission();
+    if (!mounted) return;
+    if (!micOk) {
+      Navigator.pop(context);
+      return;
+    }
+    final started = await _recorder.startVoiceNote();
+    if (!mounted) return;
+    if (!started) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      _starting = false;
+      _isRecording = true;
+    });
+    _startTimer();
+  }
+
   void _startTimer() {
-    _isRecording = true;
-    _isPaused = false;
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _isRecording && !_isPaused) {
@@ -3733,7 +3816,8 @@ class _AudioRecorderSheetState extends State<_AudioRecorderSheet> {
     });
   }
 
-  void _togglePause() {
+  Future<void> _togglePause() async {
+    // The recorder captures a single take; pause only stops the timer display.
     setState(() => _isPaused = !_isPaused);
   }
 
@@ -3741,6 +3825,23 @@ class _AudioRecorderSheetState extends State<_AudioRecorderSheet> {
     final m = (_seconds ~/ 60).toString().padLeft(2, '0');
     final s = (_seconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+
+  Future<void> _send() async {
+    final captured = await _recorder.stopVoiceNote();
+    if (!mounted) return;
+    if (captured == null || captured.bytes.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.pop(
+      context,
+      CapturedChatFile(
+        name: captured.filename,
+        bytes: captured.bytes,
+        mimeType: mimeForFilename(captured.filename),
+      ),
+    );
   }
 
   @override
@@ -3766,50 +3867,56 @@ class _AudioRecorderSheetState extends State<_AudioRecorderSheet> {
           const Text('Record Audio Note',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: _isPaused ? Colors.orange : Colors.red,
-                  shape: BoxShape.circle,
+          if (_starting)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: CircularProgressIndicator(),
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: _isPaused ? Colors.orange : Colors.red,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _isPaused
-                    ? 'Paused ($_durationLabel)'
-                    : 'Recording… $_durationLabel',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: _isPaused ? Colors.orange : Colors.red,
+                const SizedBox(width: 8),
+                Text(
+                  _isPaused
+                      ? 'Paused ($_durationLabel)'
+                      : 'Recording… $_durationLabel',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _isPaused ? Colors.orange : Colors.red,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               IconButton(
-                onPressed: () => Navigator.pop(context, null),
+                onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close),
                 color: Colors.red,
                 iconSize: 28,
                 tooltip: 'Cancel',
               ),
               IconButton(
-                onPressed: _togglePause,
+                onPressed: _starting ? null : _togglePause,
                 icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
                 color: Colors.orange,
                 iconSize: 32,
                 tooltip: _isPaused ? 'Resume' : 'Pause',
               ),
               ElevatedButton.icon(
-                onPressed: () => Navigator.pop(context, _durationLabel),
+                onPressed: _starting ? null : _send,
                 icon: const Icon(Icons.send, size: 18),
                 label: const Text('Send'),
                 style: ElevatedButton.styleFrom(
@@ -3846,6 +3953,8 @@ class _CreatePollSheetState extends State<_CreatePollSheet> {
   ];
   bool _allowMultiple = false;
   bool _isAnonymous = false;
+  String? _questionError;
+  String? _optionsError;
 
   @override
   void dispose() {
@@ -3873,20 +3982,16 @@ class _CreatePollSheetState extends State<_CreatePollSheet> {
 
   void _submit() {
     final q = _questionCtrl.text.trim();
-    if (q.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Poll question is required')));
-      return;
-    }
     final options = _optionCtrls
         .map((c) => c.text.trim())
         .where((t) => t.isNotEmpty)
         .toList();
-    if (options.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('At least 2 options are required')));
-      return;
-    }
+    setState(() {
+      _questionError = q.isEmpty ? 'Please fill in the question field' : null;
+      _optionsError =
+          options.length < 2 ? 'Please fill in at least 2 option fields' : null;
+    });
+    if (_questionError != null || _optionsError != null) return;
     widget.onCreated(q, options, _allowMultiple, _isAnonymous);
     Navigator.pop(context);
   }
@@ -3924,15 +4029,25 @@ class _CreatePollSheetState extends State<_CreatePollSheet> {
             const SizedBox(height: 16),
             TextField(
               controller: _questionCtrl,
-              decoration: const InputDecoration(
+              autofocus: true,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
                 labelText: 'Question *',
                 hintText: 'e.g. Which design direction do you prefer?',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                errorText: _questionError,
               ),
             ),
             const SizedBox(height: 16),
             const Text('Options',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            if (_optionsError != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _optionsError!,
+                style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 8),
             ...List.generate(_optionCtrls.length, (i) {
               return Padding(
@@ -4017,6 +4132,7 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   DateTime _date = DateTime.now().add(const Duration(hours: 3));
   TimeOfDay _time =
       TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 3)));
+  String? _titleError;
 
   @override
   void dispose() {
@@ -4029,10 +4145,10 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
   void _submit() {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Event title is required')));
+      setState(() => _titleError = 'Please fill in the event title field');
       return;
     }
+    setState(() => _titleError = null);
 
     final scheduled =
         DateTime(_date.year, _date.month, _date.day, _time.hour, _time.minute);
@@ -4086,10 +4202,12 @@ class _CreateEventSheetState extends State<_CreateEventSheet> {
             const SizedBox(height: 16),
             TextField(
               controller: _titleCtrl,
-              decoration: const InputDecoration(
+              autofocus: true,
+              decoration: InputDecoration(
                 labelText: 'Event Title *',
                 hintText: 'e.g. Design Sync & Q&A',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                errorText: _titleError,
               ),
             ),
             const SizedBox(height: 12),
@@ -4189,11 +4307,10 @@ class _PollCardWidgetState extends State<_PollCardWidget> {
   }
 
   void _parseData() {
-    try {
-      if (widget.message.fileId != null) {
-        _data = jsonDecode(widget.message.fileId!);
-      }
-    } catch (_) {}
+    _data = parseStructuredPayload(
+      content: widget.message.message,
+      fileId: widget.message.fileId,
+    );
   }
 
   void _vote(int index) {
@@ -4382,11 +4499,10 @@ class _EventCardWidgetState extends State<_EventCardWidget> {
   @override
   void initState() {
     super.initState();
-    try {
-      if (widget.message.fileId != null) {
-        _data = jsonDecode(widget.message.fileId!);
-      }
-    } catch (_) {}
+    _data = parseStructuredPayload(
+      content: widget.message.message,
+      fileId: widget.message.fileId,
+    );
   }
 
   void _toggleGoing() {
@@ -4517,7 +4633,8 @@ class _EventCardWidgetState extends State<_EventCardWidget> {
 
 class _AudioCardWidget extends StatefulWidget {
   final ChatMessage message;
-  const _AudioCardWidget({required this.message});
+  final VoidCallback? onOpen;
+  const _AudioCardWidget({required this.message, this.onOpen});
 
   @override
   State<_AudioCardWidget> createState() => _AudioCardWidgetState();
@@ -4550,7 +4667,10 @@ class _AudioCardWidgetState extends State<_AudioCardWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            onPressed: () => setState(() => _isPlaying = !_isPlaying),
+            onPressed: () {
+              widget.onOpen?.call();
+              setState(() => _isPlaying = !_isPlaying);
+            },
             icon: Icon(
               _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
               color: isMe ? Colors.white : AppColors.primary,
