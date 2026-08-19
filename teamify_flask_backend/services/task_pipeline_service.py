@@ -327,6 +327,15 @@ def _load_assignment_model():
     try:
         import joblib
 
+        from services.ml_artifacts import (
+            ensure_sklearn_unpickle_compat,
+            require_joblib_artifact,
+        )
+
+        require_joblib_artifact(_ASSIGNMENT_MODEL_PATH, "assignment model.pkl")
+        require_joblib_artifact(_ASSIGNMENT_FEATURES_PATH, "assignment features.pkl")
+        ensure_sklearn_unpickle_compat()
+
         # Load the GradientBoostingRegressor
         mdl = joblib.load(_ASSIGNMENT_MODEL_PATH)
         if not hasattr(mdl, "predict"):

@@ -136,7 +136,9 @@ def _load_model() -> Any:
         import sys
         import joblib
 
-        path = os.path.abspath(_MODEL_PATH)
+        from services.ml_artifacts import require_joblib_artifact
+
+        path = require_joblib_artifact(_MODEL_PATH, "Chat_Summarization.pkl")
 
         # Register our class in __main__ so pickle can resolve the reference
         main_module = sys.modules.get("__main__")

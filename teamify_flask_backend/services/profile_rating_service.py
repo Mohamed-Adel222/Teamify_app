@@ -39,13 +39,21 @@ def _load_model():
         import sys
         import joblib
 
+        from services.ml_artifacts import (
+            ensure_sklearn_unpickle_compat,
+            require_joblib_artifact,
+        )
+
+        path = require_joblib_artifact(_MODEL_PATH, "teamify_model.pkl")
+        ensure_sklearn_unpickle_compat()
+
         # The pkl was pickled with TeamifyModel from the ml_models directory.
         # Add that directory to sys.path temporarily so pickle can find the class.
-        rating_dir = os.path.dirname(_MODEL_PATH)
+        rating_dir = os.path.dirname(path)
         if rating_dir not in sys.path:
             sys.path.insert(0, rating_dir)
 
-        _model_cache = joblib.load(_MODEL_PATH)
+        _model_cache = joblib.load(path)
         logger.info("Profile rating model loaded from %s", _MODEL_PATH)
         return _model_cache
     except FileNotFoundError:

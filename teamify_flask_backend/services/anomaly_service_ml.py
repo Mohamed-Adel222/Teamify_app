@@ -42,7 +42,14 @@ def _load_bundle() -> Any:
 
     try:
         import joblib
-        path = os.path.abspath(_MODEL_PATH)
+
+        from services.ml_artifacts import (
+            ensure_sklearn_unpickle_compat,
+            require_joblib_artifact,
+        )
+
+        path = require_joblib_artifact(_MODEL_PATH, "security_model.pkl")
+        ensure_sklearn_unpickle_compat()
         bundle = joblib.load(path)
         if not isinstance(bundle, dict) or "model" not in bundle or "scaler" not in bundle:
             raise ValueError(

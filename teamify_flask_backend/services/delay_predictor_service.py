@@ -75,7 +75,14 @@ def _load_model() -> Any:
 
     try:
         import joblib
-        path = os.path.abspath(_MODEL_PATH)
+
+        from services.ml_artifacts import (
+            ensure_sklearn_unpickle_compat,
+            require_joblib_artifact,
+        )
+
+        path = require_joblib_artifact(_MODEL_PATH, "Delay_Predictor.pkl")
+        ensure_sklearn_unpickle_compat()
         obj = joblib.load(path)
 
         # Validate: must be a trained model or the {model, feature_columns} bundle

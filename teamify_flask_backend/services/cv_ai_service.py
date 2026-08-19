@@ -9,9 +9,12 @@ The function signature and return contract are kept stable so the route layer
 never needs to change when you swap the underlying model.
 """
 from __future__ import annotations
+import logging
 import os
 import datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Internal mock / live dispatcher ──────────────────────────────────────────
@@ -27,16 +30,28 @@ def _call_ai_api(prompt: str) -> str:
     """
     provider = os.getenv("AI_PROVIDER", "mock").lower()
 
-    if provider == "openai":                       # ── Real OpenAI path ──
-        import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=400,
-            temperature=0.7,
-        )
-        return resp.choices[0].message.content.strip()
+    if provider == "openai":                       # ── Optional OpenAI path ──
+        api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+        if not api_key:
+            logger.warning(
+                "AI_PROVIDER=openai but OPENAI_API_KEY is missing; using mock summary"
+            )
+        else:
+            try:
+                import openai
+
+                client = openai.OpenAI(api_key=api_key)
+                resp = client.chat.completions.create(
+                    model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=400,
+                    temperature=0.7,
+                )
+                content = (resp.choices[0].message.content or "").strip()
+                if content:
+                    return content
+            except Exception as exc:
+                logger.warning("OpenAI CV summary failed (%s); using mock", exc)
 
     # ── Mock path (default) ──────────────────────────────────────────────────
     name = "the candidate"
