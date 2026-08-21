@@ -660,15 +660,25 @@ def create_app(test_config=None):
         from models.system_setting import SystemSetting  # noqa: F401
         from models.email_delivery import EmailDelivery  # noqa: F401
 
-        _init_database_with_retry(app)
-
         from services.delay_predictor_service import startup_check as delay_startup_check
         from services.chat_summarization_service import startup_check as chat_startup_check
         from services.task_pipeline_service import startup_check as task_pipeline_startup_check
 
-        delay_startup_check()
-        chat_startup_check()
-        task_pipeline_startup_check()
+        def _boot_database() -> None:
+            with app.app_context():
+                _init_database_with_retry(app)
+                delay_startup_check()
+                chat_startup_check()
+                task_pipeline_startup_check()
+
+        db_uri = str(app.config.get("SQLALCHEMY_DATABASE_URI") or "")
+        # Bind the HTTP port immediately in production. Waiting on Postgres
+        # retries made Render report "No open ports detected".
+        if test_config is not None or db_uri.startswith("sqlite"):
+            _boot_database()
+        else:
+            import gevent
+            gevent.spawn(_boot_database)
 
     # --- Start reminders scheduler ---
     from services.scheduler import init_scheduler

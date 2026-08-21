@@ -9,23 +9,20 @@ INTERNAL = "postgresql://u:p@dpg-d8dpcfjbc2fs73ejaamg-a/teamify"
 
 class TestResolveDatabaseUrl:
     def test_postgres_scheme_normalized(self):
-        url = resolve_database_url("postgres://u:p@localhost/db", on_render=False)
+        url = resolve_database_url("postgres://u:p@localhost/db")
         assert url.startswith("postgresql://")
 
     def test_sqlite_unchanged(self):
-        assert resolve_database_url("sqlite:///app.db", on_render=True) == "sqlite:///app.db"
+        assert resolve_database_url("sqlite:///app.db") == "sqlite:///app.db"
 
-    def test_render_rewrites_external_host_to_internal(self):
-        assert resolve_database_url(EXTERNAL, on_render=True) == INTERNAL
+    def test_keeps_external_render_host_by_default(self):
+        assert resolve_database_url(EXTERNAL, use_internal=False) == EXTERNAL
 
-    def test_render_keeps_external_when_forced(self):
-        assert (
-            resolve_database_url(EXTERNAL, on_render=True, use_external=True)
-            == EXTERNAL
-        )
+    def test_opt_in_internal_rewrite(self):
+        assert resolve_database_url(EXTERNAL, use_internal=True) == INTERNAL
 
     def test_strips_sslmode_when_switching_to_internal(self):
-        url = resolve_database_url(EXTERNAL + "?sslmode=require", on_render=True)
+        url = resolve_database_url(EXTERNAL + "?sslmode=require", use_internal=True)
         assert "sslmode" not in url
         assert url.startswith("postgresql://u:p@dpg-d8dpcfjbc2fs73ejaamg-a/")
 

@@ -70,14 +70,13 @@ def _replace_url_host(url: str, new_host: str) -> str:
 def resolve_database_url(
     raw: str | None = None,
     *,
-    on_render: bool | None = None,
-    use_external: bool | None = None,
+    use_internal: bool | None = None,
 ) -> str:
-    """Normalize DATABASE_URL and prefer Render's internal Postgres host.
+    """Normalize DATABASE_URL. Keep Render's public Postgres host by default.
 
-    External ``*.region-postgres.render.com`` hosts require TLS. Combined with
-    gevent this often fails as ``SSL connection has been closed unexpectedly``.
-    Services on Render should use the internal hostname (``dpg-…-a``) instead.
+    Internal ``dpg-…-a`` hostnames only resolve on Render's private network.
+    This service could not resolve them (``Name or service not known``), so
+    rewriting is opt-in via ``DATABASE_USE_INTERNAL=true``.
     """
     url = (raw if raw is not None else os.getenv("DATABASE_URL", "sqlite:///app.db")).strip()
     if not url:
@@ -85,12 +84,10 @@ def resolve_database_url(
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
 
-    if on_render is None:
-        on_render = _truthy(os.getenv("RENDER"))
-    if use_external is None:
-        use_external = _truthy(os.getenv("DATABASE_USE_EXTERNAL"))
+    if use_internal is None:
+        use_internal = _truthy(os.getenv("DATABASE_USE_INTERNAL"))
 
-    if on_render and not use_external and url.startswith("postgresql"):
+    if use_internal and url.startswith("postgresql"):
         host = urlparse(url).hostname or ""
         match = _RENDER_EXTERNAL_PG.match(host)
         if match:
@@ -140,7 +137,7 @@ class Config:
     # Flask
     SECRET_KEY = _require_secret("JWT_SECRET_KEY")
 
-    # Database — postgres:// → postgresql://; Render uses the internal host.
+    # Database — postgres:// → postgresql://. Keep the host from DATABASE_URL.
     SQLALCHEMY_DATABASE_URI = resolve_database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = sqlalchemy_engine_options(SQLALCHEMY_DATABASE_URI)
