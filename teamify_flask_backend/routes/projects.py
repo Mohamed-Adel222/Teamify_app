@@ -250,12 +250,13 @@ def create_project():
     raw_member_ids = data.get("member_ids", [])
     invited_member_ids: list[int] = []
     skipped_members: list[dict] = []
+    invitation_email_ids: list[int] = []
 
     if raw_member_ids and isinstance(raw_member_ids, list):
         from services.project_invitation_service import invite_users_to_project
 
-        invited_member_ids, skipped_members = invite_users_to_project(
-            project, user_id, raw_member_ids
+        invited_member_ids, skipped_members, invitation_email_ids = (
+            invite_users_to_project(project, user_id, raw_member_ids)
         )
 
     log = Log(**dict(
@@ -274,12 +275,24 @@ def create_project():
 
     db.session.commit()
 
-    response_data: dict[str, Any] = {
-        "message": "Project created successfully",
-        "project": project.to_dict(),
-        "invited_member_ids": invited_member_ids,
-        "added_member_ids": invited_member_ids,  # backward compat for clients
-    }
+    if invitation_email_ids:
+        from services.notification_email_service import send_invitation_emails
+
+        email_result = send_invitation_emails(invitation_email_ids)
+        response_data: dict[str, Any] = {
+            "message": "Project created successfully",
+            "project": project.to_dict(),
+            "invited_member_ids": invited_member_ids,
+            "added_member_ids": invited_member_ids,  # backward compat for clients
+            **email_result,
+        }
+    else:
+        response_data = {
+            "message": "Project created successfully",
+            "project": project.to_dict(),
+            "invited_member_ids": invited_member_ids,
+            "added_member_ids": invited_member_ids,
+        }
     if skipped_members:
         response_data["skipped_members"] = skipped_members
 
@@ -719,7 +732,7 @@ def add_member(project_id):
     from models.project_invitation import ProjectInvitation
     from services.project_invitation_service import invite_users_to_project
 
-    invited_ids, skipped = invite_users_to_project(
+    invited_ids, skipped, invitation_email_ids = invite_users_to_project(
         project, current_user_id, [target_user_id]
     )
     if not invited_ids:
@@ -740,9 +753,19 @@ def add_member(project_id):
     db.session.add(log)
     db.session.commit()
 
+    from services.notification_email_service import send_invitation_emails
+
+    email_result = send_invitation_emails(invitation_email_ids)
+    message = "Invitation sent"
+    if invitation_email_ids and not email_result.get("email_sent"):
+        message = (
+            "Invitation created, but the email was not sent. "
+            "The teammate can still accept it in Teamify."
+        )
     return jsonify({
-        "message": "Invitation sent",
+        "message": message,
         "invitation": invitation.to_dict(project_name=project.name) if invitation else None,
+        **email_result,
     }), 201
 
 

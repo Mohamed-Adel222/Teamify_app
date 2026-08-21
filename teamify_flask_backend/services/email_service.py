@@ -73,28 +73,52 @@ def _bare_from_address(raw: str | None) -> str:
     return value
 
 
-def _mail_config() -> dict[str, str]:
-    if has_app_context():
-        cfg = current_app.config
-        return {
-            "provider": (cfg.get("MAIL_PROVIDER") or "resend").strip().lower(),
-            "api_key": (cfg.get("RESEND_API_KEY") or "").strip(),
-            "from_name": (cfg.get("MAIL_FROM_NAME") or "Teamify").strip() or "Teamify",
-            "from_address": _bare_from_address(
-                cfg.get("MAIL_FROM_ADDRESS") or cfg.get("RESEND_FROM_EMAIL")
-            ),
-            "app_base_url": (cfg.get("MAIL_APP_BASE_URL") or "").strip().rstrip("/"),
-        }
+def _clean_setting(value: Any) -> str:
+    text = str(value or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+        text = text[1:-1].strip()
+    return text
+
+
+def _read_mail_setting(*names: str) -> str:
+    """Prefer live process env, then Flask config. Re-reads on every send."""
     import os
 
+    for name in names:
+        value = _clean_setting(os.getenv(name, ""))
+        if value:
+            return value
+    if has_app_context():
+        cfg = current_app.config
+        for name in names:
+            value = _clean_setting(cfg.get(name, ""))
+            if value:
+                return value
+    return ""
+
+
+def _mail_config() -> dict[str, str]:
+    from_raw = _read_mail_setting("MAIL_FROM_ADDRESS", "RESEND_FROM_EMAIL")
     return {
-        "provider": (os.getenv("MAIL_PROVIDER") or "resend").strip().lower(),
-        "api_key": (os.getenv("RESEND_API_KEY") or "").strip(),
-        "from_name": (os.getenv("MAIL_FROM_NAME") or "Teamify").strip() or "Teamify",
-        "from_address": _bare_from_address(
-            os.getenv("MAIL_FROM_ADDRESS") or os.getenv("RESEND_FROM_EMAIL")
-        ),
-        "app_base_url": (os.getenv("MAIL_APP_BASE_URL") or "").strip().rstrip("/"),
+        "provider": (_read_mail_setting("MAIL_PROVIDER") or "resend").lower(),
+        "api_key": _read_mail_setting("RESEND_API_KEY"),
+        "from_name": _read_mail_setting("MAIL_FROM_NAME") or "Teamify",
+        "from_address": _bare_from_address(from_raw),
+        "app_base_url": _read_mail_setting("MAIL_APP_BASE_URL").rstrip("/"),
+    }
+
+
+def mail_status() -> dict[str, Any]:
+    """Public, secret-free snapshot of whether transactional email can send."""
+    cfg = _mail_config()
+    key_ok = bool(cfg["api_key"] and cfg["api_key"] != PLACEHOLDER_API_KEY)
+    from_ok = bool(cfg["from_address"] and is_valid_email(cfg["from_address"]))
+    provider_ok = cfg["provider"] in ("", "resend")
+    return {
+        "configured": bool(key_ok and from_ok and provider_ok),
+        "provider": cfg["provider"] or "resend",
+        "api_key_configured": key_ok,
+        "from_configured": from_ok,
     }
 
 
@@ -209,9 +233,12 @@ def send_email(
         logger.warning("Unsupported MAIL_PROVIDER=%s", cfg["provider"])
         return EmailResult(False, "skipped", error="unsupported mail provider")
 
-    if not cfg["api_key"] or cfg["api_key"] == PLACEHOLDER_API_KEY or not cfg["from_address"]:
-        logger.info("Email skipped: mail provider is not configured")
+    if not cfg["api_key"] or cfg["api_key"] == PLACEHOLDER_API_KEY:
+        logger.warning("Email skipped: RESEND_API_KEY is missing or still the placeholder")
         return EmailResult(False, "skipped", error="email provider is not configured")
+    if not cfg["from_address"]:
+        logger.warning("Email skipped: MAIL_FROM_ADDRESS is not set")
+        return EmailResult(False, "skipped", error="sender address is not configured")
 
     if not is_valid_email(cfg["from_address"]):
         logger.warning("Email skipped: MAIL_FROM_ADDRESS is invalid")

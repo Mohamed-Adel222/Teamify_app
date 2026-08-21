@@ -192,7 +192,8 @@ class ProjectService with ServiceErrorHandler {
   }) =>
       guard(() => _repo.listProjectInvitations(projectId, status: status));
 
-  Future<ApiResult<void>> addMember(String projectId, String userId) =>
+  Future<ApiResult<Map<String, dynamic>>> addMember(
+          String projectId, String userId) =>
       guardWithOffline(
         () => _repo.addProjectMember(projectId: projectId, userId: userId),
         mutation: OfflineMutation(

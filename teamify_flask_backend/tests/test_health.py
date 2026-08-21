@@ -17,6 +17,8 @@ class TestHealth:
         assert d["status"] == "ok"
         assert "video_meetings" in d
         assert isinstance(d["video_meetings"], bool)
+        assert "email" in d
+        assert "configured" in d["email"]
 
     @patch("app.db")
     def test_db_down_503(self, m_db, client):
@@ -26,6 +28,7 @@ class TestHealth:
         d = r.get_json()
         assert d["database"] == "error"
         assert "video_meetings" in d
+        assert "email" in d
 
     def test_no_auth_required(self, client):
         """Health endpoint should be accessible without authentication."""

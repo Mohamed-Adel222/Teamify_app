@@ -564,12 +564,14 @@ def create_app(test_config=None):
         except Exception:
             db_status = "error"
             http_status = 503
+        from services.email_service import mail_status
         from services.livekit_token_service import livekit_configured
 
         return jsonify({
             "status": "ok" if http_status == 200 else "degraded",
             "database": db_status,
             "video_meetings": livekit_configured(),
+            "email": mail_status(),
         }), http_status
 
     # --- Import models + create tables if they don't exist ---

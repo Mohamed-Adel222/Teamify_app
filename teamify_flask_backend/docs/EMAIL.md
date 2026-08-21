@@ -67,6 +67,9 @@ MAIL_APP_BASE_URL=
    `db.create_all()` also creates `email_deliveries` on boot if the table is missing.
 7. Confirm the admin system setting **email_notifications** is enabled.
 8. Restart the API process.
+9. Check `GET /api/health` — `"email": { "configured": true }` means the
+   server can send. `api_key_configured` / `from_configured` show which
+   piece is still missing.
 
 ## What is emailed
 

@@ -94,12 +94,13 @@ class ProjectRepository {
   }
 
   // POST /api/projects/<id>/members
-  Future<void> addProjectMember(
+  Future<Map<String, dynamic>> addProjectMember(
       {required String projectId, required String userId}) async {
-    await _client.post<dynamic>(
+    final response = await _client.post<Map<String, dynamic>>(
       '/api/projects/$projectId/members',
       data: {'user_id': userId},
     );
+    return responseMap(response.data);
   }
 
   // DELETE /api/projects/<id>/members/<uid>

@@ -223,7 +223,7 @@ class TestAddMember:
         m_role.return_value = "owner"
         target = _make_user(MEMBER2_USER_ID)
         m_user.query.filter_by.return_value.first.return_value = target
-        m_invite.return_value = ([MEMBER2_USER_ID], [])
+        m_invite.return_value = ([MEMBER2_USER_ID], [], [])
         inv = _make_project_member(user_id=MEMBER2_USER_ID)
         m_pi.query.filter_by.return_value.first.return_value = inv
         r = client.post(self.URL, headers=member_headers, json={"user_id": str(MEMBER2_USER_ID)})
@@ -601,7 +601,7 @@ class TestCreateProjectWithMembers:
 
         project = _make_project()
         m_proj.return_value = project
-        m_invite.return_value = ([MEMBER2_USER_ID], [])
+        m_invite.return_value = ([MEMBER2_USER_ID], [], [])
 
         r = client.post(
             self.URL,

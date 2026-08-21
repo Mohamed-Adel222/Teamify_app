@@ -14,6 +14,8 @@ from services.email_service import (
 class TestIsConfigured:
     def test_missing_key(self, monkeypatch):
         monkeypatch.delenv("RESEND_API_KEY", raising=False)
+        monkeypatch.delenv("MAIL_FROM_ADDRESS", raising=False)
+        monkeypatch.delenv("RESEND_FROM_EMAIL", raising=False)
         assert is_configured() is False
 
     def test_placeholder_key(self, monkeypatch):
@@ -24,16 +26,21 @@ class TestIsConfigured:
         monkeypatch.setenv("RESEND_API_KEY", "re_test_not_a_real_key")
         assert is_configured() is True
 
-    def test_empty_flask_config_overrides_env(self, monkeypatch):
+    def test_live_env_is_used_when_flask_config_empty(self, monkeypatch):
         monkeypatch.setenv("RESEND_API_KEY", "re_from_env")
+        monkeypatch.setenv("MAIL_FROM_ADDRESS", "no-reply@example.com")
         monkeypatch.setattr(
             "services.email_service.has_app_context", lambda: True
         )
         monkeypatch.setattr(
             "services.email_service.current_app",
-            types.SimpleNamespace(config={"RESEND_API_KEY": ""}),
+            types.SimpleNamespace(config={"RESEND_API_KEY": "", "MAIL_FROM_ADDRESS": ""}),
         )
-        assert is_configured() is False
+        from services.email_service import is_mail_configured, mail_status
+
+        assert is_configured() is True
+        assert is_mail_configured() is True
+        assert mail_status()["configured"] is True
 
 
 class TestSendEmail:
