@@ -4,9 +4,13 @@
 # Placing it here prevents the Werkzeug write()-before-
 # start_response AssertionError and makes the process-level
 # I/O fully async-compatible for Flask-SocketIO.
+#
+# ssl=False: psycopg2/libpq performs its own TLS. Gevent's ssl
+# monkey-patch is a known cause of Render Postgres failing with
+# "SSL connection has been closed unexpectedly".
 # ============================================================
 from gevent import monkey as _monkey
-_monkey.patch_all()
+_monkey.patch_all(ssl=False)
 # ============================================================
 
 import os
@@ -312,6 +316,54 @@ def _ensure_runtime_indexes(app: Flask) -> None:
         )
 
 
+def _init_database_with_retry(app: Flask, attempts: int = 5) -> None:
+    """Create tables / schema patches, retrying Render Postgres wake-ups.
+
+    Free-tier Postgres often drops the first TLS handshake. Failing
+    ``create_all()`` here used to crash gunicorn before /api/health could
+    answer, so Render marked the instance as failed.
+    """
+    delay = 1.0
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            db.create_all()
+            _apply_runtime_schema_patches(app)
+            if attempt > 1:
+                app.logger.info("Database init succeeded on attempt %s", attempt)
+            return
+        except Exception as exc:
+            last_exc = exc
+            app.logger.warning(
+                "Database init failed (attempt %s/%s): %s", attempt, attempts, exc
+            )
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            try:
+                db.session.remove()
+            except Exception:
+                pass
+            try:
+                db.engine.dispose()
+            except Exception:
+                pass
+            if attempt < attempts:
+                try:
+                    import gevent
+                    gevent.sleep(delay)
+                except Exception:
+                    import time
+                    time.sleep(delay)
+                delay = min(delay * 2, 16)
+    app.logger.error(
+        "Starting without a verified DB connection after %s attempts: %s",
+        attempts,
+        last_exc,
+    )
+
+
 def create_app(test_config=None):
     """Create and configure the Flask application."""
 
@@ -608,8 +660,7 @@ def create_app(test_config=None):
         from models.system_setting import SystemSetting  # noqa: F401
         from models.email_delivery import EmailDelivery  # noqa: F401
 
-        db.create_all()
-        _apply_runtime_schema_patches(app)
+        _init_database_with_retry(app)
 
         from services.delay_predictor_service import startup_check as delay_startup_check
         from services.chat_summarization_service import startup_check as chat_startup_check

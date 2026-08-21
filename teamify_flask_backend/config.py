@@ -1,9 +1,19 @@
 import os
+import re
 import secrets
 from datetime import timedelta
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# dpg-xxxx-a.oregon-postgres.render.com → internal host dpg-xxxx-a
+_RENDER_EXTERNAL_PG = re.compile(
+    r"^(?P<internal>dpg-[a-z0-9]+-[a-z])\.[a-z0-9-]+-postgres\.render\.com$",
+    re.IGNORECASE,
+)
+_RENDER_INTERNAL_PG = re.compile(r"^dpg-[a-z0-9]+-[a-z]$", re.IGNORECASE)
 
 
 def resolved_stt_service_url() -> str:
@@ -38,23 +48,102 @@ def _require_secret(env_var: str) -> str:
     return secrets.token_hex(32)
 
 
+def _truthy(value: str | None) -> bool:
+    return (value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _replace_url_host(url: str, new_host: str) -> str:
+    parsed = urlparse(url)
+    userinfo = ""
+    if parsed.username:
+        userinfo = parsed.username
+        if parsed.password is not None:
+            userinfo += f":{parsed.password}"
+        userinfo += "@"
+    port = f":{parsed.port}" if parsed.port else ""
+    netloc = f"{userinfo}{new_host}{port}"
+    return urlunparse(
+        (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
+
+
+def resolve_database_url(
+    raw: str | None = None,
+    *,
+    on_render: bool | None = None,
+    use_external: bool | None = None,
+) -> str:
+    """Normalize DATABASE_URL and prefer Render's internal Postgres host.
+
+    External ``*.region-postgres.render.com`` hosts require TLS. Combined with
+    gevent this often fails as ``SSL connection has been closed unexpectedly``.
+    Services on Render should use the internal hostname (``dpg-…-a``) instead.
+    """
+    url = (raw if raw is not None else os.getenv("DATABASE_URL", "sqlite:///app.db")).strip()
+    if not url:
+        url = "sqlite:///app.db"
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+
+    if on_render is None:
+        on_render = _truthy(os.getenv("RENDER"))
+    if use_external is None:
+        use_external = _truthy(os.getenv("DATABASE_USE_EXTERNAL"))
+
+    if on_render and not use_external and url.startswith("postgresql"):
+        host = urlparse(url).hostname or ""
+        match = _RENDER_EXTERNAL_PG.match(host)
+        if match:
+            url = _replace_url_host(url, match.group("internal"))
+            parsed = urlparse(url)
+            query = [
+                (k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+                if k.lower() != "sslmode"
+            ]
+            url = urlunparse(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    parsed.path,
+                    parsed.params,
+                    urlencode(query),
+                    parsed.fragment,
+                )
+            )
+    return url
+
+
+def sqlalchemy_engine_options(db_url: str) -> dict:
+    """SQLAlchemy pool options that survive Render Postgres idle / TLS quirks."""
+    options = {
+        "pool_pre_ping": True,
+        "pool_recycle": 280,
+        "pool_timeout": 30,
+    }
+    if not db_url.startswith("postgresql"):
+        return options
+
+    host = urlparse(db_url).hostname or ""
+    connect_args = {"connect_timeout": 10}
+    if _RENDER_INTERNAL_PG.match(host):
+        # Internal Render Postgres is plaintext on the private network.
+        connect_args["sslmode"] = "disable"
+    else:
+        connect_args["sslmode"] = "require"
+    options["connect_args"] = connect_args
+    return options
+
+
 class Config:
     """Application configuration class."""
 
     # Flask
     SECRET_KEY = _require_secret("JWT_SECRET_KEY")
 
-    # Database — fix "postgres://" → "postgresql://" (required by SQLAlchemy 1.4+)
-    _db_url = os.getenv("DATABASE_URL", "sqlite:///app.db")
-    if _db_url.startswith("postgres://"):
-        _db_url = _db_url.replace("postgres://", "postgresql://", 1)
-    SQLALCHEMY_DATABASE_URI = _db_url
+    # Database — postgres:// → postgresql://; Render uses the internal host.
+    SQLALCHEMY_DATABASE_URI = resolve_database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 280,
-        "connect_args": {"sslmode": "require"} if _db_url.startswith("postgresql") else {},
-    }
+    SQLALCHEMY_ENGINE_OPTIONS = sqlalchemy_engine_options(SQLALCHEMY_DATABASE_URI)
 
     # Request size limit (5 MB)
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024
