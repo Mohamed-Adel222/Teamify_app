@@ -1014,10 +1014,9 @@ def google_login():
         }), 401
 
     google_email = str(id_info.get("email", "")).strip()
-    google_name = (
-        str(id_info.get("name", "")).strip()
-        or google_email.split("@")[0]
-    )
+    # Use Google's name when present; leave empty so the completion form
+    # can require the user to type one instead of inventing it from email.
+    google_name = str(id_info.get("name", "")).strip()
     google_sub = str(id_info.get("sub", "")).strip()
 
     if not google_email or not google_sub:

@@ -14,8 +14,9 @@ class R {
   static const confirmationAdmin = '/confirmation-admin';
   static const confirmationFreelancer = '/confirmation-freelancer';
   static const confirmationStudent = '/confirmation-student';
-  /// Legacy path — immediately redirects to the regular freelancer/student form.
+  /// Legacy path — redirects Google/GitHub users to the role completion page.
   static const oauthProfileSetup = '/oauth-profile-setup';
+  static const completeFreelancerProfile = '/complete-freelancer-profile';
 
   // Home
   static const freelancerHome = '/freelancer-home';
