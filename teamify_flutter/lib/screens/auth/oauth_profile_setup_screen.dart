@@ -5,8 +5,9 @@ import '../../core/routes.dart';
 import '../../core/session/session_controller.dart';
 
 /// Legacy route kept so old bookmarks still land on the regular signup form.
-/// Email and GitHub/Google sign-up now share `/signup-freelancer` or
-/// `/signup-student` instead of a separate profile-setup page.
+/// Email and GitHub/Google sign-up share `/signup-freelancer` or
+/// `/signup-student`. The freelancer page only asks for name, username,
+/// and email; password is collected on new email sign-up only.
 class OAuthProfileSetupScreen extends StatefulWidget {
   const OAuthProfileSetupScreen({super.key});
 
