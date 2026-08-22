@@ -34,31 +34,27 @@ void main() {
     expect(owner.displayName, 'm.adel01f');
   });
 
-  test('GitHub/email accounts with empty extended fields need the regular signup form',
+  test('Freelancer signup is complete once name, username, and email are set',
       () {
-    final oauthFreelancer = ApiUser.fromJson({
+    final missingName = ApiUser.fromJson({
       'id': 8,
       'display_name': 'm.adel01f',
-      'full_name': 'Mohamed Adel',
+      'full_name': '',
       'email': 'm.adel01f@gmail.com',
       'role': 'member',
       'user_type': 'freelancer',
     });
-    expect(oauthFreelancer.needsProfileSetup, isTrue);
+    expect(missingName.needsProfileSetup, isTrue);
 
-    final completeFreelancer = ApiUser.fromJson({
+    final identityComplete = ApiUser.fromJson({
       'id': 9,
       'display_name': 'john_dev',
       'full_name': 'John Dev',
       'email': 'john@example.com',
       'role': 'member',
       'user_type': 'freelancer',
-      'professional_field': 'Frontend Development',
-      'experience_level': 'Beginner',
-      'availability': 'Full Time',
-      'skills': ['Flutter'],
     });
-    expect(completeFreelancer.needsProfileSetup, isFalse);
+    expect(identityComplete.needsProfileSetup, isFalse);
 
     final oauthStudent = ApiUser.fromJson({
       'id': 10,

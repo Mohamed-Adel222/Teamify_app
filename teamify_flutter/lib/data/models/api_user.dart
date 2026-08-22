@@ -114,16 +114,15 @@ class ApiUser {
   /// Account approval workflow removed — always false.
   bool get isPending => accountStatus.toLowerCase() == 'pending';
 
-  /// True when OAuth or minimal sign-up left extended profile fields empty.
+  /// True when required identity fields from sign-up are still missing.
+  /// Freelancers only need name, username, and email on the signup page.
+  /// Students still complete major, level, and skills on their form.
   bool get needsProfileSetup {
     if (isStudent) {
       return major.isEmpty || currentLevel.isEmpty || skills.isEmpty;
     }
     if (isFreelancer || userType.isEmpty) {
-      return professionalField.isEmpty ||
-          experienceLevel.isEmpty ||
-          availability.isEmpty ||
-          skills.isEmpty;
+      return fullName.isEmpty || displayName.isEmpty || email.isEmpty;
     }
     return false;
   }
