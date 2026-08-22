@@ -89,19 +89,13 @@ void _navigateFromSession(BuildContext context, {bool isNew = false}) {
     return;
   }
 
-  // OAuth (Google/GitHub) accounts start with an empty extended profile —
-  // force them through the same requirements as email registration before
-  // they can reach the app. Applies to login, OAuth return, and session
-  // restore alike.
+  // OAuth (Google/GitHub) and any incomplete account must finish the same
+  // email signup form before they can reach the app.
   final user = session.currentUser;
   final isGuest =
       (user?.systemRole ?? user?.role ?? '').toLowerCase() == 'guest';
   if (user != null && !user.isAdmin && !isGuest && user.needsProfileSetup) {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      R.oauthProfileSetup,
-      (_) => false,
-    );
+    _navigateToRegularSignup(context, user);
     return;
   }
 
@@ -137,15 +131,108 @@ void _navigateFromSessionAfterLogin(BuildContext context,
 
 void _navigateAfterOAuth(BuildContext context) {
   final session = context.read<SessionController>();
-  if (session.currentUser?.needsProfileSetup ?? false) {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      R.oauthProfileSetup,
-      (_) => false,
-    );
+  final user = session.currentUser;
+  if (user?.needsProfileSetup ?? false) {
+    _navigateToRegularSignup(context, user);
     return;
   }
   _navigateFromSession(context);
+}
+
+/// Email and GitHub/Google sign-up both complete on the regular role form.
+String _regularSignupRoute(ApiUser? user) {
+  if (user?.isStudent == true) return R.signupStudent;
+  return R.signupFreelancer;
+}
+
+void _navigateToRegularSignup(BuildContext context, ApiUser? user) {
+  Navigator.pushNamedAndRemoveUntil(
+    context,
+    _regularSignupRoute(user),
+    (_) => false,
+    arguments: const {'oauthSetup': true},
+  );
+}
+
+bool _isAuthenticatedSignup(BuildContext context) {
+  final session = context.read<SessionController>();
+  final user = session.currentUser;
+  return user != null &&
+      (session.isAuthenticated || session.isPendingApproval) &&
+      !user.isAdmin;
+}
+
+Future<void> _startGoogleOAuth(BuildContext context, String role) async {
+  try {
+    final cache = context.read<CacheManager>();
+    await cache.putMap('auth', 'google_oauth', {
+      'selected_role': role,
+      'redirect_uri': OAuthConfig.redirectUri(),
+    });
+  } catch (_) {}
+
+  final nonce = DateTime.now().millisecondsSinceEpoch.toString();
+  final url = OAuthConfig.googleAuthorizeUri(nonce: nonce);
+  if (await canLaunchUrl(url)) {
+    await launchUrl(url, webOnlyWindowName: '_self');
+  }
+}
+
+Future<void> _startGithubOAuth(BuildContext context, String role) async {
+  try {
+    final cache = context.read<CacheManager>();
+    final redirectUri = OAuthConfig.redirectUri();
+    await cache.putMap('auth', 'github_oauth', {
+      'selected_role': role,
+      'redirect_uri': redirectUri,
+    });
+  } catch (_) {}
+
+  final url = OAuthConfig.githubAuthorizeUri();
+  if (await canLaunchUrl(url)) {
+    await launchUrl(url, webOnlyWindowName: '_self');
+  }
+}
+
+Widget _socialImageBtn(String assetPath, {VoidCallback? onTap}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+          shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
+      child: Center(
+          child: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Image.asset(assetPath, fit: BoxFit.contain),
+      )),
+    ),
+  );
+}
+
+Widget _signupSocialActions(BuildContext context, String role) {
+  return Column(
+    children: [
+      const SizedBox(height: 24),
+      const Row(children: [
+        Expanded(child: Divider()),
+        Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: Text('Or',
+                style: TextStyle(color: AppColors.textSecondary))),
+        Expanded(child: Divider()),
+      ]),
+      const SizedBox(height: 16),
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        _socialImageBtn('assets/images/google_logo.png',
+            onTap: () => _startGoogleOAuth(context, role)),
+        const SizedBox(width: 16),
+        _socialImageBtn('assets/images/github_logo.png',
+            onTap: () => _startGithubOAuth(context, role)),
+      ]),
+    ],
+  );
 }
 
 // ── Teamify Logo Widget ───────────────────────────────────────────────────────
@@ -786,39 +873,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Uses OAuth 2.0 implicit flow — redirects to Google, returns id_token in URL fragment.
-  // Works on localhost unlike FedCM/One Tap which require HTTPS.
-  Future<void> _handleGoogleLogin(String role) async {
-    try {
-      final cache = context.read<CacheManager>();
-      await cache.putMap('auth', 'google_oauth', {
-        'selected_role': role,
-        'redirect_uri': OAuthConfig.redirectUri(),
-      });
-    } catch (_) {}
+  Future<void> _handleGoogleLogin(String role) =>
+      _startGoogleOAuth(context, role);
 
-    final nonce = DateTime.now().millisecondsSinceEpoch.toString();
-    final url = OAuthConfig.googleAuthorizeUri(nonce: nonce);
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, webOnlyWindowName: '_self');
-    }
-  }
-
-  Future<void> _handleGithubLogin(String role) async {
-    try {
-      final cache = context.read<CacheManager>();
-      final redirectUri = OAuthConfig.redirectUri();
-      await cache.putMap('auth', 'github_oauth', {
-        'selected_role': role,
-        'redirect_uri': redirectUri,
-      });
-    } catch (_) {}
-
-    final url = OAuthConfig.githubAuthorizeUri();
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, webOnlyWindowName: '_self');
-    }
-  }
+  Future<void> _handleGithubLogin(String role) =>
+      _startGithubOAuth(context, role);
 
   @override
   Widget build(BuildContext context) {
@@ -963,34 +1022,18 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  Widget _socialImageBtn(String assetPath, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border)),
-        child: Center(
-            child: Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: Image.asset(assetPath, fit: BoxFit.contain),
-        )),
-      ),
-    );
-  }
 }
 
 Widget _field(
     {required String hint,
     IconData? prefix,
     bool obscure = false,
+    bool readOnly = false,
     TextEditingController? controller}) {
   return TextField(
     controller: controller,
     obscureText: obscure,
+    readOnly: readOnly,
     decoration: InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: AppColors.textHint),
@@ -1216,6 +1259,7 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
   String _avail = '';
   final List<String> _selectedSkills = [];
   bool _loading = false;
+  bool _prefilled = false;
   String? _usernameError;
   String? _fieldError;
   final _nameCtrl = TextEditingController();
@@ -1230,6 +1274,57 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
     'Senior',
     'Expert'
   ];
+
+  bool get _sessionSignup => _isAuthenticatedSignup(context);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillFromSession());
+  }
+
+  void _prefillFromSession() {
+    if (!mounted || _prefilled) return;
+    final session = context.read<SessionController>();
+    final user = session.currentUser;
+    if (user == null ||
+        !(session.isAuthenticated || session.isPendingApproval)) {
+      return;
+    }
+    if (!user.needsProfileSetup && !user.isAdmin) {
+      _navigateFromSession(context);
+      return;
+    }
+    _prefilled = true;
+    if (_nameCtrl.text.isEmpty && user.fullName.isNotEmpty) {
+      _nameCtrl.text = user.fullName;
+    }
+    if (_usernameCtrl.text.isEmpty && user.displayName.isNotEmpty) {
+      _usernameCtrl.text = user.displayName;
+    }
+    if (_emailCtrl.text.isEmpty && user.email.isNotEmpty) {
+      _emailCtrl.text = user.email;
+    }
+    if (user.professionalField.isNotEmpty) {
+      if (RegistrationOptions.professionalFields
+          .contains(user.professionalField)) {
+        _field2 = user.professionalField;
+      } else {
+        _field2 = 'Other';
+        _customField = user.professionalField;
+      }
+    }
+    if (user.experienceLevel.isNotEmpty) {
+      _level = user.experienceLevel;
+    }
+    if (user.availability.isNotEmpty) {
+      _avail = user.availability;
+    }
+    if (user.skills.isNotEmpty && _selectedSkills.isEmpty) {
+      _selectedSkills.addAll(user.skills);
+    }
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -1260,6 +1355,13 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
       setState(() => _fieldError = 'Professional Field is required.');
       return;
     }
+    if (_avail.isEmpty || _selectedSkills.isEmpty) {
+      _showAuthError(
+        context,
+        'Please complete availability and skills.',
+      );
+      return;
+    }
     setState(() {
       _loading = true;
       _usernameError = null;
@@ -1288,6 +1390,13 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
             context, R.freelancerHome, (_) => false);
         return;
       }
+      if (_sessionSignup) {
+        await _submitAuthenticatedProfile(
+          username: username,
+          fieldToSend: fieldToSend,
+        );
+        return;
+      }
       await context.read<SessionController>().register(
         fullName: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
@@ -1309,6 +1418,33 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _submitAuthenticatedProfile({
+    required String username,
+    required String fieldToSend,
+  }) async {
+    final session = context.read<SessionController>();
+    final res = await context.read<AppServices>().users.updateProfile({
+      'full_name': _nameCtrl.text.trim(),
+      'display_name': username,
+      'email': _emailCtrl.text.trim(),
+      'user_type': 'freelancer',
+      'professional_field': fieldToSend,
+      'experience_level': _level,
+      'availability': _avail,
+      'skills': _selectedSkills,
+    });
+    if (!mounted) return;
+    res.when(
+      success: (updated) {
+        if (updated != null) {
+          session.setCurrentUser(updated);
+        }
+        _navigateFromSession(context, isNew: true);
+      },
+      failure: (e) => _showAuthError(context, e),
+    );
   }
 
   void _showSingleSelect(String title, List<String> options, String current,
@@ -1654,18 +1790,20 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
                 hint: 'example562@gmail.com',
                 prefix: Icons.email_outlined,
                 controller: _emailCtrl),
-            const SizedBox(height: 16),
-            const Text('Password',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                    fontSize: 15)),
-            const SizedBox(height: 8),
-            _field(
-                hint: 'Password123',
-                prefix: Icons.lock_outline,
-                obscure: true,
-                controller: _passwordCtrl),
+            if (!_sessionSignup) ...[
+              const SizedBox(height: 16),
+              const Text('Password',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                      fontSize: 15)),
+              const SizedBox(height: 8),
+              _field(
+                  hint: 'Password123',
+                  prefix: Icons.lock_outline,
+                  obscure: true,
+                  controller: _passwordCtrl),
+            ],
             const SizedBox(height: 16),
             const Text('Professional Field',
                 style: TextStyle(
@@ -1741,8 +1879,11 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
             ),
             const SizedBox(height: 24),
             TButton(
-                label: _loading ? 'Creating...' : 'Continue',
+                label: _loading
+                    ? (_sessionSignup ? 'Saving...' : 'Creating...')
+                    : 'Continue',
                 onTap: _loading ? null : _submit),
+            if (!_sessionSignup) _signupSocialActions(context, 'Freelancer'),
           ]),
         ),
       ),
@@ -1878,6 +2019,7 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
   String? _universityError;
   final List<String> _selectedSkills = [];
   bool _loading = false;
+  bool _prefilled = false;
   String? _usernameError;
   String? _emailError;
   final _nameCtrl = TextEditingController();
@@ -1892,6 +2034,66 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
     'Senior',
     'Expert'
   ];
+
+  bool get _sessionSignup => _isAuthenticatedSignup(context);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillFromSession());
+  }
+
+  void _prefillFromSession() {
+    if (!mounted || _prefilled) return;
+    final session = context.read<SessionController>();
+    final user = session.currentUser;
+    if (user == null ||
+        !(session.isAuthenticated || session.isPendingApproval)) {
+      return;
+    }
+    if (!user.needsProfileSetup && !user.isAdmin) {
+      _navigateFromSession(context);
+      return;
+    }
+    _prefilled = true;
+    if (_nameCtrl.text.isEmpty && user.fullName.isNotEmpty) {
+      _nameCtrl.text = user.fullName;
+    }
+    if (_usernameCtrl.text.isEmpty && user.displayName.isNotEmpty) {
+      _usernameCtrl.text = user.displayName;
+    }
+    if (_emailCtrl.text.isEmpty && user.email.isNotEmpty) {
+      _emailCtrl.text = user.email;
+    }
+    if (user.currentLevel.isNotEmpty) {
+      _selectedLevel = user.currentLevel;
+    }
+    if (user.major.isNotEmpty) {
+      if (RegistrationOptions.majors.contains(user.major)) {
+        _selectedMajor = user.major;
+      } else {
+        _selectedMajor = 'Other';
+        _customMajor = user.major;
+      }
+    }
+    if (user.lookingForTeam != null) {
+      _team = user.lookingForTeam! ? 'Yes' : 'NO';
+    }
+    if (user.skills.isNotEmpty && _selectedSkills.isEmpty) {
+      _selectedSkills.addAll(user.skills);
+    }
+    if (user.universityId.isNotEmpty || user.universityName.isNotEmpty) {
+      _selectedUniversity = UniversityOption.create(
+        id: user.universityId.isNotEmpty ? user.universityId : 'uni_other',
+        name: user.universityName,
+        isCustom: user.isCustomUniversity,
+      );
+      if (user.isCustomUniversity && user.universityName.isNotEmpty) {
+        _customUniCtrl.text = user.universityName;
+      }
+    }
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -1930,6 +2132,11 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
     if (AppConfig.isDemoMode &&
         RegistrationOptions.isDemoUsernameTaken(username)) {
       setState(() => _usernameError = 'Username is already taken.');
+      return;
+    }
+
+    if (_selectedSkills.isEmpty) {
+      _showAuthError(context, 'Please select at least one skill.');
       return;
     }
 
@@ -1985,6 +2192,14 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
         Navigator.pushNamedAndRemoveUntil(context, R.studentHome, (_) => false);
         return;
       }
+      if (_sessionSignup) {
+        await _submitAuthenticatedProfile(
+          username: username,
+          majorToSend: majorToSend,
+          uniToSend: uniToSend,
+        );
+        return;
+      }
       await context.read<SessionController>().register(
         fullName: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
@@ -2009,6 +2224,37 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _submitAuthenticatedProfile({
+    required String username,
+    required String majorToSend,
+    required UniversityOption uniToSend,
+  }) async {
+    final session = context.read<SessionController>();
+    final res = await context.read<AppServices>().users.updateProfile({
+      'full_name': _nameCtrl.text.trim(),
+      'display_name': username,
+      'email': _emailCtrl.text.trim(),
+      'user_type': 'student',
+      'current_level': _selectedLevel,
+      'major': majorToSend,
+      'skills': _selectedSkills,
+      'looking_for_team': _team.toLowerCase() == 'yes',
+      'university_id': uniToSend.id,
+      'university_name': uniToSend.name,
+      'is_custom_university': uniToSend.isCustom,
+    });
+    if (!mounted) return;
+    res.when(
+      success: (updated) {
+        if (updated != null) {
+          session.setCurrentUser(updated);
+        }
+        _navigateFromSession(context, isNew: true);
+      },
+      failure: (e) => _showAuthError(context, e),
+    );
   }
 
   void _showMajorSelect() {
@@ -2345,18 +2591,20 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
               Text(_emailError!,
                   style: const TextStyle(color: AppColors.error, fontSize: 12)),
             ],
-            const SizedBox(height: 16),
-            const Text('Password',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                    fontSize: 15)),
-            const SizedBox(height: 8),
-            _field(
-                hint: 'Password123',
-                prefix: Icons.lock_outline,
-                obscure: true,
-                controller: _passwordCtrl),
+            if (!_sessionSignup) ...[
+              const SizedBox(height: 16),
+              const Text('Password',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                      fontSize: 15)),
+              const SizedBox(height: 8),
+              _field(
+                  hint: 'Password123',
+                  prefix: Icons.lock_outline,
+                  obscure: true,
+                  controller: _passwordCtrl),
+            ],
             const SizedBox(height: 16),
             UniversitySelectorField(
               selectedOption: _selectedUniversity,
@@ -2449,8 +2697,11 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
             _radioRowSimple('NO', _team, (v) => setState(() => _team = v)),
             const SizedBox(height: 24),
             TButton(
-                label: _loading ? 'Creating...' : 'Continue',
+                label: _loading
+                    ? (_sessionSignup ? 'Saving...' : 'Creating...')
+                    : 'Continue',
                 onTap: _loading ? null : _submit),
+            if (!_sessionSignup) _signupSocialActions(context, 'Student'),
           ]),
         ),
       ),

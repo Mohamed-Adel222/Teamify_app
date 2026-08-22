@@ -34,6 +34,43 @@ void main() {
     expect(owner.displayName, 'm.adel01f');
   });
 
+  test('GitHub/email accounts with empty extended fields need the regular signup form',
+      () {
+    final oauthFreelancer = ApiUser.fromJson({
+      'id': 8,
+      'display_name': 'm.adel01f',
+      'full_name': 'Mohamed Adel',
+      'email': 'm.adel01f@gmail.com',
+      'role': 'member',
+      'user_type': 'freelancer',
+    });
+    expect(oauthFreelancer.needsProfileSetup, isTrue);
+
+    final completeFreelancer = ApiUser.fromJson({
+      'id': 9,
+      'display_name': 'john_dev',
+      'full_name': 'John Dev',
+      'email': 'john@example.com',
+      'role': 'member',
+      'user_type': 'freelancer',
+      'professional_field': 'Frontend Development',
+      'experience_level': 'Beginner',
+      'availability': 'Full Time',
+      'skills': ['Flutter'],
+    });
+    expect(completeFreelancer.needsProfileSetup, isFalse);
+
+    final oauthStudent = ApiUser.fromJson({
+      'id': 10,
+      'display_name': 'jane_doe',
+      'full_name': 'Jane Doe',
+      'email': 'jane@example.com',
+      'role': 'member',
+      'user_type': 'student',
+    });
+    expect(oauthStudent.needsProfileSetup, isTrue);
+  });
+
   test('ApiProject and ApiTask tolerate nullable backend fields', () {
     final project = ApiProject.fromJson({
       'id': 7,
