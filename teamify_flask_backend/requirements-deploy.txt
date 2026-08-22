@@ -55,7 +55,10 @@ numpy>=1.26.0
 pandas>=2.2.0
 
 # HTTP Client
+# PyOpenSSL is required so requests/urllib3 can do HTTPS after
+# gevent.monkey.patch_all(ssl=False) (needed for Render Postgres).
 requests>=2.31.0
+pyopenssl>=24.0.0
 resend>=2.0.0
 
 # Transactional email (Resend)

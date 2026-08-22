@@ -43,7 +43,7 @@ Future<void> stashOAuthRedirectIfPresent(CacheManager cache) async {
 }
 
 void _cleanBrowserUrl() {
+  // Drop hash + query so a one-time GitHub code cannot be replayed on reload.
   final path = web.window.location.pathname;
-  final search = web.window.location.search;
-  web.window.history.replaceState(null, '', '$path$search');
+  web.window.history.replaceState(null, '', path);
 }

@@ -77,29 +77,47 @@ def google_client_ids() -> list[str]:
 
 
 def verify_google_id_token(raw_token: str) -> dict[str, Any]:
-    """Verify a Google ID token; tries configured client IDs then dev fallback."""
-    from google.auth.transport import requests as google_requests  # type: ignore[import-untyped]
-    from google.oauth2 import id_token as google_id_token  # type: ignore[import-untyped]
+    """Verify a Google ID token; tries configured client IDs then dev fallback.
 
-    last_error: ValueError | None = None
+    Network / TLS failures are raised as ValueError so the auth route can
+    return 401 instead of an uncaught 500.
+    """
+    try:
+        from google.auth.transport import requests as google_requests  # type: ignore[import-untyped]
+        from google.oauth2 import id_token as google_id_token  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise RuntimeError(
+            "Google sign-in is not available: google-auth is not installed"
+        ) from exc
+
+    last_error: Exception | None = None
+    request = google_requests.Request()
     for audience in google_client_ids():
         try:
             return google_id_token.verify_oauth2_token(
                 raw_token,
-                google_requests.Request(),
+                request,
                 audience=audience,
             )
         except ValueError as exc:
             last_error = exc
+        except Exception as exc:
+            last_error = exc
+            break
+
+    if last_error is not None and not isinstance(last_error, ValueError):
+        raise ValueError(f"Could not verify Google token: {last_error}") from last_error
 
     try:
         return google_id_token.verify_oauth2_token(
             raw_token,
-            google_requests.Request(),
+            request,
             audience=None,
         )
     except ValueError as exc:
         raise ValueError(str(last_error or exc)) from exc
+    except Exception as exc:
+        raise ValueError(f"Could not verify Google token: {last_error or exc}") from exc
 
 
 def _commit_oauth_user(user: User, *, action: str, details: str) -> User:

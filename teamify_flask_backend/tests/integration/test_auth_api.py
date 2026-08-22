@@ -233,3 +233,45 @@ class TestAuthAPIIntegration:
             assert user is not None
             assert user.user_type == "freelancer"
             assert user.display_name.startswith("user_")
+
+    def test_google_login_invalid_token_is_401_not_500(self, client):
+        """Broken/fake Google tokens must not surface as Internal Server Error."""
+        resp = client.post("/api/auth/google", json={"id_token": "fake"})
+        assert resp.status_code == 401
+        body = resp.get_json()
+        assert body["error"] == "Unauthorized"
+        assert "Google" in (body.get("message") or "")
+
+    def test_github_login_provider_error_is_400(self, client, monkeypatch):
+        monkeypatch.setenv("GITHUB_CLIENT_ID", "test-github-client")
+        monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-github-secret")
+
+        mock_token_resp = MagicMock()
+        mock_token_resp.status_code = 200
+        mock_token_resp.json.return_value = {
+            "error": "bad_verification_code",
+            "error_description": "The code passed is incorrect or expired.",
+        }
+
+        with patch("requests.post", return_value=mock_token_resp):
+            resp = client.post("/api/auth/github", json={"code": "used-or-fake"})
+
+        assert resp.status_code == 400
+        assert "GitHub OAuth error" in resp.get_json()["error"]
+
+    def test_github_login_https_failure_is_502(self, client, monkeypatch):
+        monkeypatch.setenv("GITHUB_CLIENT_ID", "test-github-client")
+        monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-github-secret")
+
+        with patch(
+            "requests.post",
+            side_effect=TypeError(
+                "_wrap_socket() argument 'sock' must be _socket.socket, not SSLSocket"
+            ),
+        ):
+            resp = client.post("/api/auth/github", json={"code": "any"})
+
+        assert resp.status_code == 502
+        body = resp.get_json()
+        assert body["error"] == "Bad Gateway"
+        assert "GitHub" in (body.get("message") or "")

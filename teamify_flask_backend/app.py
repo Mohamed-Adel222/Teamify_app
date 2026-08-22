@@ -13,6 +13,23 @@ from gevent import monkey as _monkey
 _monkey.patch_all(ssl=False)
 # ============================================================
 
+# urllib3/requests wrap gevent sockets with stdlib ssl when ssl is left
+# unpatched. That raises:
+#   TypeError: _wrap_socket() argument 'sock' must be _socket.socket, not SSLSocket
+# Google and GitHub login both need outbound HTTPS, so switch urllib3 to
+# PyOpenSSL, which is compatible with this monkey-patch mode.
+try:
+    from urllib3.contrib.pyopenssl import inject_into_urllib3 as _inject_pyopenssl
+
+    _inject_pyopenssl()
+except Exception as _pyopenssl_exc:  # pragma: no cover
+    import logging as _bootstrap_logging
+
+    _bootstrap_logging.getLogger(__name__).warning(
+        "PyOpenSSL HTTPS adapter unavailable; Google/GitHub login may fail: %s",
+        _pyopenssl_exc,
+    )
+
 import os
 import logging
 
