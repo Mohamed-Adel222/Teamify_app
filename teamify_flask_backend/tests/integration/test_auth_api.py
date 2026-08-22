@@ -198,6 +198,8 @@ class TestAuthAPIIntegration:
         assert data["is_new_user"] is True
         assert data["user"]["professional_field"] == "Developer"
         assert "Flutter" in data["user"]["skills"]
+        assert data["user"]["profile_complete"] is True
+        assert data["user"]["needs_profile_setup"] is False
 
         with client.application.app_context():
             user = User.query.filter_by(email="google-profile@example.com").first()
@@ -226,6 +228,8 @@ class TestAuthAPIIntegration:
         assert data["is_new_user"] is True
         assert data["user"]["email"] == "google@example.com"
         assert data["user"]["full_name"] == "Google User"
+        assert data["user"]["needs_profile_setup"] is True
+        assert data["user"]["profile_complete"] is False
         assert "access_token" in data
 
         with client.application.app_context():
@@ -233,6 +237,33 @@ class TestAuthAPIIntegration:
             assert user is not None
             assert user.user_type == "freelancer"
             assert user.display_name.startswith("user_")
+
+    @patch("services.oauth_user_service.verify_google_id_token")
+    def test_google_login_reuses_existing_incomplete_account(self, mock_verify, client):
+        """A second Google sign-in must not create another user."""
+        mock_verify.return_value = {
+            "email": "google-repeat@example.com",
+            "name": "Repeat User",
+            "sub": "google-sub-repeat",
+        }
+        first = client.post(
+            "/api/auth/google",
+            json={"id_token": "fake-token", "user_type": "freelancer"},
+        )
+        assert first.status_code == 201
+        second = client.post(
+            "/api/auth/google",
+            json={"id_token": "fake-token", "user_type": "freelancer"},
+        )
+        assert second.status_code == 200
+        data = second.get_json()
+        assert data["is_new_user"] is False
+        assert data["user"]["email"] == "google-repeat@example.com"
+        assert data["user"]["needs_profile_setup"] is True
+
+        with client.application.app_context():
+            matches = User.query.filter_by(email="google-repeat@example.com").all()
+            assert len(matches) == 1
 
     def test_google_login_invalid_token_is_401_not_500(self, client):
         """Broken/fake Google tokens must not surface as Internal Server Error."""

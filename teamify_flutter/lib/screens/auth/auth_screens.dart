@@ -89,13 +89,13 @@ void _navigateFromSession(BuildContext context, {bool isNew = false}) {
     return;
   }
 
-  // OAuth (Google/GitHub) and any incomplete account must finish the same
-  // email signup form before they can reach the app.
+  // OAuth (Google/GitHub) and any incomplete freelancer must finish profile
+  // completion before they can reach the app. Students keep their own form.
   final user = session.currentUser;
   final isGuest =
       (user?.systemRole ?? user?.role ?? '').toLowerCase() == 'guest';
   if (user != null && !user.isAdmin && !isGuest && user.needsProfileSetup) {
-    _navigateToRegularSignup(context, user);
+    _navigateToIncompleteProfile(context, user);
     return;
   }
 
@@ -133,24 +133,31 @@ void _navigateAfterOAuth(BuildContext context) {
   final session = context.read<SessionController>();
   final user = session.currentUser;
   if (user?.needsProfileSetup ?? false) {
-    _navigateToRegularSignup(context, user);
+    _navigateToIncompleteProfile(context, user);
     return;
   }
   _navigateFromSession(context);
 }
 
-/// Email and GitHub/Google sign-up both complete on the regular role form.
-String _regularSignupRoute(ApiUser? user) {
-  if (user?.isStudent == true) return R.signupStudent;
-  return R.signupFreelancer;
+/// Public wrapper used after freelancer profile completion is saved.
+void navigateAfterAuth(BuildContext context, {bool isNew = false}) {
+  _navigateFromSession(context, isNew: isNew);
 }
 
-void _navigateToRegularSignup(BuildContext context, ApiUser? user) {
+void _navigateToIncompleteProfile(BuildContext context, ApiUser? user) {
+  if (user?.isStudent == true) {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      R.signupStudent,
+      (_) => false,
+      arguments: const {'oauthSetup': true},
+    );
+    return;
+  }
   Navigator.pushNamedAndRemoveUntil(
     context,
-    _regularSignupRoute(user),
+    R.completeFreelancerProfile,
     (_) => false,
-    arguments: const {'oauthSetup': true},
   );
 }
 
@@ -1293,6 +1300,14 @@ class _FreelancerSignupScreenState extends State<FreelancerSignupScreen> {
     }
     if (!user.needsProfileSetup && !user.isAdmin) {
       _navigateFromSession(context);
+      return;
+    }
+    if (!user.isStudent && !user.isAdmin) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        R.completeFreelancerProfile,
+        (_) => false,
+      );
       return;
     }
     _prefilled = true;

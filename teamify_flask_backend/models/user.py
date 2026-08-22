@@ -162,6 +162,9 @@ class User(db.Model):
 
     def to_dict(self):
         """Serialize user to dictionary (excluding password)."""
+        from utils.profile_completion import needs_profile_setup
+
+        incomplete = needs_profile_setup(self)
         return {
             "id": self.id,
             "full_name": self.full_name,
@@ -169,6 +172,8 @@ class User(db.Model):
             "email": self.email,
             "role": self.role,
             "user_type": self.user_type,
+            "profile_complete": not incomplete,
+            "needs_profile_setup": incomplete,
             "github_id": getattr(self, 'github_id', None),
             "professional_field": self.professional_field,
             "experience_level": self.experience_level,

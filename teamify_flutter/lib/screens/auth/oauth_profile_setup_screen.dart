@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 import '../../core/routes.dart';
 import '../../core/session/session_controller.dart';
 
-/// Legacy route kept so old bookmarks still land on the regular signup form.
-/// Email and GitHub/Google sign-up now share `/signup-freelancer` or
-/// `/signup-student` instead of a separate profile-setup page.
+/// Legacy route kept so old bookmarks still land on the right completion page.
+/// Google/GitHub freelancers go to `/complete-freelancer-profile`.
+/// Students still use `/signup-student`.
 class OAuthProfileSetupScreen extends StatefulWidget {
   const OAuthProfileSetupScreen({super.key});
 
@@ -22,13 +22,16 @@ class _OAuthProfileSetupScreenState extends State<OAuthProfileSetupScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final user = context.read<SessionController>().currentUser;
-      final route =
-          user?.isStudent == true ? R.signupStudent : R.signupFreelancer;
+      final route = user?.isStudent == true
+          ? R.signupStudent
+          : R.completeFreelancerProfile;
       Navigator.pushNamedAndRemoveUntil(
         context,
         route,
         (_) => false,
-        arguments: const {'oauthSetup': true},
+        arguments: user?.isStudent == true
+            ? const {'oauthSetup': true}
+            : null,
       );
     });
   }

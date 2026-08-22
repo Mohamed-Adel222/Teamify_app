@@ -19,6 +19,7 @@ import 'data/models/api_user.dart';
 import 'services/app_services.dart';
 
 import 'screens/auth/auth_screens.dart';
+import 'screens/auth/complete_freelancer_profile_screen.dart';
 import 'screens/auth/oauth_profile_setup_screen.dart';
 import 'screens/home/home_screens.dart';
 import 'screens/home/new_user_home_screen.dart';
@@ -171,6 +172,8 @@ class TeamifyApp extends StatelessWidget {
         R.confirmationFreelancer: (_) => const ConfirmationFreelancerScreen(),
         R.confirmationStudent: (_) => const ConfirmationStudentScreen(),
         R.oauthProfileSetup: (_) => protected(const OAuthProfileSetupScreen()),
+        R.completeFreelancerProfile: (_) =>
+            protected(const CompleteFreelancerProfileScreen()),
 
         // ── Home ─────────────────────────────────────────────────────────────
         R.freelancerHome: (_) => protected(const FreelancerHomeScreen()),

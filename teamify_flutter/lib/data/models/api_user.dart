@@ -34,6 +34,8 @@ class ApiUser {
   final String universityId;
   final String universityName;
   final bool isCustomUniversity;
+  /// Server-computed flag from `needs_profile_setup` / `profile_complete`.
+  final bool? serverNeedsProfileSetup;
 
   const ApiUser({
     required this.id,
@@ -68,6 +70,7 @@ class ApiUser {
     this.universityId = '',
     this.universityName = '',
     this.isCustomUniversity = false,
+    this.serverNeedsProfileSetup,
   });
 
   /// Best label for lists (full name, else @display_name).
@@ -114,13 +117,19 @@ class ApiUser {
   /// Account approval workflow removed — always false.
   bool get isPending => accountStatus.toLowerCase() == 'pending';
 
-  /// True when OAuth or minimal sign-up left extended profile fields empty.
+  /// True until the backend (or local field check) says the role profile is complete.
+  /// Google authentication alone does not complete a freelancer profile.
   bool get needsProfileSetup {
+    if (serverNeedsProfileSetup != null) {
+      return serverNeedsProfileSetup!;
+    }
     if (isStudent) {
       return major.isEmpty || currentLevel.isEmpty || skills.isEmpty;
     }
     if (isFreelancer || userType.isEmpty) {
-      return professionalField.isEmpty ||
+      return fullName.isEmpty ||
+          displayName.isEmpty ||
+          professionalField.isEmpty ||
           experienceLevel.isEmpty ||
           availability.isEmpty ||
           skills.isEmpty;
@@ -170,6 +179,7 @@ class ApiUser {
     String? universityId,
     String? universityName,
     bool? isCustomUniversity,
+    bool? serverNeedsProfileSetup,
   }) {
     return ApiUser(
       id: id,
@@ -204,6 +214,8 @@ class ApiUser {
       universityId: universityId ?? this.universityId,
       universityName: universityName ?? this.universityName,
       isCustomUniversity: isCustomUniversity ?? this.isCustomUniversity,
+      serverNeedsProfileSetup:
+          serverNeedsProfileSetup ?? this.serverNeedsProfileSetup,
     );
   }
 
@@ -271,6 +283,7 @@ class ApiUser {
       universityId: asString(json['university_id'] ?? json['universityId']),
       universityName: asString(json['university_name'] ?? json['universityName']),
       isCustomUniversity: asBool(json['is_custom_university'] ?? json['isCustomUniversity']),
+      serverNeedsProfileSetup: _parseNeedsProfileSetup(json),
     );
   }
 
@@ -312,4 +325,16 @@ class ApiUser {
       skills: skills,
     );
   }
+}
+
+bool? _parseNeedsProfileSetup(Map<String, dynamic> json) {
+  if (json.containsKey('needs_profile_setup') ||
+      json.containsKey('needsProfileSetup')) {
+    return asBool(json['needs_profile_setup'] ?? json['needsProfileSetup']);
+  }
+  if (json.containsKey('profile_complete') ||
+      json.containsKey('profileComplete')) {
+    return !asBool(json['profile_complete'] ?? json['profileComplete']);
+  }
+  return null;
 }

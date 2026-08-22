@@ -34,7 +34,7 @@ void main() {
     expect(owner.displayName, 'm.adel01f');
   });
 
-  test('GitHub/email accounts with empty extended fields need the regular signup form',
+  test('Google freelancer accounts stay incomplete until professional fields are saved',
       () {
     final oauthFreelancer = ApiUser.fromJson({
       'id': 8,
@@ -43,8 +43,24 @@ void main() {
       'email': 'm.adel01f@gmail.com',
       'role': 'member',
       'user_type': 'freelancer',
+      'profile_complete': false,
+      'needs_profile_setup': true,
     });
     expect(oauthFreelancer.needsProfileSetup, isTrue);
+
+    final missingName = ApiUser.fromJson({
+      'id': 11,
+      'display_name': 'john_dev',
+      'full_name': '',
+      'email': 'john@example.com',
+      'role': 'member',
+      'user_type': 'freelancer',
+      'professional_field': 'Frontend Development',
+      'experience_level': 'Beginner',
+      'availability': 'Full Time',
+      'skills': ['Flutter'],
+    });
+    expect(missingName.needsProfileSetup, isTrue);
 
     final completeFreelancer = ApiUser.fromJson({
       'id': 9,
@@ -57,6 +73,8 @@ void main() {
       'experience_level': 'Beginner',
       'availability': 'Full Time',
       'skills': ['Flutter'],
+      'profile_complete': true,
+      'needs_profile_setup': false,
     });
     expect(completeFreelancer.needsProfileSetup, isFalse);
 
