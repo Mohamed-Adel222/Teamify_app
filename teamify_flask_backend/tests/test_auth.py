@@ -335,6 +335,32 @@ class TestAuthInputValidation:
         assert r.status_code == 400
 
 
+class TestOAuthLoginErrors:
+    def test_google_missing_token_400(self, client):
+        r = client.post("/api/auth/google", json={})
+        assert r.status_code == 400
+
+    def test_google_invalid_token_401(self, client):
+        r = client.post("/api/auth/google", json={"id_token": "fake"})
+        assert r.status_code == 401
+        assert r.get_json()["error"] == "Unauthorized"
+
+    def test_github_missing_code_400(self, client):
+        r = client.post("/api/auth/github", json={})
+        assert r.status_code == 400
+
+    @patch("requests.post")
+    def test_github_https_typeerror_502(self, mock_post, client, monkeypatch):
+        monkeypatch.setenv("GITHUB_CLIENT_ID", "test-id")
+        monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-secret")
+        mock_post.side_effect = TypeError(
+            "_wrap_socket() argument 'sock' must be _socket.socket, not SSLSocket"
+        )
+        r = client.post("/api/auth/github", json={"code": "abc"})
+        assert r.status_code == 502
+        assert r.get_json()["error"] == "Bad Gateway"
+
+
 # ─── Advanced: Rate Limiting ──────────────────────────────────────────────────
 
 class TestRateLimiting:

@@ -1001,8 +1001,17 @@ def google_login():
 
     try:
         id_info = verify_google_id_token(raw_token)
+    except RuntimeError as exc:
+        logger.exception("Google sign-in is not configured")
+        return jsonify({"error": "Service Unavailable", "message": str(exc)}), 503
     except ValueError as exc:
         return jsonify({"error": "Unauthorized", "message": f"Invalid Google token: {exc}"}), 401
+    except Exception as exc:
+        logger.exception("Google token verification failed")
+        return jsonify({
+            "error": "Unauthorized",
+            "message": f"Google sign-in failed: {exc}",
+        }), 401
 
     google_email = str(id_info.get("email", "")).strip()
     google_name = (
@@ -1414,46 +1423,76 @@ def github_login():
     if redirect_uri:
         token_payload["redirect_uri"] = redirect_uri
 
-    token_resp = _req.post(
-        "https://github.com/login/oauth/access_token",
-        json=token_payload,
-        headers={"Accept": "application/json"},
-        timeout=10,
-    )
+    try:
+        token_resp = _req.post(
+            "https://github.com/login/oauth/access_token",
+            json=token_payload,
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+    except Exception as exc:
+        logger.exception("GitHub token exchange failed")
+        return jsonify({
+            "error": "Bad Gateway",
+            "message": f"Could not reach GitHub: {exc}",
+        }), 502
     if token_resp.status_code != 200:
         return jsonify({"error": "Failed to reach GitHub token endpoint"}), 502
 
-    token_data = token_resp.json()
+    try:
+        token_data = token_resp.json()
+    except Exception:
+        return jsonify({"error": "Failed to reach GitHub token endpoint"}), 502
     github_token = token_data.get("access_token")
     if not github_token:
         err = token_data.get("error_description", token_data.get("error", "Unknown error"))
         return jsonify({"error": f"GitHub OAuth error: {err}"}), 400
 
-    profile_resp = _req.get(
-        "https://api.github.com/user",
-        headers={"Authorization": f"Bearer {github_token}", "Accept": "application/json"},
-        timeout=10,
-    )
+    try:
+        profile_resp = _req.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"Bearer {github_token}", "Accept": "application/json"},
+            timeout=10,
+        )
+    except Exception as exc:
+        logger.exception("GitHub profile fetch failed")
+        return jsonify({
+            "error": "Bad Gateway",
+            "message": f"Could not reach GitHub: {exc}",
+        }), 502
     if profile_resp.status_code != 200:
         return jsonify({"error": "Failed to fetch GitHub user profile"}), 502
 
-    gh_user = profile_resp.json()
+    try:
+        gh_user = profile_resp.json()
+    except Exception:
+        return jsonify({"error": "Failed to fetch GitHub user profile"}), 502
+    if not isinstance(gh_user, dict):
+        return jsonify({"error": "Failed to fetch GitHub user profile"}), 502
     github_id = str(gh_user.get("id", ""))
     gh_email = gh_user.get("email") or ""
     gh_name = gh_user.get("name") or gh_user.get("login") or "github_user"
     gh_login = gh_user.get("login") or f"gh_{github_id}"
 
     if not gh_email:
-        emails_resp = _req.get(
-            "https://api.github.com/user/emails",
-            headers={"Authorization": f"Bearer {github_token}", "Accept": "application/json"},
-            timeout=10,
-        )
-        if emails_resp.status_code == 200:
-            for em in emails_resp.json():
-                if em.get("primary") and em.get("verified"):
-                    gh_email = em.get("email", "")
-                    break
+        try:
+            emails_resp = _req.get(
+                "https://api.github.com/user/emails",
+                headers={"Authorization": f"Bearer {github_token}", "Accept": "application/json"},
+                timeout=10,
+            )
+        except Exception:
+            emails_resp = None
+        if emails_resp is not None and emails_resp.status_code == 200:
+            try:
+                email_rows = emails_resp.json()
+            except Exception:
+                email_rows = []
+            if isinstance(email_rows, list):
+                for em in email_rows:
+                    if isinstance(em, dict) and em.get("primary") and em.get("verified"):
+                        gh_email = em.get("email", "")
+                        break
 
     if not github_id:
         return jsonify({"error": "Could not retrieve GitHub user ID"}), 400

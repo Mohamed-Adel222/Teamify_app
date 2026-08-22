@@ -32,6 +32,8 @@ class TestEngineOptions:
         opts = sqlalchemy_engine_options("sqlite:///app.db")
         assert opts["pool_pre_ping"] is True
         assert "connect_args" not in opts
+        assert "pool_timeout" not in opts
+        assert "pool_recycle" not in opts
 
     def test_internal_render_disables_ssl(self):
         opts = sqlalchemy_engine_options(INTERNAL)

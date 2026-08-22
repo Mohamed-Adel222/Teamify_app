@@ -112,13 +112,15 @@ def resolve_database_url(
 
 def sqlalchemy_engine_options(db_url: str) -> dict:
     """SQLAlchemy pool options that survive Render Postgres idle / TLS quirks."""
+    if not db_url.startswith("postgresql"):
+        # SQLite's StaticPool rejects pool_timeout / pool_recycle.
+        return {"pool_pre_ping": True}
+
     options = {
         "pool_pre_ping": True,
         "pool_recycle": 280,
         "pool_timeout": 30,
     }
-    if not db_url.startswith("postgresql"):
-        return options
 
     host = urlparse(db_url).hostname or ""
     connect_args = {"connect_timeout": 10}
