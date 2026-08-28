@@ -198,6 +198,7 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
   int _activeTab = 0; // 0: Content, 1: Design & Style, 2: Live Preview
   bool _loading = true;
   bool _generating = false;
+  bool _exporting = false;
 
   // Personal Information
   final _nameCtrl = TextEditingController();
@@ -599,34 +600,100 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
     }
   }
 
-  void _exportCv() {
+  Future<void> _exportCv() async {
+    if (_exporting) return;
     _syncDraftState();
     final data = _buildCvDataPayload();
     final design = _buildDesignPayload();
     final user = context.read<SessionController>().currentUser;
     final filename = cvPdfFilename(data, user);
+    final messenger = ScaffoldMessenger.of(context);
 
-    // TODO: Real backend PDF export API integration (POST /api/cv/export)
-    // For Demo Mode frontend export, prepare PDF file bytes & open Export Success Screen
-    saveDownloadedBytes(
-      filename: filename,
-      bytes: Uint8List.fromList('PDF_CV_EXPORT_DEMO_DATA'.codeUnits),
-      mimeType: 'application/pdf',
-    );
+    if (AppConfig.isDemoMode) {
+      await saveDownloadedBytes(
+        filename: filename,
+        bytes: Uint8List.fromList('PDF_CV_EXPORT_DEMO_DATA'.codeUnits),
+        mimeType: 'application/pdf',
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('CV prepared successfully')),
+      );
+      Navigator.pushNamed(
+        context,
+        R.resumeExportSuccess,
+        arguments: {
+          'filename': filename,
+          'cv_data': data,
+          'design': design,
+        },
+      );
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('CV prepared successfully')),
-    );
+    if (user == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Sign in to export your CV as a PDF.')),
+      );
+      return;
+    }
 
-    Navigator.pushNamed(
-      context,
-      R.resumeExportSuccess,
-      arguments: {
-        'filename': filename,
-        'cv_data': data,
-        'design': design,
-      },
-    );
+    setState(() => _exporting = true);
+    try {
+      final payload = buildCvApiPayload(
+        user: user,
+        summary: _summaryCtrl.text,
+        skills: _skills,
+        projects: _projects,
+        experience: _experience,
+        education: _education,
+        certifications: _certifications,
+        design: design,
+        fullName: _nameCtrl.text,
+        email: _emailCtrl.text,
+        title: _titleCtrl.text,
+        phone: _phoneCtrl.text,
+        location: _locationCtrl.text,
+        portfolio: _portfolioCtrl.text,
+      );
+      final cvs = context.read<AppServices>().cvs;
+      final saved = await cvs.createCV(payload);
+      if (!mounted) return;
+      if (!saved.isSuccess || saved.data == null || saved.data!.id.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(saved.error ?? 'Could not save CV before export.')),
+        );
+        return;
+      }
+      final pdf = await cvs.exportPdf(saved.data!.id, filename: filename);
+      if (!mounted) return;
+      if (!pdf.isSuccess || pdf.data == null || pdf.data!.bytes.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(pdf.error ?? 'Could not export CV PDF.')),
+        );
+        return;
+      }
+      await saveDownloadedBytes(
+        filename: pdf.data!.filename,
+        bytes: pdf.data!.bytes,
+        mimeType: 'application/pdf',
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('CV downloaded')),
+      );
+      Navigator.pushNamed(
+        context,
+        R.resumeExportSuccess,
+        arguments: {
+          'filename': pdf.data!.filename,
+          'cv_data': data,
+          'design': design,
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   void _openFullPreviewModal() {
@@ -664,10 +731,12 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
                   ),
                   actions: [
                     TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _exportCv();
-                      },
+                      onPressed: _exporting
+                          ? null
+                          : () {
+                              Navigator.pop(ctx);
+                              _exportCv();
+                            },
                       icon: const Icon(Icons.download, size: 18),
                       label: const Text('Export CV'),
                     ),
@@ -708,10 +777,12 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _exportCv();
-                          },
+                          onPressed: _exporting
+                              ? null
+                              : () {
+                                  Navigator.pop(ctx);
+                                  _exportCv();
+                                },
                           icon: const Icon(Icons.picture_as_pdf),
                           label: const Text('Export CV'),
                         ),
@@ -858,9 +929,15 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: _exportCv,
-                icon: const Icon(Icons.download, size: 18),
-                label: const Text('Export CV'),
+                onPressed: _exporting ? null : _exportCv,
+                icon: _exporting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download, size: 18),
+                label: Text(_exporting ? 'Exporting…' : 'Export CV'),
               ),
             ),
           ],
@@ -1685,7 +1762,8 @@ class _ResumeBuilderScreenState extends State<ResumeBuilderScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _fontFamily,
+                key: ValueKey(_fontFamily),
+                initialValue: _fontFamily,
                 decoration: const InputDecoration(labelText: 'Font Family'),
                 items: _fontOptions
                     .map((f) => DropdownMenuItem(value: f, child: Text(f)))

@@ -183,7 +183,8 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   DropdownButtonFormField<AnnouncementAudience>(
-                    value: _audience,
+                    key: ValueKey(_audience),
+                    initialValue: _audience,
                     decoration: const InputDecoration(
                       labelText: 'Audience Segment',
                       prefixIcon:

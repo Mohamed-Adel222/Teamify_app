@@ -185,8 +185,17 @@ Map<String, dynamic> buildCvApiPayload({
   required String summary,
   required List<String> skills,
   required List<Map<String, String>> projects,
+  List<Map<String, String>> experience = const [],
+  List<Map<String, String>> education = const [],
+  List<Map<String, String>> certifications = const [],
   List<String> achievements = const [],
   Map<String, dynamic>? design,
+  String? fullName,
+  String? email,
+  String? title,
+  String? phone,
+  String? location,
+  String? portfolio,
 }) {
   final d = design ?? defaultDesignPrefs();
   final sections = d['sections'];
@@ -194,29 +203,87 @@ Map<String, dynamic> buildCvApiPayload({
       ? sections.map((k, v) => MapEntry(k.toString(), v == true))
       : defaultSectionVisibility();
 
+  final name = (fullName ?? '').trim().isNotEmpty
+      ? fullName!.trim()
+      : (user.fullName.isNotEmpty ? user.fullName : user.displayName);
+  final mail = (email ?? '').trim().isNotEmpty ? email!.trim() : user.email;
+  final jobTitle = (title ?? '').trim().isNotEmpty
+      ? title!.trim()
+      : (user.professionalField.isNotEmpty
+          ? user.professionalField
+          : user.displayRole);
+
   final personalInfo = <String, dynamic>{
-    'full_name': user.fullName.isNotEmpty ? user.fullName : user.displayName,
-    'email': user.email,
-    'title': user.professionalField.isNotEmpty
-        ? user.professionalField
-        : user.displayRole,
+    'full_name': name,
+    'email': mail,
+    'title': jobTitle,
     'resume_style': d['style']?.toString() ?? 'Modern',
     'accent_color': d['accent']?.toString() ?? '#2D5FA6',
     'section_visibility': sectionMap,
   };
+  final phoneVal = (phone ?? '').trim();
+  if (phoneVal.isNotEmpty) {
+    personalInfo['phone'] =
+        phoneVal.length > 30 ? phoneVal.substring(0, 30) : phoneVal;
+  }
+  final loc = (location ?? '').trim();
+  if (loc.isNotEmpty) personalInfo['location'] = loc;
+  final site = httpUrlFromUserInput(portfolio);
+  if (site != null) personalInfo['website'] = site;
 
   final filtered = filterSkillsForCvApi(skills);
   final skillRows = filtered.kept
-      .map((name) => {'name': name, 'level': 'Intermediate'})
+      .map((skillName) => {'name': skillName, 'level': 'Intermediate'})
       .toList();
 
   final projectRows = <Map<String, dynamic>>[];
   for (final p in projects) {
-    final title = (p['title'] ?? '').trim();
-    if (title.isEmpty) continue;
+    final titleText = (p['title'] ?? '').trim();
+    if (titleText.isEmpty) continue;
     projectRows.add({
-      'name': title,
+      'name': titleText,
       'description': (p['description'] ?? '').trim(),
+    });
+  }
+
+  final experienceRows = <Map<String, dynamic>>[];
+  for (final e in experience) {
+    final company = (e['company'] ?? '').trim();
+    final role = (e['role'] ?? e['title'] ?? '').trim();
+    if (company.isEmpty || role.isEmpty) continue;
+    final dates = splitCvDuration(e['duration'] ?? e['year'] ?? '');
+    experienceRows.add({
+      'company': company,
+      'title': role,
+      'start_date': dates.start,
+      if (dates.end != null) 'end_date': dates.end,
+      'description': (e['description'] ?? '').trim(),
+    });
+  }
+
+  final educationRows = <Map<String, dynamic>>[];
+  for (final e in education) {
+    final institution = (e['institution'] ?? '').trim();
+    final degree = (e['degree'] ?? '').trim();
+    if (institution.isEmpty || degree.isEmpty) continue;
+    final dates = splitCvDuration(e['year'] ?? e['duration'] ?? '');
+    educationRows.add({
+      'institution': institution,
+      'degree': degree,
+      if (dates.start.isNotEmpty) 'start_date': dates.start,
+      if (dates.end != null) 'end_date': dates.end,
+    });
+  }
+
+  final certRows = <Map<String, dynamic>>[];
+  for (final c in certifications) {
+    final certName = (c['name'] ?? '').trim();
+    if (certName.isEmpty) continue;
+    certRows.add({
+      'name': certName,
+      if ((c['issuer'] ?? '').trim().isNotEmpty) 'issuer': c['issuer']!.trim(),
+      if ((c['year'] ?? c['date'] ?? '').trim().isNotEmpty)
+        'date': (c['year'] ?? c['date'])!.trim(),
     });
   }
 
@@ -225,11 +292,39 @@ Map<String, dynamic> buildCvApiPayload({
     'summary': summary.trim(),
     'skills': skillRows,
     'projects': projectRows,
-    'experience': <Map<String, dynamic>>[],
-    'education': <Map<String, dynamic>>[],
-    'certifications': <Map<String, dynamic>>[],
+    'experience': experienceRows,
+    'education': educationRows,
+    'certifications': certRows,
     'is_public': false,
   };
+}
+
+String? httpUrlFromUserInput(String? raw) {
+  final s = (raw ?? '').trim();
+  if (s.isEmpty) return null;
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  if (s.contains('.')) return 'https://$s';
+  return null;
+}
+
+({String start, String? end}) splitCvDuration(String duration) {
+  final cleaned = duration.trim();
+  if (cleaned.isEmpty) return (start: '2020-01', end: null);
+
+  String yearPart(String s) {
+    final m = RegExp(r'(\d{4})').firstMatch(s);
+    if (m != null) return '${m.group(1)}-01';
+    return s.length <= 20 ? s : s.substring(0, 20);
+  }
+
+  final parts = cleaned.split(RegExp(r'\s*[-–—]\s*'));
+  final start = yearPart(parts.first);
+  if (parts.length < 2) return (start: start, end: null);
+  final endRaw = parts.last.toLowerCase();
+  if (endRaw.contains('present') || endRaw.contains('now')) {
+    return (start: start, end: null);
+  }
+  return (start: start, end: yearPart(parts.last));
 }
 
 /// Drops empty entries and single-character junk from corrupted CV data.

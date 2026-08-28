@@ -2109,7 +2109,7 @@ class _TasksTabState extends State<_TasksTab> {
         ),
       ),
     );
-    if (changed == true && context.mounted) {
+    if (changed == true && mounted) {
       NotificationEventDispatcher.triggerEvent(
         context: context,
         type: NotificationType.taskUpdated,
